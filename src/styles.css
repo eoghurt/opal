@@ -1971,3 +1971,13 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 
 .ctx-title { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .swatch-dot { border-color: rgba(22, 20, 15, 0.35); }
+
+/* Calendar colour pickers: 20 fills, 20 accents */
+.cal-pop { width: 320px; }
+.cal-pickers { display: flex; flex-direction: column; gap: 8px; }
+.cal-picker { display: flex; flex-direction: column; gap: 4px; }
+.cal-pickers .cal-swatches { display: grid; grid-template-columns: repeat(10, 22px); gap: 4px; }
+.cal-pickers .cal-swatch { width: 22px; height: 22px; }
+.cal-swatch.is-none { background: repeating-linear-gradient(135deg, #FFFFFF 0 4px, #E4DFD5 4px 5px); }
+.cal-event, .cal-chip { color: var(--ink); }
+.cal-event .cal-event-time, .cal-event .cal-event-link { color: inherit; opacity: 0.85; }

@@ -8,7 +8,7 @@ import { makePanel } from '../panel.js';
 import { slotFor } from '../palettes.js';
 import {
   SNAP, dayKey, keyToDate, addDays, startOfWeek, clock,
-  parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns,
+  parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS, isDark,
 } from '../calendar/events.js';
 
 const HOUR = 52; // pixels per hour
@@ -157,7 +157,7 @@ export class CalendarView {
           h('span', { class: 'mono-label' }, 'Today’s list'),
           agenda.length
             ? agenda.map((e) => h('button', { class: 'cal-agenda-item', onclick: () => this.showPopover(e) },
-              h('span', { class: 'cal-agenda-dot', style: `background: var(--c${this.colorOf(e)})` }),
+              h('span', { class: 'cal-agenda-dot', style: `background: ${this.fillOf(e)}${e.secondary ? `; border-left: 4px solid ${EVENT_COLORS[e.secondary]}` : ''}` }),
               h('span', { class: 'cal-agenda-time' }, e.allDay ? 'all day' : clock(e.start)),
               h('span', null, e.title)))
             : h('span', { class: 'hand side-hint' }, 'nothing planned — click the grid to add'),
@@ -192,7 +192,7 @@ export class CalendarView {
         for (const e of (this.days[key]?.events || []).filter((ev) => ev.allDay)) {
           cell.append(h('button', {
             class: 'cal-chip',
-            style: `background: var(--c${this.colorOf(e)})`,
+            style: this.paint(e),
             onclick: () => this.showPopover(e),
           }, e.title));
         }
@@ -230,7 +230,7 @@ export class CalendarView {
       role: 'button',
       tabindex: '0',
       'aria-label': `${event.title}, ${clock(event.start)} to ${clock(event.end)}`,
-      style: `top: ${event.start * MINUTE}px; height: ${Math.max(18, (event.end - event.start) * MINUTE - 2)}px; left: calc(${event.col * width}% + 2px); width: calc(${width}% - 5px); background: var(--c${this.colorOf(event)})`,
+      style: `top: ${event.start * MINUTE}px; height: ${Math.max(18, (event.end - event.start) * MINUTE - 2)}px; left: calc(${event.col * width}% + 2px); width: calc(${width}% - 5px); ${this.paint(event)}`,
     },
     h('span', { class: 'cal-event-time' }, `${clock(event.start)}–${clock(event.end)}`),
     h('span', { class: 'cal-event-title' }, event.title),
@@ -246,8 +246,17 @@ export class CalendarView {
     return el;
   }
 
-  colorOf(event) {
-    return event.color || slotFor(event.title);
+  // Fill colour (CSS value) and the style for an event's block.
+  fillOf(event) {
+    if (event.primary) return EVENT_COLORS[event.primary];
+    return `var(--c${event.color || slotFor(event.title)})`;
+  }
+
+  paint(event) {
+    const parts = [`background: ${this.fillOf(event)}`];
+    if (event.primary && isDark(EVENT_COLORS[event.primary])) parts.push('color: #FBF9F4');
+    if (event.secondary) parts.push(`border-left: 6px solid ${EVENT_COLORS[event.secondary]}`);
+    return parts.join('; ');
   }
 
   placeNowLine() {
@@ -336,15 +345,30 @@ export class CalendarView {
 
   showPopover(event, anchor) {
     this.closePopover();
-    const swatches = h('div', { class: 'cal-swatches', role: 'radiogroup', 'aria-label': 'Colour' },
-      [1, 2, 3, 4, 5].map((c) => h('button', {
-        class: `cal-swatch${this.colorOf(event) === c ? ' is-on' : ''}`,
-        role: 'radio',
-        'aria-checked': String(this.colorOf(event) === c),
-        'aria-label': `Colour ${c}`,
-        style: `background: var(--c${c})`,
-        onclick: () => this.updateEvent(event, { color: c }),
-      })));
+    // Two rows of 20: the fill (primary) and the accent stripe (secondary).
+    const picker = (label, current, onPick, allowNone) => h('div', { class: 'cal-picker' },
+      h('span', { class: 'mono-label' }, label),
+      h('div', { class: 'cal-swatches', role: 'radiogroup', 'aria-label': label },
+        allowNone ? h('button', {
+          class: `cal-swatch is-none${!current ? ' is-on' : ''}`,
+          role: 'radio',
+          'aria-checked': String(!current),
+          'aria-label': 'No accent',
+          title: 'None',
+          onclick: () => onPick(null),
+        }) : null,
+        Object.entries(EVENT_COLORS).map(([name, hex]) => h('button', {
+          class: `cal-swatch${current === name ? ' is-on' : ''}`,
+          role: 'radio',
+          'aria-checked': String(current === name),
+          'aria-label': name,
+          title: name,
+          style: `background: ${hex}`,
+          onclick: () => onPick(name),
+        }))));
+    const swatches = h('div', { class: 'cal-pickers' },
+      picker('Primary · fill', event.primary, (name) => this.updateEvent(event, { primary: name, color: null }), false),
+      picker('Secondary · accent', event.secondary, (name) => this.updateEvent(event, { secondary: name }), true));
 
     const pop = h('div', { class: 'cal-pop', role: 'dialog', 'aria-label': event.title },
       h('span', { class: 'mono-label' }, event.allDay ? 'All day' : `${clock(event.start)} – ${clock(event.end)}`),
@@ -360,8 +384,8 @@ export class CalendarView {
     host.append(pop);
     const hostBox = host.getBoundingClientRect();
     const box = (anchor || host).getBoundingClientRect();
-    const left = Math.min(Math.max(8, box.right - hostBox.left + 8), hostBox.width - 290);
-    const top = Math.min(Math.max(8, box.top - hostBox.top), hostBox.height - 200);
+    const left = Math.min(Math.max(8, box.right - hostBox.left + 8), hostBox.width - 330);
+    const top = Math.min(Math.max(8, box.top - hostBox.top), hostBox.height - 330);
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
     this.popover = pop;

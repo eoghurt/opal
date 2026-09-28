@@ -4,13 +4,36 @@
 //   - 09:00–10:30 Maths test [[Exam timetable]] #c3
 //   - all day Excursion #c2
 //
-// #c1 … #c5 picks a palette colour. Anything else in the note is left alone.
+// #color/<name> sets the event's fill and #accent/<name> its accent stripe,
+// from the 20 EVENT_COLORS below (older #c1 … #c5 tags pick a palette colour).
+// Anything else in the note is left alone.
 
 export const CALENDAR_FOLDER = 'Calendar';
+
+// The 20 colours an event's fill (primary) and stripe (secondary) can use.
+export const EVENT_COLORS = {
+  tomato: '#E4574A', flamingo: '#F28C8C', coral: '#F28B74', tangerine: '#F4A259', banana: '#F6D55C',
+  lemon: '#F4E36B', sage: '#98C379', basil: '#3F9C63', forest: '#2E5E3B', mint: '#8FD4C1',
+  sky: '#8EC5EA', peacock: '#3DA5D9', blueberry: '#4A6CD4', navy: '#2F3E75', lavender: '#A5A6F6',
+  grape: '#8E54B8', rose: '#F3A6C4', cocoa: '#8D6346', graphite: '#6B6B6B', ink: '#16140F',
+};
+
+// Dark fills need light writing.
+export function isDark(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.22;
+}
 export const SNAP = 15; // minutes
 
 const EVENT_LINE = /^(\s*[-*]\s+)(?:(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})|(all[ -]day))\s+(.*?)\s*$/i;
 const COLOR_TAG = /(^|\s)#c([1-5])\b/;
+const PRIMARY_TAG = /(^|\s)#color\/([a-z]+)\b/;
+const SECONDARY_TAG = /(^|\s)#accent\/([a-z]+)\b/;
+const ALL_COLOR_TAGS = /(^|\s)#(?:c[1-5]|color\/[a-z]+|accent\/[a-z]+)\b/g;
 const LINK = /\[\[([^[\]\n|#]+)(?:#[^[\]\n|]*)?(?:\|([^[\]\n]+))?\]\]/g;
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -49,7 +72,7 @@ export function clock(minutes) {
 const JOINING_WORDS = /\b(with|to|at|for|and|of|about|from|on|in|by|the|a|an|see|re|vs)$/i;
 
 function displayTitle(text) {
-  const clean = text.replace(COLOR_TAG, '$1').trim();
+  const clean = text.replace(ALL_COLOR_TAGS, '$1').trim();
   const before = clean.replace(/(\s*\[\[[^[\]\n]+\]\])+\s*$/, '').trim();
   // "Maths test [[Exam timetable]]" → "Maths test"; but "Lunch with [[Sam]]" keeps Sam.
   const splitOff = before && before !== clean && !JOINING_WORDS.test(before.replace(/[\s–—:-]+$/, ''));
@@ -68,6 +91,8 @@ export function parseEvents(text, key) {
     if (!match) return;
     const body = match[7];
     const color = COLOR_TAG.exec(body);
+    const primary = PRIMARY_TAG.exec(body);
+    const secondary = SECONDARY_TAG.exec(body);
     const link = new RegExp(LINK.source).exec(body);
     const allDay = Boolean(match[6]);
     let start = allDay ? 0 : Number(match[2]) * 60 + Number(match[3]);
@@ -82,18 +107,24 @@ export function parseEvents(text, key) {
       allDay,
       start,
       end,
-      text: body.replace(COLOR_TAG, '$1').trim(), // what's written, minus the colour tag
+      text: body.replace(ALL_COLOR_TAGS, '$1').replace(/\s+/g, ' ').trim(), // what's written, minus colour tags
       title: displayTitle(body) || 'Untitled',
       color: color ? Number(color[2]) : null,
+      primary: primary && EVENT_COLORS[primary[2]] ? primary[2] : null,
+      secondary: secondary && EVENT_COLORS[secondary[2]] ? secondary[2] : null,
       link: link ? link[1].trim() : null,
     });
   });
   return events;
 }
 
-export function formatEvent({ allDay, start, end, text, color }) {
+export function formatEvent({ allDay, start, end, text, color, primary, secondary }) {
   const when = allDay ? 'all day' : `${clock(start)}–${clock(end)}`;
-  return `- ${when} ${text.trim()}${color ? ` #c${color}` : ''}`;
+  const tags = [
+    primary ? `#color/${primary}` : color ? `#c${color}` : null,
+    secondary ? `#accent/${secondary}` : null,
+  ].filter(Boolean).join(' ');
+  return `- ${when} ${text.trim()}${tags ? ` ${tags}` : ''}`;
 }
 
 function splitLines(text) {
