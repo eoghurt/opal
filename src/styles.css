@@ -1818,3 +1818,43 @@ button.lb-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
   .lb-row .lb-panel + .lb-panel { border-left: 0; }
 }
 .lb-cell.is-future { opacity: 0.35; border-style: dashed; }
+
+/* ---------- Formatting bar (appears over selected text) ---------- */
+.cm-editor .cm-tooltip.cm-format-bar {
+  border: 0;
+  background: var(--ink);
+}
+
+.cm-format-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  background: var(--ink);
+  border-radius: 3px;
+  box-shadow: 3px 3px 0 rgba(22, 20, 15, 0.3);
+}
+
+.cm-format-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  color: var(--paper);
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cm-format-btn:hover { background: var(--c2); color: var(--ink); }
+.cm-format-btn.is-bold { font-weight: 900; }
+.cm-format-btn.is-italic { font-family: var(--serif); font-style: italic; font-size: 16px; font-weight: 400; }
+.cm-format-btn.is-underline { text-decoration: underline; text-underline-offset: 3px; }
+.cm-format-btn.is-strike { text-decoration: line-through; }
+.cm-format-btn.is-highlight { background: var(--c2); color: var(--ink); margin: 0 2px; }
+.cm-format-btn.is-mono { font-family: var(--mono); font-size: 11px; font-weight: 400; }
+.cm-format-sep { width: 1px; height: 18px; margin: 0 3px; background: rgba(247, 244, 238, 0.3); }

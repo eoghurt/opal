@@ -5,7 +5,9 @@ import { Annotation, EditorState, StateField, Transaction } from '@codemirror/st
 import { Decoration, MatchDecorator, ViewPlugin } from '@codemirror/view';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { markdown } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { Prec } from '@codemirror/state';
+import { livePreview, formatBar, formatKeymap } from './markdown-live.js';
 import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
 
 // Marks changes that came from the file on disk, not from typing.
@@ -86,6 +88,9 @@ const theme = EditorView.theme({
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(22, 20, 15, 0.14) !important' },
   '.cm-wikilink': { backgroundColor: 'var(--c2)', borderBottom: '1.5px solid #16140F', padding: '0 2px' },
   '&.cmd-held .cm-wikilink': { cursor: 'pointer' },
+  '.cm-highlight': { backgroundColor: 'var(--c2)', padding: '0 1px' },
+  '.cm-underline': { textDecoration: 'underline', textUnderlineOffset: '3px' },
+  '.cm-faint-mark': { color: '#A39D90' },
   // Find & replace bar (Cmd+F)
   '.cm-panels': { backgroundColor: 'var(--paper)', color: '#16140F', fontFamily: MONO, fontSize: '11px' },
   '.cm-panels.cm-panels-bottom': { borderTop: '1.5px solid #16140F' },
@@ -121,9 +126,12 @@ export class MarkdownEditor {
       parent,
       doc: content,
       extensions: [
+        Prec.high(formatKeymap),
         basicSetup,
         windowsLines ? EditorState.lineSeparator.of('\r\n') : [],
-        markdown(),
+        markdown({ base: markdownLanguage }),
+        livePreview,
+        formatBar,
         syntaxHighlighting(scrapbookHighlight),
         EditorView.lineWrapping,
         theme,
