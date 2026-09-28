@@ -6,6 +6,7 @@ import { h, scribbleArrow } from '../ui.js';
 import { slotFor } from '../palettes.js';
 import { noteName, relativeDay, shortDate, pad2 } from '../format.js';
 import { countNotes, latestModified } from '../tree.js';
+import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-types.js';
 
 // Four card looks, picked per note so the page feels hand-assembled but stays
 // the same every time you open it.
@@ -25,11 +26,14 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
     folderNote ? '' : `Tip: a note named “${folder.name || 'Home'}” in here becomes this line.`);
   if (!folderNote) description.classList.add('is-tip');
 
+  const noteCount = files.filter((f) => kindOf(f.path) === 'note').length;
+  const otherCount = files.length - noteCount;
   const meta = [
     isRoot ? 'Vault' : 'Folder',
     `${subfolders.length} ${subfolders.length === 1 ? 'folder' : 'folders'}`,
-    `${files.length} ${files.length === 1 ? 'note' : 'notes'} here`,
-  ].join(' · ');
+    `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}`,
+    otherCount ? `${otherCount} ${otherCount === 1 ? 'file' : 'files'}` : null,
+  ].filter(Boolean).join(' · ') + ' here';
 
   const head = h('section', { class: 'home-head' },
     h('div', { class: 'home-title' },
@@ -38,7 +42,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
       description),
     h('div', { class: 'home-stamp-cell', 'aria-hidden': 'true' },
       h('div', { class: 'home-stamp' },
-        h('span', null, 'Notes'),
+        h('span', null, 'Files'),
         h('span', { class: 'home-stamp-num' }, String(total)),
         h('span', null, 'in here'))),
     h('div', { class: 'home-actions' },
@@ -58,6 +62,9 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   if (files.length) {
     sections.push(h('section', { class: 'home-cards', 'aria-label': `Notes in ${folder.name}` },
       files.map((file) => {
+        const kind = kindOf(file.path);
+        if (kind === 'image') return photoCard(file, onOpenFile);
+        if (kind !== 'note') return fileCard(file, kind, onOpenFile);
         const preview = h('span', { class: 'card-preview' });
         previewSlots.set(file.path, preview);
         return noteCard(file, preview, onOpenFile);
@@ -98,6 +105,30 @@ function folderTile(folder, onOpenFolder) {
       h('span', { class: 'folder-foot' },
         h('span', { class: 'serif-i' }, latest ? `edited ${relativeDay(latest)}` : 'empty'),
         h('span', { class: 'folder-count' }, pad2(countNotes(folder))))));
+}
+
+// Pictures look like a taped-in polaroid.
+function photoCard(file, onOpenFile) {
+  const slot = slotFor(file.path);
+  const tilt = slot % 2 ? -2 : 1.6;
+  return h('div', { class: 'card-cell' },
+    h('button', { class: 'photo-card', style: `transform: rotate(${tilt}deg)`, onclick: () => onOpenFile(file.path) },
+      h('span', { class: 'tape', style: `background: var(--c${slot})`, 'aria-hidden': 'true' }),
+      h('img', { class: 'photo-img', src: fileUrl(file.path, file.modified), alt: '', loading: 'lazy', decoding: 'async' }),
+      h('span', { class: 'hand photo-caption' }, noteName(file.path).replace(/\.[^.]+$/, ''))));
+}
+
+// PDFs, media and Office files: a card stamped with the file type.
+function fileCard(file, kind, onOpenFile) {
+  const slot = slotFor(file.path);
+  const ext = extensionOf(file.path).slice(1).toUpperCase();
+  return h('div', { class: 'card-cell' },
+    h('button', { class: `note-card file-card kind-${kind}`, onclick: () => onOpenFile(file.path) },
+      h('span', { class: 'card-label mono-label' }, h('span', null, kindLabel(kind)), h('span', null, formatSize(file.size))),
+      h('span', { class: 'display card-title' }, noteName(file.path).replace(/\.[^.]+$/, '')),
+      h('span', { class: 'type-block', style: `background: var(--c${slot})` },
+        h('span', { class: 'display type-block-ext' }, ext)),
+      h('span', { class: 'serif-i card-foot' }, file.modified ? `edited ${relativeDay(file.modified)}` : '')));
 }
 
 function noteCard(file, preview, onOpenFile) {

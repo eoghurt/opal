@@ -68,14 +68,14 @@ export class Chrome {
         this.palette.name)
       : null;
 
-    this.topbar.replaceChildren(
+    this.topbar.replaceChildren(...[
       h('button', { class: 'bar-cell wordmark', onclick: this.onHome, title: 'Vault home' },
         h('span', { class: 'wordmark-square' }),
         h('span', { class: 'wordmark-text' }, 'opal')),
       crumbs,
       h('div', { class: 'bar-cell bar-date' }, todayStamp()),
       paletteCell,
-    );
+    ].filter(Boolean));
   }
 
   renderFooter() {

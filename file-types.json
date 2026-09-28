@@ -1,0 +1,10 @@
+{
+  "note": { "label": "Note", "extensions": [".md"] },
+  "pdf": { "label": "PDF", "extensions": [".pdf"] },
+  "image": { "label": "Image", "extensions": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".bmp"] },
+  "audio": { "label": "Audio", "extensions": [".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac"] },
+  "video": { "label": "Video", "extensions": [".mp4", ".mov", ".m4v", ".webm"] },
+  "document": { "label": "Word", "extensions": [".docx"] },
+  "spreadsheet": { "label": "Sheet", "extensions": [".xlsx", ".xls", ".csv"] },
+  "presentation": { "label": "Slides", "extensions": [".pptx"] }
+}

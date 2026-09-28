@@ -15,6 +15,8 @@ import { Chrome } from './chrome.js';
 import { editorForFile } from './editor-registry.js';
 import { renderFolderHome } from './views/folder-home.js';
 import { NoteView } from './views/note-view.js';
+import { FileView } from './views/file-view.js';
+import { fileUrl } from './file-types.js';
 import { renderPalettes } from './views/palettes-view.js';
 import { applyPalette } from './palettes.js';
 import { askName, h, scribbleArrow } from './ui.js';
@@ -145,6 +147,10 @@ async function showNote(filePath) {
     showHome(parentOf(filePath), `Opal can't open this kind of file yet: ${filePath}`);
     return;
   }
+  if (!EditorType.editsText) {
+    await showViewer(filePath, EditorType);
+    return;
+  }
 
   let content;
   try {
@@ -186,6 +192,38 @@ async function showNote(filePath) {
   current = { filePath, editor, noteView };
   noteView.setTree(tree);
   noteView.setText(content);
+
+  chrome.setStatus('Saved');
+  setTitle(noteName(filePath));
+  chrome.setCrumbs([...crumbsFor(parentOf(filePath)), { label: noteName(filePath) }]);
+  sidebar.setActive('file', filePath);
+}
+
+// PDFs, pictures, media and Office files: view-only.
+async function showViewer(filePath, ViewerType) {
+  if (!findFile(tree, filePath)) await reloadTree();
+  const node = findFile(tree, filePath);
+  if (!node) {
+    showHome(parentOf(filePath), `Can't find ${filePath} any more.`);
+    return;
+  }
+
+  screen = { kind: 'note', filePath };
+  viewEl.scrollTop = 0;
+  const fileView = new FileView(viewEl, {
+    filePath,
+    vaultName: vault.name,
+    onOpenFile: (p) => openFile(p),
+    onOpenFolder: (p) => openFolder(p),
+  });
+  const viewer = new ViewerType({
+    parent: fileView.viewerHost,
+    filePath,
+    url: fileUrl(filePath, node.modified),
+    onStatus: (status) => chrome.setStatus(status),
+  });
+  current = { filePath, editor: viewer, noteView: fileView, modified: node.modified };
+  fileView.setTree(tree);
 
   chrome.setStatus('Saved');
   setTitle(noteName(filePath));
@@ -318,6 +356,15 @@ function refreshFiles() {
 // that version — the editor only accepts it when nothing here is unsaved.
 async function pickUpOutsideEdits() {
   const { editor, filePath } = current;
+  if (editor.reload) {
+    // A viewer: redraw if the file itself changed.
+    const node = findFile(tree, filePath);
+    if (node && node.modified !== current.modified) {
+      current.modified = node.modified;
+      editor.reload(fileUrl(filePath, node.modified));
+    }
+    return;
+  }
   if (!editor.reloadFromDisk || editor.isDirty) return;
   const token = editor.saveToken;
   let diskText;

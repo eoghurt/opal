@@ -898,3 +898,293 @@ button.chip:hover { box-shadow: 2px 2px 0 var(--ink); }
 .palette-use:disabled { background: transparent; color: var(--ink); cursor: default; }
 
 .welcome-notice { margin: 0 0 20px; max-width: 760px; border: var(--rule); }
+
+/* ---------- File view (PDFs, pictures, media, Office files) ---------- */
+
+.note-view.is-file { height: 100%; min-height: 0; }
+.file-left { width: 280px; height: auto; position: static; }
+.file-center { min-height: 0; background: var(--ground); }
+.file-viewer { flex-grow: 1; min-height: 0; display: flex; }
+.chip-quiet { color: var(--ink-3); border-style: dashed; }
+
+.file-actions {
+  display: flex;
+  flex-direction: column;
+  border-bottom: var(--rule);
+}
+
+.file-actions .home-action { min-height: 42px; }
+
+.viewer {
+  flex-grow: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.viewer-message {
+  margin: auto;
+  padding: 40px;
+  max-width: 520px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.viewer-hand { margin: 0; font-size: 34px; transform: rotate(-2deg); }
+.viewer-detail { margin: 0; font-size: 17px; color: var(--ink-2); }
+
+/* PDF */
+.viewer-pdf { overflow: hidden; padding: 0 20px 20px; }
+.pdf-frame { flex-grow: 1; width: 100%; border: var(--rule); background: var(--white); }
+
+/* Pictures */
+.viewer-image { align-items: center; padding: 20px; gap: 10px; }
+.image-stage { flex-grow: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+
+.image-mount {
+  position: relative;
+  padding: 12px;
+  background: var(--white);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 var(--ink);
+  cursor: zoom-out;
+  max-width: none;
+}
+
+.image-mount.is-fit { cursor: zoom-in; max-width: 100%; max-height: 100%; }
+.image-mount .tape { top: -12px; left: calc(50% - 37px); }
+.image-photo { display: block; }
+.image-mount.is-fit .image-photo { max-width: 100%; max-height: calc(100vh - 44px - 30px - 150px); object-fit: contain; }
+.image-size { flex-shrink: 0; }
+
+/* Audio and video */
+.viewer-media { align-items: center; justify-content: center; padding: 28px; }
+
+.audio-card {
+  width: min(640px, 100%);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--c2);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.audio-title { font-size: 30px; overflow-wrap: anywhere; }
+.audio-bars { height: 70px; display: flex; align-items: center; gap: 3px; }
+.audio-bars span { flex-grow: 1; background: var(--ink); border-radius: 1px; }
+.audio-player { width: 100%; }
+
+.video-stage { width: 100%; max-height: 100%; display: flex; justify-content: center; }
+.video-player { max-width: 100%; max-height: calc(100vh - 44px - 30px - 120px); border: var(--rule); background: #000000; }
+
+/* Word */
+.viewer-doc { align-items: center; }
+.doc-desk { width: 100%; padding: 24px 20px 60px; display: flex; justify-content: center; }
+
+.doc-page {
+  width: min(780px, 100%);
+  padding: 56px 64px;
+  background: var(--white);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 var(--ink);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.doc-page h1, .doc-page h2, .doc-page h3, .doc-page h4 {
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 1.2em 0 0.4em;
+}
+
+.doc-page h1 { font-size: 34px; }
+.doc-page h2 { font-size: 24px; }
+.doc-page h3 { font-size: 19px; }
+.doc-page > :first-child { margin-top: 0; }
+.doc-page img { max-width: 100%; height: auto; }
+.doc-page table { border-collapse: collapse; margin: 1em 0; }
+.doc-page td, .doc-page th { border: 1px solid var(--ink); padding: 4px 8px; vertical-align: top; }
+.doc-page blockquote { margin: 1em 0; padding-left: 14px; border-left: 3px solid var(--ink); font-family: var(--serif); font-style: italic; font-size: 17px; }
+.doc-link { text-decoration: underline; background: var(--c2); }
+
+/* Spreadsheets */
+.viewer-sheet { overflow: hidden; }
+
+.sheet-tabs {
+  display: flex;
+  flex-shrink: 0;
+  overflow-x: auto;
+  border-bottom: var(--rule);
+  background: var(--paper);
+}
+
+.sheet-tab {
+  padding: 8px 16px;
+  border-right: var(--rule);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sheet-tab.is-active { background: var(--c3); font-weight: 600; }
+.sheet-scroll { flex-grow: 1; min-height: 0; overflow: auto; background: var(--white); }
+
+.sheet-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.sheet-grid th, .sheet-grid td {
+  padding: 4px 10px;
+  border-right: var(--hair);
+  border-bottom: var(--hair);
+  white-space: nowrap;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
+  border-bottom: var(--rule);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+
+.sheet-grid tbody th {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+  border-right: var(--rule);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  text-align: right;
+  color: var(--ink-2);
+}
+
+.sheet-grid .sheet-corner { left: 0; z-index: 2; border-right: var(--rule); }
+.sheet-grid td.is-number { text-align: right; font-variant-numeric: tabular-nums; }
+.sheet-note { flex-shrink: 0; padding: 8px 14px; border-top: var(--rule); background: var(--c2); }
+
+/* Slides */
+.slides-list {
+  flex-grow: 1;
+  padding: 16px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  overflow: auto;
+}
+
+.slides-note { margin: 0; font-size: 16px; color: var(--ink-2); text-align: center; }
+.slide-block { display: flex; flex-direction: column; gap: 6px; }
+.slide-holder { position: relative; }
+
+.slide-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  background: var(--white);
+  outline: 1.5px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--ink);
+  font-family: var(--sans);
+  color: var(--ink);
+}
+
+.slide-text {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  padding: 7px 10px;
+  line-height: 1.15;
+  overflow: visible;
+}
+
+.slide-text.is-title { font-family: var(--display); font-weight: 800; letter-spacing: -0.02em; }
+.slide-para { position: relative; white-space: pre-wrap; margin-bottom: 0.25em; }
+.slide-bullet { position: absolute; margin-left: -1em; }
+.slide-image { position: absolute; object-fit: contain; }
+
+.slide-missing {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--ink-3);
+  color: var(--ink-3);
+  background: repeating-linear-gradient(45deg, #F1EEE8 0 6px, #FFFFFF 6px 12px);
+}
+
+.slide-table-wrap { position: absolute; overflow: hidden; }
+.slide-table { width: 100%; border-collapse: collapse; }
+.slide-table td, .slide-table th { border: 1px solid var(--ink); padding: 0.3em 0.5em; text-align: left; vertical-align: top; }
+.slide-table th { background: var(--paper); }
+
+/* ---------- Folder home: picture and file cards ---------- */
+
+.photo-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 10px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--white);
+  border: var(--rule);
+  box-shadow: 3px 3px 0 rgba(22, 20, 15, 0.3);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.photo-card:hover { transform: rotate(0deg) translate(-2px, -2px) !important; box-shadow: 5px 5px 0 var(--ink); }
+.photo-card .tape { top: -12px; left: calc(50% - 37px); }
+
+.photo-img {
+  flex-grow: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: cover;
+  background: repeating-linear-gradient(45deg, #D9D3C7 0 6px, #E8E3D9 6px 12px);
+}
+
+.photo-caption {
+  font-size: 20px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.type-block {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--rule);
+}
+
+.type-block-ext { font-size: 34px; letter-spacing: -0.02em; }
+.doc-page td p, .doc-page th p { margin: 0; }
+.doc-page img { max-height: 60vh; object-fit: contain; }
+.photo-caption { line-height: 1.15; padding-bottom: 4px; flex-shrink: 0; }

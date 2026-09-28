@@ -1,9 +1,11 @@
 // Main process: the only part of Opal that touches the disk.
 // The window (renderer) asks for things through IPC; see preload.js.
 
-const { app, BrowserWindow, dialog, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
+const FILE_TYPES = require('./file-types.json');
 
 app.setName('Opal');
 // Lets automated tests use a throwaway settings folder instead of the real one.
@@ -53,10 +55,17 @@ function setVault(folder) {
 }
 
 // File types Opal can open. Later versions add more (e.g. spreadsheets).
-const NOTE_EXTENSIONS = ['.md'];
+// Only notes can be edited and saved. Every other known type is view-only.
+const NOTE_EXTENSIONS = FILE_TYPES.note.extensions;
+const KNOWN_EXTENSIONS = Object.values(FILE_TYPES).flatMap((t) => t.extensions);
 
 function isNoteFile(name) {
   return NOTE_EXTENSIONS.includes(path.extname(name).toLowerCase());
+}
+
+// Any file Opal can show: notes plus PDFs, images, media and Office files.
+function isKnownFile(name) {
+  return KNOWN_EXTENSIONS.includes(path.extname(name).toLowerCase());
 }
 
 function isHidden(name) {
@@ -76,9 +85,9 @@ async function scanFolder(relFolder) {
     try {
       if (entry.isDirectory()) {
         folders.push({ type: 'folder', name: entry.name, path: relPath, children: await scanFolder(relPath) });
-      } else if (entry.isFile() && isNoteFile(entry.name)) {
+      } else if (entry.isFile() && isKnownFile(entry.name)) {
         const stat = await fs.promises.stat(path.join(vaultPath, relPath));
-        files.push({ type: 'file', name: entry.name, path: relPath, created: stat.birthtimeMs, modified: stat.mtimeMs });
+        files.push({ type: 'file', name: entry.name, path: relPath, created: stat.birthtimeMs, modified: stat.mtimeMs, size: stat.size });
       }
     } catch {
       // The entry vanished mid-scan; the next refresh will catch up.
@@ -181,15 +190,64 @@ async function switchVault() {
 // ---------- Reading and writing notes ----------
 
 // Turns a vault-relative path from the window into a full path.
-// Refuses anything outside the vault, hidden, or not a note.
-function resolveNotePath(relPath) {
+// Refuses anything outside the vault, hidden, or of an unknown type.
+function resolveVaultFile(relPath) {
   if (!vaultPath) throw new Error('No vault is open.');
   if (typeof relPath !== 'string') throw new Error('Invalid path.');
   const full = path.resolve(vaultPath, relPath);
   if (!full.startsWith(vaultPath + path.sep)) throw new Error('That path is outside the vault.');
   if (path.relative(vaultPath, full).split(path.sep).some(isHidden)) throw new Error('That path is hidden.');
+  if (!isKnownFile(full)) throw new Error('Opal does not open that kind of file.');
+  return full;
+}
+
+// The same, but only for notes (the only files Opal ever writes).
+function resolveNotePath(relPath) {
+  const full = resolveVaultFile(relPath);
   if (!isNoteFile(full)) throw new Error('That is not a note file.');
   return full;
+}
+
+// ---------- Serving files to viewers ----------
+
+// Viewers (PDF, images, media, Office files) load vault files from
+// opal-file://vault/<path>. This only ever hands out known file types from
+// inside the vault; anything else gets "not found".
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'opal-file', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+]);
+
+function serveVaultFile(request) {
+  try {
+    const url = new URL(request.url);
+    const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+    const full = resolveVaultFile(relPath);
+    return net.fetch(pathToFileURL(full).toString(), { headers: request.headers });
+  } catch {
+    return new Response('Not found', { status: 404 });
+  }
+}
+
+// Opens a vault file in its usual Mac app (e.g. Preview, Word). Only known
+// file types, so this can never be used to launch a program.
+async function openInDefaultApp(relPath) {
+  const problem = await shell.openPath(resolveVaultFile(relPath));
+  if (problem) throw new Error(problem);
+}
+
+// Whole-file read for viewers that need the bytes (Word, Excel, PowerPoint).
+const MAX_VIEW_BYTES = 60 * 1024 * 1024;
+
+async function readFileBytes(relPath) {
+  const full = resolveVaultFile(relPath);
+  if (isNoteFile(full)) throw new Error('Notes are read as text.');
+  const { size } = await fs.promises.stat(full);
+  if (size > MAX_VIEW_BYTES) throw new Error('This file is too big to preview here.');
+  return fs.promises.readFile(full);
+}
+
+function revealInFinder(relPath) {
+  shell.showItemInFolder(resolveVaultFile(relPath));
 }
 
 // Refuses files that aren't valid UTF-8 text: editing and saving them would
@@ -271,7 +329,12 @@ async function resolveLink(rawTarget) {
     .sort((a, b) => a.split('/').length - b.split('/').length)[0];
   if (byName) return byName;
 
-  // 3. Not found: create it in the vault root.
+  // 3. Not found: create it in the vault root — but only notes. A missing
+  //    [[photo.png]] can't be made up, so say so instead.
+  const ext = path.extname(target).toLowerCase();
+  if (ext && !NOTE_EXTENSIONS.includes(ext) && KNOWN_EXTENSIONS.includes(ext)) {
+    throw new Error(`There's no file called “${target}” in this vault.`);
+  }
   return createNote(target);
 }
 
@@ -368,6 +431,9 @@ ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, co
 ipcMain.handle('link:resolve', (_event, target) => resolveLink(target));
 ipcMain.handle('note:create', (_event, name, folder) => createNote(name, folder));
 ipcMain.handle('note:previews', (_event, paths) => notePreviews(paths));
+ipcMain.handle('file:open-external', (_event, relPath) => openInDefaultApp(relPath));
+ipcMain.handle('file:reveal', (_event, relPath) => revealInFinder(relPath));
+ipcMain.handle('file:read-bytes', (_event, relPath) => readFileBytes(relPath));
 ipcMain.handle('folder:create', (_event, name, parent) => createFolder(name, parent));
 ipcMain.handle('palette:get', () => getPalette());
 ipcMain.handle('palette:set', (_event, name) => setPalette(name));
@@ -483,6 +549,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    protocol.handle('opal-file', serveVaultFile);
     const saved = loadSettings().vaultPath;
     if (saved && isFolder(saved)) vaultPath = path.resolve(saved);
     watchVault();

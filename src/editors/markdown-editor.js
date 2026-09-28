@@ -69,6 +69,8 @@ const theme = EditorView.theme({
 });
 
 export class MarkdownEditor {
+  static editsText = true;
+
   constructor({ parent, content, save, onStatus, onOpenLink, onChange }) {
     this.save = save;
     this.onStatus = onStatus;

@@ -4,18 +4,27 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Asks main for something. Errors come back with a technical prefix
+// ("Error invoking remote method …"); strip it so messages read cleanly.
+const call = (channel, ...args) => ipcRenderer.invoke(channel, ...args).catch((err) => {
+  throw new Error(String(err && err.message).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+});
+
 contextBridge.exposeInMainWorld('opal', {
-  getVault: () => ipcRenderer.invoke('vault:get'),
-  chooseVault: () => ipcRenderer.invoke('vault:choose'),
-  listFiles: () => ipcRenderer.invoke('vault:list'),
-  readFile: (relPath) => ipcRenderer.invoke('file:read', relPath),
-  writeFile: (relPath, content) => ipcRenderer.invoke('file:write', relPath, content),
-  resolveLink: (target) => ipcRenderer.invoke('link:resolve', target),
-  createNote: (name, folder) => ipcRenderer.invoke('note:create', name, folder),
-  createFolder: (name, parent) => ipcRenderer.invoke('folder:create', name, parent),
-  getPreviews: (paths) => ipcRenderer.invoke('note:previews', paths),
-  getPalette: () => ipcRenderer.invoke('palette:get'),
-  setPalette: (name) => ipcRenderer.invoke('palette:set', name),
+  getVault: () => call('vault:get'),
+  chooseVault: () => call('vault:choose'),
+  listFiles: () => call('vault:list'),
+  readFile: (relPath) => call('file:read', relPath),
+  writeFile: (relPath, content) => call('file:write', relPath, content),
+  resolveLink: (target) => call('link:resolve', target),
+  createNote: (name, folder) => call('note:create', name, folder),
+  createFolder: (name, parent) => call('folder:create', name, parent),
+  getPreviews: (paths) => call('note:previews', paths),
+  openExternal: (relPath) => call('file:open-external', relPath),
+  revealInFinder: (relPath) => call('file:reveal', relPath),
+  readBytes: (relPath) => call('file:read-bytes', relPath),
+  getPalette: () => call('palette:get'),
+  setPalette: (name) => call('palette:set', name),
 
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),
   onFilesChanged: (callback) => ipcRenderer.on('vault:files-changed', () => callback()),
