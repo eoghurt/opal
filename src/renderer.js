@@ -1,8 +1,14 @@
 // Window code: wires the sidebar and the editor area together.
 // Bundled into dist/renderer.js by esbuild (`npm run build`).
 
+import { Sidebar } from './sidebar.js';
+
 const header = document.getElementById('sidebar-header');
 const editorHost = document.getElementById('editor-host');
+
+const sidebar = new Sidebar(document.getElementById('file-tree'), {
+  onOpenFile: (filePath) => showMessage(`Selected: ${filePath}`),
+});
 
 function showMessage(text) {
   editorHost.innerHTML = '';
@@ -27,10 +33,17 @@ function renderHeader(vault) {
   header.append(name, button);
 }
 
-function loadVault(vault) {
+async function refreshFiles() {
+  sidebar.setTree(await window.opal.listFiles());
+}
+
+async function loadVault(vault) {
   renderHeader(vault);
+  sidebar.reset();
   showMessage(vault ? 'Select a note from the sidebar.' : 'Choose a folder to use as your vault.');
+  if (vault) await refreshFiles();
 }
 
 window.opal.onVaultChanged(loadVault);
+window.opal.onFilesChanged(refreshFiles);
 window.opal.getVault().then(loadVault);

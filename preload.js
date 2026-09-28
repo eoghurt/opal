@@ -7,5 +7,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('opal', {
   getVault: () => ipcRenderer.invoke('vault:get'),
   chooseVault: () => ipcRenderer.invoke('vault:choose'),
+  listFiles: () => ipcRenderer.invoke('vault:list'),
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),
+  onFilesChanged: (callback) => ipcRenderer.on('vault:files-changed', () => callback()),
 });

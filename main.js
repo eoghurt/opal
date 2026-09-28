@@ -48,7 +48,61 @@ function vaultInfo() {
 function setVault(folder) {
   vaultPath = folder;
   saveSettings({ ...loadSettings(), vaultPath: folder });
+  watchVault();
   if (win) win.webContents.send('vault:changed', vaultInfo());
+}
+
+// File types Opal can open. Later versions add more (e.g. spreadsheets).
+const NOTE_EXTENSIONS = ['.md'];
+
+function isNoteFile(name) {
+  return NOTE_EXTENSIONS.includes(path.extname(name).toLowerCase());
+}
+
+function isHidden(name) {
+  return name.startsWith('.');
+}
+
+// Builds the folder tree: [{ type: 'folder', name, path, children }, { type: 'file', name, path }].
+// Paths are relative to the vault and always use '/'. Folders with no notes are left out.
+async function scanFolder(relFolder) {
+  const entries = await fs.promises.readdir(path.join(vaultPath, relFolder), { withFileTypes: true });
+  const folders = [];
+  const files = [];
+  for (const entry of entries) {
+    if (isHidden(entry.name)) continue;
+    const relPath = relFolder ? `${relFolder}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      const children = await scanFolder(relPath);
+      if (children.length) folders.push({ type: 'folder', name: entry.name, path: relPath, children });
+    } else if (entry.isFile() && isNoteFile(entry.name)) {
+      files.push({ type: 'file', name: entry.name, path: relPath });
+    }
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  return [...folders.sort(byName), ...files.sort(byName)];
+}
+
+// Watches the vault for changes made outside Opal and tells the window to refresh.
+let watcher = null;
+let refreshTimer = null;
+
+function watchVault() {
+  if (watcher) watcher.close();
+  watcher = null;
+  if (!vaultPath) return;
+  try {
+    watcher = fs.watch(vaultPath, { recursive: true }, (_event, filename) => {
+      if (filename && filename.split(path.sep).some(isHidden)) return;
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        if (win) win.webContents.send('vault:files-changed');
+      }, 200);
+    });
+    watcher.on('error', (err) => console.error('Vault watcher error:', err));
+  } catch (err) {
+    console.error('Could not watch vault:', err);
+  }
 }
 
 async function pickFolder() {
@@ -70,6 +124,7 @@ async function switchVault() {
 
 ipcMain.handle('vault:get', () => vaultInfo());
 ipcMain.handle('vault:choose', () => switchVault());
+ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));
 
 // ---------- Window and menu ----------
 
@@ -120,6 +175,7 @@ function createWindow() {
 app.whenReady().then(() => {
   const saved = loadSettings().vaultPath;
   if (saved && isFolder(saved)) vaultPath = saved;
+  watchVault();
   buildMenu();
   createWindow();
 });

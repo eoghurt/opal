@@ -83,3 +83,35 @@ body { display: flex; }
   margin: auto;
   color: var(--muted);
 }
+
+.tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree-row {
+  padding: 3px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 4px;
+  margin: 0 6px;
+  user-select: none;
+}
+
+.tree-row:hover { background: rgba(0, 0, 0, 0.05); }
+
+.tree-folder { color: var(--muted); font-weight: 500; }
+.tree-folder::marker { font-size: 10px; }
+
+.tree-file.active {
+  background: var(--active-bg);
+  color: var(--text);
+}
+
+.tree-empty {
+  padding: 12px;
+  color: var(--muted);
+}
