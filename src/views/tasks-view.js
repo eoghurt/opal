@@ -285,7 +285,7 @@ export class TasksView {
       h('span', { class: 'task-title' }, task.title || 'Untitled'),
       task.details.length ? h('span', { class: 'task-details' }, task.details.join(' ')) : null,
       h('span', { class: 'task-meta' },
-        task.due ? h('span', { class: `task-due${isOverdue(task) ? ' is-overdue' : ''}` }, isOverdue(task) ? `overdue · ${dueLabel(task.due, task.time, task.endTime)}` : dueLabel(task.due, task.time, task.endTime)) : null,
+        task.due ? h('span', { class: `task-due${isOverdue(task) ? ' is-overdue' : ''}` }, `${isOverdue(task) ? 'overdue · ' : ''}${task.startDate && task.startDate < task.due ? `${dueLabel(task.startDate)} → ` : ''}${dueLabel(task.due, task.time, task.endTime)}`) : null,
         task.repeat ? h('span', { class: 'task-subcount' }, `↻ ${shortRule(task.repeat)}`) : null,
         task.subtasks.length ? h('span', { class: 'task-subcount' }, `☐ ${subDone}/${task.subtasks.length}`) : null,
         showList ? h('span', { class: 'task-list-name' }, task.list) : null)),
@@ -380,6 +380,9 @@ export class TasksView {
     const details = h('textarea', { class: 'task-edit-details', rows: '3', placeholder: 'Details', 'aria-label': 'Details' });
     details.value = task.details.join('\n');
     details.addEventListener('change', () => save({ details: details.value.split('\n').map((l) => l.trim()).filter(Boolean) }));
+    // Optional first day: a task that runs over several days (🛫 … 📅 …).
+    const from = h('input', { type: 'date', class: 'task-edit-date', value: task.startDate || '', 'aria-label': 'From (optional)', max: task.due || null, disabled: !task.due });
+    from.addEventListener('change', () => save({ startDate: from.value && from.value < task.due ? from.value : null }));
     const date = h('input', { type: 'date', class: 'task-edit-date', value: task.due || '', 'aria-label': 'Due date' });
     date.addEventListener('change', () => save({ due: date.value || null, time: date.value ? task.time : null, endTime: date.value ? task.endTime : null }));
     const time = h('input', { type: 'time', class: 'task-edit-date', value: task.time || '', 'aria-label': 'Time', disabled: !task.due });
@@ -426,12 +429,16 @@ export class TasksView {
       title,
       details,
       h('div', { class: 'task-edit-row' },
+        h('span', { class: 'mono-label' }, 'From'),
+        from,
+        h('span', { class: 'hand task-edit-hint' }, 'optional — for tasks over several days')),
+      h('div', { class: 'task-edit-row' },
         h('span', { class: 'mono-label' }, 'Due'),
         date,
         time,
         h('span', { 'aria-hidden': 'true' }, '–'),
         endTime,
-        task.due ? h('button', { class: 'task-col-btn', onclick: () => save({ due: null, time: null, endTime: null }) }, 'Clear') : null),
+        task.due ? h('button', { class: 'task-col-btn', onclick: () => save({ due: null, startDate: null, time: null, endTime: null }) }, 'Clear') : null),
       h('div', { class: 'task-edit-row' },
         h('span', { class: 'mono-label' }, 'Repeat'),
         repeat),

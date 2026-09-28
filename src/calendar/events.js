@@ -4,6 +4,9 @@
 //   - 09:00–10:30 Maths test [[Exam timetable]] #c3
 //   - all day Excursion #c2
 //
+// An event that runs over several days sits in its first day's note with its
+// last day after an arrow:  - all day School camp → 2026-10-03
+//                            - 09:00–17:00 Conference → 2026-10-02  (09:00 on day 1 to 17:00 on the last)
 // 🔔 10m / 🔔 1h / 🔔 1d asks for a reminder that long before (🔔 0m = at the
 // start; all-day events count from 9:00).
 // #color/<name> sets the event's fill and #accent/<name> its accent stripe,
@@ -46,6 +49,8 @@ const COLOR_TAG = /(^|\s)#c([1-5])\b/;
 const PRIMARY_TAG = /(^|\s)#color\/([a-z]+)\b/;
 const SECONDARY_TAG = /(^|\s)#accent\/([a-z]+)\b/;
 const ALL_COLOR_TAGS = /(^|\s)#(?:c[1-5]|color\/[a-z]+|accent\/[a-z]+)\b/g;
+const UNTIL_TAG = /(^|\s)→\s*(\d{4}-\d{2}-\d{2})(?=\s|$)/;
+const UNTIL_ALL = /(^|\s)→\s*\d{4}-\d{2}-\d{2}(?=\s|$)/g;
 const REMIND_TAG = /(^|\s)🔔\s*(\d+)\s*([mhd])(?=\s|$)/;
 const REMIND_ALL = /(^|\s)🔔\s*\d+\s*[mhd](?=\s|$)/g;
 export const ALL_DAY_REMIND_AT = 9 * 60;
@@ -87,7 +92,7 @@ export function clock(minutes) {
 const JOINING_WORDS = /\b(with|to|at|for|and|of|about|from|on|in|by|the|a|an|see|re|vs)$/i;
 
 function displayTitle(text) {
-  const clean = text.replace(ALL_COLOR_TAGS, '$1').replace(REMIND_ALL, '$1').trim();
+  const clean = text.replace(ALL_COLOR_TAGS, '$1').replace(REMIND_ALL, '$1').replace(UNTIL_ALL, '$1').trim();
   const before = clean.replace(/(\s*\[\[[^[\]\n]+\]\])+\s*$/, '').trim();
   // "Maths test [[Exam timetable]]" → "Maths test"; but "Lunch with [[Sam]]" keeps Sam.
   const splitOff = before && before !== clean && !JOINING_WORDS.test(before.replace(/[\s–—:-]+$/, ''));
@@ -110,6 +115,7 @@ export function parseEvents(text, key) {
     const secondary = SECONDARY_TAG.exec(body);
     const link = new RegExp(LINK.source).exec(body);
     const remind = REMIND_TAG.exec(body);
+    const until = UNTIL_TAG.exec(body);
     const allDay = Boolean(match[6]);
     let start = allDay ? 0 : Number(match[2]) * 60 + Number(match[3]);
     let end = allDay ? 24 * 60 : Number(match[4]) * 60 + Number(match[5]);
@@ -123,7 +129,8 @@ export function parseEvents(text, key) {
       allDay,
       start,
       end,
-      text: body.replace(ALL_COLOR_TAGS, '$1').replace(REMIND_ALL, '$1').replace(/\s+/g, ' ').trim(), // what's written, minus tags
+      text: body.replace(ALL_COLOR_TAGS, '$1').replace(REMIND_ALL, '$1').replace(UNTIL_ALL, '$1').replace(/\s+/g, ' ').trim(), // what's written, minus tags
+      endDay: until && until[2] > key ? until[2] : null, // last day, for multi-day events
       remind: remind ? Number(remind[2]) * { m: 1, h: 60, d: 1440 }[remind[3]] : null, // minutes before
       title: displayTitle(body) || 'Untitled',
       color: color ? Number(color[2]) : null,
@@ -142,9 +149,10 @@ export function remindLabel(minutes) {
   return `${minutes}m`;
 }
 
-export function formatEvent({ allDay, start, end, text, color, primary, secondary, remind }) {
+export function formatEvent({ allDay, start, end, text, color, primary, secondary, remind, endDay, day }) {
   const when = allDay ? 'all day' : `${clock(start)}–${clock(end)}`;
   const tags = [
+    endDay && (!day || endDay > day) ? `→ ${endDay}` : null,
     remind != null ? `🔔 ${remindLabel(remind)}` : null,
     primary ? `#color/${primary}` : color ? `#c${color}` : null,
     secondary ? `#accent/${secondary}` : null,
@@ -239,7 +247,7 @@ export function formatSeries(s) {
 export function occurrences(series, key) {
   return series
     .filter((s) => occursOn(s.rule, s.from, key) && (!s.until || key <= s.until) && !s.except.includes(key))
-    .map((s) => ({ ...s, day: key }));
+    .map((s) => ({ ...s, day: key, endDay: null }));
 }
 
 export function appendSeries(text, line) {
@@ -248,6 +256,20 @@ export function appendSeries(text, line) {
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
   lines.push(line, '');
   return lines.join(nl);
+}
+
+// Stacks items that run across days (all-day row) into lanes so none overlap.
+// items: [{ from, to }] as column indexes; adds `lane`. Returns the lane count.
+export function stackLanes(items) {
+  const lanes = [];
+  const order = items.slice().sort((a, b) => a.from - b.from || (b.to - b.from) - (a.to - a.from));
+  for (const item of order) {
+    let lane = lanes.findIndex((lastTo) => lastTo < item.from);
+    if (lane === -1) lane = lanes.length;
+    lanes[lane] = item.to;
+    item.lane = lane;
+  }
+  return lanes.length;
 }
 
 // Side-by-side columns for overlapping events (like Apple/Google Calendar).

@@ -10,7 +10,7 @@ import { slotFor } from '../palettes.js';
 import {
   SNAP, dayKey, keyToDate, addDays, startOfWeek, clock,
   parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS,
-  parseSeries, formatSeries, occurrences, appendSeries,
+  parseSeries, formatSeries, occurrences, appendSeries, stackLanes,
 } from '../calendar/events.js';
 import { describeRule, shiftKey } from '../calendar/repeat.js';
 import { repeatPicker } from '../repeat-picker.js';
@@ -93,6 +93,12 @@ export class CalendarView {
       const events = [...parseEvents(text || '', key), ...occurrences(this.series, key)];
       this.days[key] = { text: text || '', exists: text !== null, events };
     }
+    // Multi-day events that began before the first day on screen (up to two
+    // months back) still show on the days they run over.
+    const earliest = shiftKey(keys[0], -62);
+    const before = [...this.io.noteDays()].filter((k) => k < keys[0] && k >= earliest);
+    const earlier = await Promise.all(before.map(async (key) => parseEvents((await this.io.readDay(key)) || '', key)));
+    this.carried = earlier.flat().filter((e) => e.endDay && e.endDay >= keys[0]);
     this.tasks = await this.io.loadTasks();
     this.render();
   }
@@ -109,6 +115,48 @@ export class CalendarView {
     this.io.onChange({ date: this.date, mode: this.mode });
     this.render();
     this.load();
+  }
+
+  // ---------- Items over several days ----------
+
+  // Every loaded multi-day event (starting on screen or earlier).
+  multiDayEvents() {
+    const own = Object.values(this.days).flatMap((d) => d.events.filter((e) => e.endDay));
+    return [...(this.carried || []), ...own];
+  }
+
+  // A task's first and last day (a 🛫 start date makes it span).
+  taskSpan(task) {
+    const last = task.due;
+    const first = task.startDate && task.startDate < last ? task.startDate : last;
+    return { first, last, multi: first < last };
+  }
+
+  // Things for the all-day row / month cells: all-day and multi-day events,
+  // and tasks without a time or over several days. → [{ kind, item, first, last }]
+  allDayItems(keys) {
+    const firstKey = keys[0];
+    const lastKey = keys[keys.length - 1];
+    const out = [];
+    const seen = new Set();
+    for (const e of this.multiDayEvents()) {
+      const id = `${e.day}|${e.raw}`;
+      if (seen.has(id) || e.day > lastKey || e.endDay < firstKey) continue;
+      seen.add(id);
+      out.push({ kind: 'event', item: e, first: e.day, last: e.endDay });
+    }
+    for (const key of keys) {
+      for (const e of (this.days[key]?.events || []).filter((ev) => ev.allDay && !ev.endDay)) {
+        out.push({ kind: 'event', item: e, first: key, last: key });
+      }
+    }
+    for (const t of this.tasks) {
+      const span = this.taskSpan(t);
+      if (span.last < firstKey || span.first > lastKey) continue;
+      if (!span.multi && t.time) continue; // timed one-day tasks sit in the grid
+      out.push({ kind: 'task', item: t, first: span.first, last: span.last });
+    }
+    return out;
   }
 
   // ---------- Drawing ----------
@@ -245,22 +293,7 @@ export class CalendarView {
         h('span', { class: 'display cal-colnum' }, String(date.getDate())));
       }));
 
-    const allDayRow = h('div', { class: 'cal-allday' },
-      h('span', { class: 'cal-gutter mono-label' }, 'All day'),
-      keys.map((key) => {
-        const cell = h('div', { class: 'cal-allday-cell', 'data-key': key });
-        cell.addEventListener('click', (event) => {
-          if (event.target === cell) this.createAllDay(key, cell);
-        });
-        // Tasks due this day without a time (timed ones sit in the grid).
-        for (const t of this.tasks.filter((task) => task.due === key && !task.time)) {
-          cell.append(this.taskChip(t));
-        }
-        for (const e of (this.days[key]?.events || []).filter((ev) => ev.allDay)) {
-          cell.append(this.chipEl(e, h('span', null, `${e.repeating ? '↻ ' : ''}${e.title}`)));
-        }
-        return cell;
-      }));
+    const allDayRow = this.renderAllDayRow(keys);
 
     const hours = h('div', { class: 'cal-hours', 'aria-hidden': 'true' },
       Array.from({ length: 24 }, (_, hr) => h('span', { class: 'cal-hour', style: `top: ${hr * HOUR}px` }, hr ? `${String(hr).padStart(2, '0')}:00` : '')));
@@ -272,6 +305,51 @@ export class CalendarView {
     this.scrollEl.addEventListener('scroll', () => { this.scrolled = true; this.closePopover(); }, { passive: true });
     this.placeNowLine();
     return h('div', { class: 'cal-main' }, columnsHead, allDayRow, this.scrollEl);
+  }
+
+  // The all-day row: all-day and multi-day items as bars across the days they
+  // cover, stacked so nothing overlaps. Click empty space for a new all-day item.
+  renderAllDayRow(keys) {
+    const items = this.allDayItems(keys).map((entry) => ({
+      ...entry,
+      from: Math.max(0, keys.indexOf(entry.first) === -1 ? (entry.first < keys[0] ? 0 : keys.length - 1) : keys.indexOf(entry.first)),
+      to: keys.indexOf(entry.last) === -1 ? (entry.last > keys[keys.length - 1] ? keys.length - 1 : 0) : keys.indexOf(entry.last),
+    }));
+    const lanes = stackLanes(items);
+    const rows = lanes + 1; // one free row to click in
+    const row = h('div', {
+      class: 'cal-allday',
+      style: `grid-template-columns: 58px repeat(${keys.length}, minmax(0, 1fr)); grid-template-rows: repeat(${rows}, 22px)`,
+    }, h('span', { class: 'cal-gutter mono-label', style: `grid-row: 1 / span ${rows}` }, 'All day'));
+    keys.forEach((key, i) => {
+      const cell = h('div', { class: 'cal-allday-cell', 'data-key': key, style: `grid-column: ${i + 2}; grid-row: 1 / span ${rows}` });
+      cell.addEventListener('click', (event) => {
+        if (event.target === cell) this.createAllDay(key, cell);
+      });
+      row.append(cell);
+    });
+    for (const entry of items) {
+      const el = this.spanChip(entry, keys);
+      el.style.gridColumn = `${entry.from + 2} / ${entry.to + 3}`;
+      el.style.gridRow = String(entry.lane + 1);
+      row.append(el);
+    }
+    return row;
+  }
+
+  // One bar in the all-day row (or a month cell): an event or a task.
+  spanChip(entry, keys) {
+    const { kind, item, first, last } = entry;
+    const multi = first < last;
+    const el = kind === 'task'
+      ? this.taskChip(item)
+      : this.chipEl(item, h('span', null, `${item.repeating ? '↻ ' : ''}${!item.allDay ? `${clock(item.start)} ` : ''}${item.title}`));
+    if (multi) {
+      el.classList.add('is-multi');
+      if (first < keys[0]) el.classList.add('is-cont-left');
+      if (last > keys[keys.length - 1]) el.classList.add('is-cont-right');
+    }
+    return el;
   }
 
   renderDayColumn(key, isToday) {
@@ -323,7 +401,7 @@ export class CalendarView {
       column.addEventListener('pointerup', up);
       column.addEventListener('pointercancel', up);
     });
-    const timedTasks = this.tasks.filter((t) => t.due === key && t.time).map((t) => {
+    const timedTasks = this.tasks.filter((t) => t.due === key && t.time && !this.taskSpan(t).multi).map((t) => {
       const [hh, mm] = t.time.split(':').map(Number);
       const start = Math.min(hh * 60 + mm, 24 * 60 - SNAP);
       // A task with an end time spans it, like an event; otherwise half an hour.
@@ -334,7 +412,7 @@ export class CalendarView {
       }
       return { isTask: true, task: t, day: key, start, end: Math.min(end, 24 * 60), title: t.title };
     });
-    const items = layoutColumns([...(this.days[key]?.events || []).map((e) => ({ ...e })), ...timedTasks]);
+    const items = layoutColumns([...(this.days[key]?.events || []).filter((e) => !e.endDay).map((e) => ({ ...e })), ...timedTasks]);
     for (const item of items) column.append(item.isTask ? this.taskBlockEl(item) : this.eventEl(item));
     return column;
   }
@@ -361,14 +439,23 @@ export class CalendarView {
 
   // A task in the all-day row or a month cell: like an event chip, with a tick box.
   taskChip(task) {
-    return h('div', { class: `cal-chip cal-task${task.done ? ' is-done' : ''}`, style: this.taskPaint(task) },
+    const chip = h('div', { class: `cal-chip cal-task${task.done ? ' is-done' : ''}`, style: this.taskPaint(task) },
       this.tickBox(task),
-      h('button', {
-        type: 'button',
-        class: 'cal-task-name',
-        title: task.title,
-        onclick: (event) => this.showTaskPopover(task, event.currentTarget),
-      }, `${task.time && this.mode === 'month' ? `${task.time} ` : ''}${task.title}`));
+      h('span', { class: 'cal-task-name', title: task.title }, `${task.time && this.mode === 'month' ? `${task.time} ` : ''}${task.title}`));
+    chip.setAttribute('role', 'button');
+    chip.setAttribute('tabindex', '0');
+    chip.setAttribute('aria-label', `Task: ${task.title}`);
+    chip.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === chip) {
+        e.preventDefault();
+        this.showTaskPopover(task, chip);
+      }
+    });
+    this.dragToDay(chip, (days) => this.change(() => this.io.updateTask(task, {
+      due: shiftKey(task.due, days),
+      startDate: task.startDate ? shiftKey(task.startDate, days) : null,
+    })), () => this.showTaskPopover(task, chip));
+    return chip;
   }
 
   // A timed task in the day grid: exactly like an event (any length, drag to
@@ -469,10 +556,14 @@ export class CalendarView {
       keys.slice(0, 7).map((key) => h('span', { class: 'mono-label' }, weekday(keyToDate(key), 'short'))));
     const cells = keys.map((key) => {
       const date = keyToDate(key);
-      const events = (this.days[key]?.events || []).slice().sort((a, b) => (b.allDay - a.allDay) || a.start - b.start);
-      const tasks = this.tasks.filter((t) => t.due === key).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+      const events = (this.days[key]?.events || []).filter((e) => !e.endDay).sort((a, b) => (b.allDay - a.allDay) || a.start - b.start);
+      const spans = this.multiDayEvents().filter((e) => e.day <= key && e.endDay >= key)
+        .filter((e, i, all) => all.findIndex((x) => x.day === e.day && x.raw === e.raw) === i);
+      const tasks = this.tasks.filter((t) => { const sp = this.taskSpan(t); return sp.first <= key && sp.last >= key; })
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       const items = [
-        ...tasks.map((t) => this.taskChip(t)),
+        ...spans.map((e) => this.spanChip({ kind: 'event', item: e, first: e.day, last: e.endDay }, [key])),
+        ...tasks.map((t) => this.spanChip({ kind: 'task', item: t, ...this.taskSpan(t) }, [key])),
         ...events.map((e) => (e.allDay
           ? this.chipEl(e, h('span', null, `${e.repeating ? '↻ ' : ''}${e.title}`))
           : this.chipEl(e, [
@@ -510,17 +601,28 @@ export class CalendarView {
       style: extraClass === 'is-timed' ? '' : this.paint(event),
       'aria-label': `${event.title}${event.allDay ? ', all day' : `, ${clock(event.start)}`}${event.repeating ? `, repeats ${event.rule}` : ''}`,
     }, content);
+    this.dragToDay(chip, (days) => this.moveEvent(event, { day: shiftKey(event.day, days), start: event.start, end: event.end }), () => this.showPopover(event, chip));
+    return chip;
+  }
+
+  // Drag a chip or bar onto another day. The move counts from the day it was
+  // grabbed by, so a three-day bar grabbed in the middle lands where it's dropped.
+  // onDrop(days moved); onClick() for a plain click.
+  dragToDay(chip, onDrop, onClick) {
     let dragged = false;
-    chip.addEventListener('click', () => {
+    chip.addEventListener('click', (e) => {
       if (dragged) {
         dragged = false;
         return;
       }
-      this.showPopover(event, chip);
+      if (e.target.closest('.cal-task-box')) return;
+      onClick(e);
     });
+    const dayAt = (x, y) => document.elementsFromPoint(x, y).find((n) => n.dataset && n.dataset.key && n !== chip && !chip.contains(n));
     chip.addEventListener('pointerdown', (down) => {
-      if (down.button !== 0) return;
+      if (down.button !== 0 || down.target.closest('.cal-task-box')) return;
       chip.setPointerCapture(down.pointerId);
+      const grabbed = dayAt(down.clientX, down.clientY);
       let target = null;
       const move = (e) => {
         const dx = e.clientX - down.clientX;
@@ -533,7 +635,7 @@ export class CalendarView {
           chip.classList.add('is-dragging');
         }
         chip.style.transform = `translate(${dx}px, ${dy}px)`;
-        const under = document.elementsFromPoint(e.clientX, e.clientY).find((n) => n.dataset && n.dataset.key && n !== chip);
+        const under = dayAt(e.clientX, e.clientY);
         if (target && target !== under) target.classList.remove('is-drop');
         target = under || null;
         if (target) target.classList.add('is-drop');
@@ -547,13 +649,14 @@ export class CalendarView {
         this.dragging = false;
         chip.classList.remove('is-dragging');
         chip.style.transform = '';
-        if (target && target.dataset.key !== event.day) this.moveEvent(event, { day: target.dataset.key, start: event.start, end: event.end });
+        if (!target || !grabbed) return;
+        const days = Math.round((keyToDate(target.dataset.key) - keyToDate(grabbed.dataset.key)) / 86400000);
+        if (days) onDrop(days);
       };
       chip.addEventListener('pointermove', move);
       chip.addEventListener('pointerup', up);
       chip.addEventListener('pointercancel', up);
     });
-    return chip;
   }
 
   nextOccurrence(series) {
@@ -698,11 +801,19 @@ export class CalendarView {
     const until = event.repeating ? h('input', { type: 'date', class: 'cal-pop-select', value: event.until || '', min: event.from, 'aria-label': 'Repeat until' }) : null;
     if (until) until.addEventListener('change', () => this.updateEvent(event, { until: until.value || null }));
 
+    // Until: a later last day makes it a multi-day event (not for repeats).
+    const shortDay = (key) => keyToDate(key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    const untilIn = event.repeating ? null : h('input', { type: 'date', class: 'cal-pop-select', value: event.endDay || event.day, min: event.day, 'aria-label': 'Until' });
+    if (untilIn) untilIn.addEventListener('change', () => this.updateEvent(event, { endDay: untilIn.value > event.day ? untilIn.value : null }));
+    const when = event.endDay
+      ? `${shortDay(event.day)}${event.allDay ? '' : ` ${clock(event.start)}`} → ${shortDay(event.endDay)}${event.allDay ? '' : ` ${clock(event.end)}`}`
+      : event.allDay ? 'All day' : `${clock(event.start)} – ${clock(event.end)}`;
     const pop = h('div', { class: 'cal-pop', role: 'dialog', 'aria-label': event.title },
-      h('span', { class: 'mono-label' }, event.allDay ? 'All day' : `${clock(event.start)} – ${clock(event.end)}`),
+      h('span', { class: 'mono-label' }, when),
       h('span', { class: 'display cal-pop-title' }, event.title),
       swatches,
       h('div', { class: 'cal-pop-repeat' },
+        untilIn ? h('label', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Until'), untilIn) : null,
         h('div', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Repeat'), repeatMenu),
         h('label', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Remind'), remindMenu),
         until ? h('label', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Until'), until) : null,
@@ -885,6 +996,9 @@ export class CalendarView {
     }, label);
     const kinds = h('div', { class: 'cal-new-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('event', 'Event'), kindBtn('task', 'Task'));
     const endWrap = h('span', { class: 'cal-new-end' }, h('span', null, '–'), endIn);
+    const timesWrap = h('span', { class: 'cal-new-times' }, startIn, endWrap);
+    // A later "until" day makes it a multi-day event or task.
+    const untilIn = h('input', { type: 'date', class: 'cal-pop-select cal-new-until', value: state.key, min: state.key, 'aria-label': 'Until' });
     const allDayWrap = h('label', { class: 'cal-new-allday' }, allDay, 'All day');
     const pickers = h('div', { class: 'cal-pickers' });
     const drawPickers = () => pickers.replaceChildren(
@@ -897,8 +1011,7 @@ export class CalendarView {
         b.setAttribute('aria-pressed', String(on));
       });
       state.allDay = allDay.checked;
-      startIn.disabled = state.allDay;
-      endWrap.hidden = state.allDay;
+      timesWrap.hidden = state.allDay; // all day: no times at all
       allDayWrap.querySelector('input').setAttribute('aria-label', state.kind === 'task' ? 'No time' : 'All day');
       allDayWrap.lastChild.textContent = state.kind === 'task' ? 'No time' : 'All day';
       title.placeholder = state.kind === 'task' ? 'Add a task' : 'Add a title';
@@ -913,7 +1026,8 @@ export class CalendarView {
     allDay.addEventListener('change', sync);
     const timesChanged = () => {
       state.start = Math.min(toMinutes(startIn.value), 24 * 60 - SNAP);
-      state.end = Math.max(state.start + SNAP, Math.min(24 * 60, toMinutes(endIn.value) || 24 * 60));
+      state.end = Math.min(24 * 60, toMinutes(endIn.value) || 24 * 60);
+      if (!(untilIn.value > state.key)) state.end = Math.max(state.start + SNAP, state.end);
       if (preview) {
         preview.style.top = `${state.start * MINUTE}px`;
         preview.style.height = `${Math.max(14, (state.end - state.start) * MINUTE - 2)}px`;
@@ -931,14 +1045,16 @@ export class CalendarView {
         return;
       }
       const { key } = state;
+      const endDay = untilIn.value && untilIn.value > key ? untilIn.value : null;
       const start = state.allDay ? 0 : state.start;
-      const end = state.allDay ? 24 * 60 : state.end;
+      // Same-day events end after they start; multi-day ones can end earlier in the day.
+      const end = state.allDay ? 24 * 60 : (endDay ? state.end : Math.max(state.end, start + SNAP));
       if (state.kind === 'task') {
         this.change(() => this.io.addTask({
-          title: text, due: key, time: state.allDay ? null : clock(start), endTime: state.allDay ? null : clock(end), primary: state.primary, secondary: state.secondary,
+          title: text, due: endDay || key, startDate: endDay ? key : null, time: state.allDay ? null : clock(start), endTime: state.allDay ? null : clock(end), primary: state.primary, secondary: state.secondary,
         }));
       } else {
-        const line = formatEvent({ allDay: state.allDay, start, end, text, color: null, primary: state.primary, secondary: state.secondary });
+        const line = formatEvent({ allDay: state.allDay, start, end, text, color: null, primary: state.primary, secondary: state.secondary, endDay, day: key });
         this.change(async () => {
           await this.io.writeDay(key, insertEvent(await this.freshText(key), line, this.dateLabel(key)));
         });
@@ -956,7 +1072,9 @@ export class CalendarView {
       kinds,
       h('div', { class: 'cal-new-when' },
         h('span', { class: 'mono-label' }, keyToDate(state.key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })),
-        startIn, endWrap, allDayWrap),
+        timesWrap),
+      h('div', { class: 'cal-new-when' },
+        h('span', { class: 'mono-label' }, 'Until'), untilIn, allDayWrap),
       pickers,
       h('div', { class: 'cal-pop-actions' },
         h('button', { class: 'cal-pop-btn is-primary', onclick: save }, 'Save'),
@@ -1023,7 +1141,9 @@ export class CalendarView {
   }
 
   async moveEvent(event, next) {
-    const updated = { ...event, start: next.start, end: next.end };
+    const shiftDays = Math.round((keyToDate(next.day) - keyToDate(event.day)) / 86400000);
+    // A multi-day event keeps its length when moved.
+    const updated = { ...event, start: next.start, end: next.end, day: next.day, endDay: event.endDay ? shiftKey(event.endDay, shiftDays) : null };
     if (event.repeating) {
       const which = await askChoice(`Move “${event.title}”`, [
         { label: 'Just this one', value: 'one' },

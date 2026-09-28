@@ -2615,3 +2615,23 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 /* The title never gets squeezed to make room for the time: the time gives way. */
 .cal .cal-event:not(.is-short) .cal-event-title, .cal .cal-event:not(.is-short) .cal-task-head { flex-shrink: 0; }
 .cal .cal-event:not(.is-short) .cal-event-time, .cal .cal-event:not(.is-short) .cal-event-link { flex-shrink: 0; }
+
+/* ---------- Calendar: all-day row as a grid; multi-day bars ---------- */
+
+.cal .cal-allday { display: grid; min-height: 0; padding: 4px 0; row-gap: 3px; border-bottom: var(--rule); background: var(--paper); }
+.cal .cal-allday > .cal-gutter { grid-column: 1; align-self: center; width: auto; }
+.cal .cal-allday-cell { padding: 0; border-left: var(--hair); min-height: 22px; }
+.cal .cal-allday > .cal-chip { position: relative; z-index: 1; margin: 0 3px; min-width: 0; align-self: stretch; display: flex; align-items: center; }
+.cal .cal-chip.is-multi { border-radius: 2px; }
+.cal .cal-chip.is-cont-left { margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.cal .cal-chip.is-cont-left::before { content: '◂ '; }
+.cal .cal-chip.is-cont-right { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.cal .cal-chip.is-cont-right::after { content: ' ▸'; margin-left: auto; padding-left: 4px; }
+.cal .cal-mcell .cal-chip.is-multi { margin: 0 -4px; }
+.cal .cal-mcell .cal-chip.is-cont-left::before { content: ''; }
+.cal-new-times { display: inline-flex; align-items: center; gap: 6px; }
+.cal-new-times[hidden] { display: none; }
+.cal-new-until { width: 140px; flex-grow: 0; }
+.cal .cal-task { cursor: pointer; }
+.cal .cal-task:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.task-edit-hint { font-size: 15px; color: var(--ink-3); }

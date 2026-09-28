@@ -16,6 +16,7 @@ export const TASKS_FOLDER = 'Tasks';
 export const DEFAULT_LIST = 'My Tasks';
 
 const TASK_LINE = /^(\s*)[-*+]\s\[([ xX])\]\s?(.*)$/;
+const START = /\s*🛫\s*(\d{4}-\d{2}-\d{2})/;
 const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/;
 const TIME = /\s*⏰\s*(\d{1,2}:\d{2})(?:\s*[–-]\s*(\d{1,2}:\d{2}))?/;
 const DONE_ON = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
@@ -33,19 +34,21 @@ function parseLine(body) {
   const doneOn = DONE_ON.exec(body);
   const repeat = REPEAT.exec(body);
   const created = CREATED.exec(body);
+  const startDate = START.exec(body);
   const primary = PRIMARY.exec(body);
   const secondary = SECONDARY.exec(body);
   return {
     primary: primary ? primary[1] : null, // colours, as for calendar events
     secondary: secondary ? secondary[1] : null,
     created: created ? created[1] : null,
+    startDate: startDate ? startDate[1] : null, // 🛫 first day, for tasks over several days
     repeat: repeat ? normaliseRule(repeat[1]) : null,
     due: due ? due[1] : null,
     time: time ? time[1].padStart(5, '0') : null,
     endTime: time && time[2] ? time[2].padStart(5, '0') : null, // ⏰ 09:00–10:30
     doneOn: doneOn ? doneOn[1] : null,
     starred: STAR.test(body),
-    title: body.replace(PRIMARY, '').replace(SECONDARY, '').replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
+    title: body.replace(START, '').replace(PRIMARY, '').replace(SECONDARY, '').replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
   };
 }
 
@@ -90,6 +93,7 @@ function formatHead(task, indent = '') {
   if (task.primary) parts.push(`#color/${task.primary}`);
   if (task.secondary) parts.push(`#accent/${task.secondary}`);
   if (task.repeat) parts.push(`🔁 ${task.repeat}`);
+  if (task.due && task.startDate && task.startDate < task.due) parts.push(`🛫 ${task.startDate}`);
   if (task.due) parts.push(`📅 ${task.due}`);
   if (task.due && task.time) parts.push(`⏰ ${task.time}${task.endTime ? `–${task.endTime}` : ''}`);
   if (task.starred) parts.push('⭐');
@@ -102,7 +106,7 @@ export function formatTask(task) {
   return [
     formatHead(task),
     ...task.details.filter((d) => d.trim()).map((d) => `    ${d.trim()}`),
-    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, starred: false, repeat: null, primary: null, secondary: null }, '    ')),
+    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, startDate: null, starred: false, repeat: null, primary: null, secondary: null }, '    ')),
   ];
 }
 
@@ -144,9 +148,17 @@ export function toggleTask(text, task, today = todayKey()) {
   const { lines, nl } = split(text);
   const start = locate(lines, task);
   const end = blockEnd(lines, start);
+  const due = nextDate(task.repeat, task.due || today);
+  const moved = Math.round((new Date(`${due}T12:00`) - new Date(`${task.due || today}T12:00`)) / 86400000);
+  const shift = (key) => {
+    const d = new Date(`${key}T12:00`);
+    d.setDate(d.getDate() + moved);
+    return todayKey(d);
+  };
   const next = {
     ...task,
-    due: nextDate(task.repeat, task.due || today),
+    due,
+    startDate: task.startDate ? shift(task.startDate) : null,
     subtasks: task.subtasks.map((s) => ({ ...s, done: false, doneOn: null })),
   };
   const finished = { ...task, done: true, doneOn: today, repeat: null };
