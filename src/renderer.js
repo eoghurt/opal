@@ -17,6 +17,8 @@ import { renderFolderHome } from './views/folder-home.js';
 import { NoteView } from './views/note-view.js';
 import { FileView } from './views/file-view.js';
 import { fileUrl } from './file-types.js';
+import { StickyLayer } from './sticky-layer.js';
+import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
 import { applyPalette } from './palettes.js';
 import { askName, h, scribbleArrow } from './ui.js';
@@ -67,11 +69,19 @@ async function closeCurrent() {
   current = null;
 }
 
+// Stickies on the folder home on screen: { layer, flush } or null.
+let homeStickies = null;
+
+async function flushHomeStickies() {
+  if (homeStickies) await homeStickies.flush();
+}
+
 // Every move to another screen goes through here: it saves the open note
-// first, and stays put if that fails.
+// (and any sticky changes) first, and stays put if that fails.
 function navigate(task) {
   return enqueue(async () => {
     try {
+      await flushHomeStickies();
       await closeCurrent();
     } catch (err) {
       alert(`Opal could not save “${noteName(current.filePath)}”, so it is staying open.\n\n${err.message}`);
@@ -129,7 +139,7 @@ function showHome(folderPath, notice) {
   setTitle(folder.name);
   sidebar.setActive('folder', folderPath);
   chrome.setCrumbs(crumbsFor(folderPath));
-  renderFolderHome(viewEl, {
+  const home = renderFolderHome(viewEl, {
     folder,
     isRoot: !folderPath,
     notice,
@@ -138,10 +148,60 @@ function showHome(folderPath, notice) {
     onOpenFolder: (p) => openFolder(p),
     onNewNote: () => newNote(),
     onNewFolder: () => newFolder(),
+    onAddSticky: () => homeStickies && homeStickies.layer.add(viewEl.scrollTop),
   });
+  homeStickies = folderHomeStickies(folderPath, folder, home);
+}
+
+// A folder home's stickies are kept in the folder's own note (e.g.
+// School/School.md), which is created the first time one is added.
+// Writes wait a moment so a burst of typing becomes one save.
+function folderHomeStickies(folderPath, folder, home) {
+  const noteName = folder.name || vault.name;
+  const existing = folder.children.find((n) => n.type === 'file' && n.name.toLowerCase() === `${noteName.toLowerCase()}.md`);
+  // Always go by the file on disk (the file list might not have caught up yet).
+  let notePath = existing ? existing.path : `${folderPath ? `${folderPath}/` : ''}${noteName}.md`;
+  const readNote = async () => {
+    try {
+      return await window.opal.readFile(notePath);
+    } catch {
+      return null; // not created yet
+    }
+  };
+  let latest = null;
+  let timer = null;
+  let writing = Promise.resolve();
+
+  const flush = () => {
+    clearTimeout(timer);
+    if (!latest) return writing;
+    const list = latest;
+    latest = null;
+    writing = writing.then(async () => {
+      let text = await readNote();
+      if (text === null) {
+        notePath = await window.opal.createNote(noteName, folderPath);
+        text = await window.opal.readFile(notePath);
+      }
+      await window.opal.writeFile(notePath, writeStickies(text, list));
+    }).catch((err) => alert(`Opal couldn't save the sticky notes.\n\n${err.message}`));
+    return writing;
+  };
+
+  const layer = new StickyLayer(home, {
+    load: async () => parseStickies((await readNote()) || ''),
+    save: (list) => {
+      latest = list;
+      clearTimeout(timer);
+      timer = setTimeout(flush, 400);
+    },
+  });
+  layer.refresh();
+  return { layer, flush };
 }
 
 async function showNote(filePath) {
+  homeStickies = null;
   const EditorType = editorForFile(filePath);
   if (!EditorType) {
     showHome(parentOf(filePath), `Opal can't open this kind of file yet: ${filePath}`);
@@ -172,6 +232,7 @@ async function showNote(filePath) {
     onNewNoteHere: () => newNote(),
     onPalettes: () => showPalettes(),
     onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
+    onAddSticky: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - noteView.center.offsetTop),
   });
 
   let changeTimer = null;
@@ -186,10 +247,20 @@ async function showNote(filePath) {
     onOpenLink: (target) => openLink(target),
     onChange: () => {
       clearTimeout(changeTimer);
-      changeTimer = setTimeout(() => current && current.editor === editor && noteView.setText(editor.getText()), 300);
+      changeTimer = setTimeout(() => {
+        if (!current || current.editor !== editor) return;
+        noteView.setText(editor.getText());
+        current.stickies.refresh();
+      }, 300);
     },
   });
-  current = { filePath, editor, noteView };
+  // Stickies on a note are saved into the note itself, like typing.
+  const stickies = new StickyLayer(noteView.center, {
+    load: () => editor.getStickies(),
+    save: (list) => editor.setStickies(list),
+  });
+  stickies.refresh();
+  current = { filePath, editor, noteView, stickies };
   noteView.setTree(tree);
   noteView.setText(content);
 
@@ -248,6 +319,7 @@ function openFile(filePath) {
 function showPalettes() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
+    homeStickies = null;
     screen = { kind: 'palettes' };
     setTitle('Palettes');
     sidebar.setActive(null, null);
@@ -334,6 +406,8 @@ function refreshFiles() {
     }
 
     if (screen.kind === 'home') {
+      if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
+      await flushHomeStickies();
       const gone = screen.folderPath && !findFolder(tree, screen.folderPath, vault.name);
       showHome(screen.folderPath, gone ? `The folder “${screen.folderPath}” was moved or deleted outside Opal.` : undefined);
     } else if (screen.kind === 'note' && current) {
@@ -437,6 +511,7 @@ window.addEventListener('beforeunload', (event) => {
 
 window.opal.onFlushRequest(({ closeEditor }) =>
   enqueue(async () => {
+    await flushHomeStickies();
     if (closeEditor) {
       await closeCurrent();
       screen = { kind: 'welcome' };

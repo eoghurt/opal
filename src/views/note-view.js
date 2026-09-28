@@ -6,13 +6,14 @@ import { h } from '../ui.js';
 import { slotFor } from '../palettes.js';
 import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../format.js';
 import { findFile, findFolder, countNotes } from '../tree.js';
+import { stripStickies } from '../../shared/stickies.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky };
     this.tree = [];
     this.text = '';
 
@@ -21,6 +22,7 @@ export class NoteView {
     this.chips = h('div', { class: 'note-chips' });
     this.editorHost = h('div', { class: 'note-editor' });
     const center = h('div', { class: 'note-center' }, this.chips, this.editorHost);
+    this.center = center; // stickies sit on top of this
 
     container.replaceChildren(h('div', { class: 'note-view' }, this.left, center, this.right));
   }
@@ -33,7 +35,7 @@ export class NoteView {
   }
 
   setText(text) {
-    this.text = text;
+    this.text = stripStickies(text);
     this.renderLeft();
     this.renderRight();
   }
@@ -48,6 +50,7 @@ export class NoteView {
       h('span', { class: 'chip', style: 'background: var(--c1)' }, 'Note'),
       h('button', { class: 'chip', style: `background: var(--c${slot})`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
       h('span', { class: 'chip chip-plain' }, `${noteName(this.filePath)}.md`),
+      h('button', { class: 'chip chip-add', onclick: () => this.handlers.onAddSticky() }, '+ Sticky'),
     );
   }
 

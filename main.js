@@ -106,6 +106,7 @@ async function notePreview(relPath) {
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     let text = buffer.toString('utf8', 0, bytesRead).replace(/�+$/, '');
     text = text.replace(/^---\n[\s\S]*?\n---\n?/, '');
+    text = text.replace(/<!--[\s\S]*?(-->|$)/g, ' ');
     return text
       .split('\n')
       .filter((line) => line.trim() && !/^\s*#/.test(line))
@@ -138,6 +139,13 @@ async function notePreviews(relPaths) {
 let watcher = null;
 let refreshTimer = null;
 
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    if (win) win.webContents.send('vault:files-changed');
+  }, 200);
+}
+
 function watchVault() {
   if (watcher) watcher.close();
   watcher = null;
@@ -146,10 +154,7 @@ function watchVault() {
     watcher = fs.watch(vaultPath, { recursive: true }, (_event, filename) => {
       if (filename && filename.split(path.sep).some(isHidden)) return;
       if (filename && isOwnWrite(path.join(vaultPath, filename))) return;
-      clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
-        if (win) win.webContents.send('vault:files-changed');
-      }, 200);
+      scheduleRefresh();
     });
     watcher.on('error', (err) => {
       // Usually means the vault folder itself was moved or deleted: let the window find out.
@@ -269,12 +274,19 @@ async function readNote(relPath) {
 async function writeNote(relPath, content) {
   if (typeof content !== 'string') throw new Error('Invalid content.');
   const full = resolveNotePath(relPath);
+  const existed = fs.existsSync(full);
   const temp = path.join(path.dirname(full), `.${path.basename(full)}.opal-saving`);
   await fs.promises.mkdir(path.dirname(full), { recursive: true });
   await fs.promises.writeFile(temp, content, 'utf8');
   await fs.promises.rename(temp, full);
-  const { mtimeMs, size } = await fs.promises.stat(full);
-  ownWrites.set(full, { mtimeMs, size });
+  // Only overwrites are "our own save". A brand-new file must always be
+  // noticed so it shows up in the sidebar.
+  if (existed) {
+    const { mtimeMs, size } = await fs.promises.stat(full);
+    ownWrites.set(full, { mtimeMs, size });
+  } else {
+    ownWrites.delete(full);
+  }
 }
 
 // Notes Opal itself just saved, with the exact modified time and size they
@@ -374,6 +386,7 @@ async function createNote(rawName, relFolder = '') {
   if (existing) return joinRel(relFolder, existing);
   try {
     await fs.promises.writeFile(resolveNotePath(relPath), '', { flag: 'wx' });
+    scheduleRefresh(); // don't rely on the watcher: a quick save could hide the new file from it
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
   }
@@ -388,6 +401,7 @@ async function createFolder(rawName, relParent = '') {
   resolveFolderPath(relPath);
   try {
     await fs.promises.mkdir(path.join(parentFull, name));
+    scheduleRefresh();
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
   }

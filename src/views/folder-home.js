@@ -12,7 +12,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const files = folder.children
     .filter((n) => n.type === 'file')
@@ -47,7 +47,8 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
         h('span', null, 'in here'))),
     h('div', { class: 'home-actions' },
       h('button', { class: 'home-action is-primary', onclick: onNewNote }, '+ Note'),
-      h('button', { class: 'home-action', onclick: onNewFolder }, '+ Folder')),
+      h('button', { class: 'home-action', onclick: onNewFolder }, '+ Folder'),
+      h('button', { class: 'home-action', onclick: onAddSticky }, '+ Sticky')),
   );
 
   const sections = [head];
@@ -81,7 +82,8 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   }
 
   const scrollTop = container.scrollTop;
-  container.replaceChildren(h('div', { class: 'home' }, sections));
+  const home = h('div', { class: 'home' }, sections);
+  container.replaceChildren(home);
   container.scrollTop = scrollTop;
 
   // Fill in previews once they arrive (the page is usable before then).
@@ -96,6 +98,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
       }
     }).catch(() => {});
   }
+  return home;
 }
 
 // The sheets peeking out of a folder show its two most recently edited files

@@ -1,11 +1,12 @@
 // Markdown editor built on CodeMirror 6, with autosave.
 
 import { EditorView, basicSetup } from 'codemirror';
-import { Annotation, EditorState, Transaction } from '@codemirror/state';
+import { Annotation, EditorState, StateField, Transaction } from '@codemirror/state';
 import { Decoration, MatchDecorator, ViewPlugin } from '@codemirror/view';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { markdown } from '@codemirror/lang-markdown';
+import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
 
 // Marks changes that came from the file on disk, not from typing.
 const fromDisk = Annotation.define();
@@ -38,6 +39,25 @@ const wikilinks = ViewPlugin.fromClass(
   },
   { decorations: (plugin) => plugin.decorations },
 );
+
+// The sticky-notes block (see shared/stickies.js) is kept in the file but
+// hidden from the editor, and the cursor skips over it.
+const hiddenStickies = StateField.define({
+  create: (state) => stickyDecorations(state),
+  update: (decos, tr) => (tr.docChanged ? stickyDecorations(tr.state) : decos),
+  provide: (field) => [
+    EditorView.decorations.from(field),
+    EditorView.atomicRanges.of((view) => view.state.field(field)),
+  ],
+});
+
+function stickyDecorations(state) {
+  const range = stickyBlockRange(state.doc.toString());
+  if (!range) return Decoration.none;
+  const from = state.doc.lineAt(range.from).from;
+  const to = state.doc.lineAt(range.to).to;
+  return Decoration.set([Decoration.replace({ block: true }).range(from, to)]);
+}
 
 // Scrapbook type: SF Pro bold headings, serif italics, mono code, faint markup symbols.
 const scrapbookHighlight = HighlightStyle.define([
@@ -108,6 +128,7 @@ export class MarkdownEditor {
         EditorView.lineWrapping,
         theme,
         wikilinks,
+        hiddenStickies,
         EditorView.domEventHandlers({
           // Cmd-click a [[link]] to open it; a plain click just places the cursor.
           mousedown: (event) => {
@@ -152,25 +173,41 @@ export class MarkdownEditor {
   // the cursor and scroll position stay put. Returns true if it reloaded.
   reloadFromDisk(diskText, token) {
     if (this.dirty || this.saving || token !== this.saveCount) return false;
+    // Not undoable: Cmd+Z must never undo someone else's edit.
+    return this.replaceText(diskText, [fromDisk.of(true), Transaction.addToHistory.of(false)]);
+  }
+
+  // Swaps the text for `next`, changing only the part that differs, so the
+  // cursor and scroll position stay put. Returns true if anything changed.
+  replaceText(next, annotations = []) {
     const current = this.getText();
-    if (diskText === current) return false;
+    if (next === current) return false;
     let start = 0;
-    while (start < current.length && start < diskText.length && current[start] === diskText[start]) start++;
+    while (start < current.length && start < next.length && current[start] === next[start]) start++;
     let endCur = current.length;
-    let endDisk = diskText.length;
-    while (endCur > start && endDisk > start && current[endCur - 1] === diskText[endDisk - 1]) {
+    let endNext = next.length;
+    while (endCur > start && endNext > start && current[endCur - 1] === next[endNext - 1]) {
       endCur--;
-      endDisk--;
+      endNext--;
     }
     const state = this.view.state;
     // Positions in the editor count line breaks as one character.
     const toPos = (offset) => state.toText(current.slice(0, offset)).length;
     this.view.dispatch({
-      changes: { from: toPos(start), to: toPos(endCur), insert: diskText.slice(start, endDisk) },
-      // Not undoable: Cmd+Z must never undo someone else's edit.
-      annotations: [fromDisk.of(true), Transaction.addToHistory.of(false)],
+      changes: { from: toPos(start), to: toPos(endCur), insert: next.slice(start, endNext) },
+      annotations,
     });
     return true;
+  }
+
+  // Sticky notes stored in this note (see shared/stickies.js).
+  getStickies() {
+    return parseStickies(this.getText());
+  }
+
+  // Saves stickies into the note like any other edit (autosaved, undoable).
+  setStickies(list) {
+    this.replaceText(writeStickies(this.getText(), list));
   }
 
   // Moves the cursor to the start of a line (1-based) and scrolls to it.
