@@ -1981,3 +1981,124 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .cal-swatch.is-none { background: repeating-linear-gradient(135deg, #FFFFFF 0 4px, #E4DFD5 4px 5px); }
 .cal-event, .cal-chip { color: var(--ink); }
 .cal-event .cal-event-time, .cal-event .cal-event-link { color: inherit; opacity: 0.85; }
+
+.lb-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* ---------- Tasks ---------- */
+.tasks { height: 100%; display: flex; flex-direction: column; }
+.tasks-body { flex-grow: 1; min-height: 0; display: flex; }
+
+.tasks-rail { width: 230px; flex-shrink: 0; display: flex; flex-direction: column; border-right: var(--rule); background: var(--paper); }
+.tasks-rail-item { display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-bottom: var(--hair); font-size: 13px; cursor: pointer; }
+.tasks-rail-item input { accent-color: var(--ink); width: 14px; height: 14px; }
+.tasks-rail-item span:nth-of-type(1) { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tasks-count { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+
+.tasks-board {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 18px 20px 40px;
+  overflow: auto;
+}
+
+.tasks-empty { margin: 40px auto; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.tasks-empty .home-action { padding: 0 20px; border: var(--rule); }
+
+.task-col {
+  width: 330px;
+  flex-shrink: 0;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 rgba(22, 20, 15, 0.2);
+}
+
+.task-col-head { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 8px; border-bottom: var(--hair); }
+.task-col-title { flex-grow: 1; font-size: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-col-menu { display: flex; gap: 4px; opacity: 0; transition: opacity 0.12s; }
+.task-col:hover .task-col-menu, .task-col-menu:focus-within { opacity: 1; }
+
+.task-col-btn {
+  padding: 3px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.task-col-btn:hover { background: var(--c2); }
+.task-col-btn.is-primary { background: var(--ink); color: var(--paper); }
+.task-col-btn.is-danger:hover { background: #D7263D; color: var(--white); }
+
+.task-add { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); border-bottom: var(--hair); }
+.task-add:hover { background: var(--paper); color: var(--ink); }
+.task-add-plus { width: 20px; height: 20px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--c2); border: 1.5px solid var(--ink); font-size: 14px; }
+
+.task-items { overflow-y: auto; display: flex; flex-direction: column; }
+.task-none { padding: 14px; margin: 0; }
+.task-wrap { border-bottom: var(--hair); background: var(--paper-2); }
+
+.task { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px 9px 14px; border-bottom: var(--hair); }
+.task-wrap > .task { border-bottom: 0; }
+.task:hover { background: var(--paper); }
+
+.task-check {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--white);
+}
+
+.task-check:hover { background: var(--c2); }
+.task-check.is-done { background: var(--ink); color: var(--paper); }
+.task-check.is-small { width: 16px; height: 16px; font-size: 10px; }
+
+.task-main { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; }
+.task-title { font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+.task.is-done .task-title { text-decoration: line-through; color: var(--ink-3); }
+.task-details { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--ink-3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.task-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.task-meta:empty { display: none; }
+.task-due, .task-subcount, .task-list-name { font-family: var(--mono); font-size: 10px; padding: 1px 6px; border: 1px solid var(--ink); border-radius: 2px; }
+.task-due { background: var(--paper); }
+.task-due.is-overdue { background: var(--c1); font-weight: 600; }
+.task-list-name { border-style: dashed; }
+.task-star { font-size: 16px; line-height: 1; color: var(--ink-3); padding: 2px; }
+.task-star.is-on { color: var(--ink); }
+.task-star:hover { color: var(--ink); }
+
+.task-editor { display: flex; flex-direction: column; gap: 8px; padding: 4px 14px 14px 44px; }
+.task-edit-title { font-family: var(--display); font-size: 17px; font-weight: 700; padding: 5px 8px; border: 1.5px solid var(--ink); border-radius: 2px; }
+.task-edit-details { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid rgba(22, 20, 15, 0.35); border-radius: 2px; resize: vertical; }
+.task-edit-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.task-edit-date { font-family: var(--mono); font-size: 12px; padding: 3px 6px; border: 1.5px solid var(--ink); border-radius: 2px; background: var(--white); }
+.task-subs { display: flex; flex-direction: column; gap: 4px; }
+.task-sub { display: flex; align-items: center; gap: 8px; }
+.task-sub-title { flex-grow: 1; font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid transparent; border-radius: 2px; background: transparent; }
+.task-sub-title:hover, .task-sub-title:focus { border-color: rgba(22, 20, 15, 0.35); background: var(--white); outline: none; }
+.task-sub-new { margin-left: 24px; }
+
+.task-done { border-top: var(--rule); }
+.task-done-toggle { width: 100%; padding: 9px 14px; text-align: left; }
+.task-done-toggle:hover { background: var(--paper); }
+
+/* Tasks in the calendar */
+.cal-task { display: flex; align-items: center; gap: 6px; background: var(--white); border-style: dashed; font-weight: 500; }
+.cal-task.is-done { text-decoration: line-through; color: var(--ink-3); }
+.cal-task-box { width: 13px; height: 13px; flex-shrink: 0; border: 1.5px solid var(--ink); border-radius: 7px; font-size: 8px; display: flex; align-items: center; justify-content: center; }
+.cal-task.is-done .cal-task-box { background: var(--ink); color: var(--paper); }

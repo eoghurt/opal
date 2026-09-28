@@ -29,11 +29,12 @@ function snap(minutes) {
 export class CalendarView {
   // readDay(key) → text or null. writeDay(key, text) → promise.
   // noteDays() → Set of day keys that have a note. openDayNote(key), openLink(target).
-  constructor(container, { date, mode, readDay, writeDay, noteDays, openDayNote, openLink, onChange }) {
+  constructor(container, { date, mode, readDay, writeDay, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, openTasks }) {
     this.container = container;
     this.date = date || new Date();
     this.mode = mode || 'day';
-    this.io = { readDay, writeDay, noteDays, openDayNote, openLink, onChange: onChange || (() => {}) };
+    this.io = { readDay, writeDay, noteDays, openDayNote, openLink, onChange: onChange || (() => {}), loadTasks: loadTasks || (async () => []), toggleTask, openTasks };
+    this.tasks = [];
     this.days = {};
     this.writing = Promise.resolve();
     this.scrolled = false;
@@ -61,6 +62,7 @@ export class CalendarView {
     for (const [key, text] of loaded) {
       this.days[key] = { text: text || '', exists: text !== null, events: parseEvents(text || '', key) };
     }
+    this.tasks = await this.io.loadTasks();
     this.render();
   }
 
@@ -189,6 +191,13 @@ export class CalendarView {
         cell.addEventListener('click', (event) => {
           if (event.target === cell) this.createAllDay(key);
         });
+        // Tasks due this day (from the Tasks lists).
+        for (const t of this.tasks.filter((task) => task.due === key)) {
+          cell.append(h('button', {
+            class: `cal-chip cal-task${t.done ? ' is-done' : ''}`,
+            onclick: (event) => this.showTaskPopover(t, event.currentTarget),
+          }, h('span', { class: 'cal-task-box', 'aria-hidden': 'true' }, t.done ? '✓' : ''), `${t.time ? `${t.time} ` : ''}${t.title}`));
+        }
         for (const e of (this.days[key]?.events || []).filter((ev) => ev.allDay)) {
           cell.append(h('button', {
             class: 'cal-chip',
@@ -396,6 +405,35 @@ export class CalendarView {
     const escape = (e) => {
       if (e.key === 'Escape') this.closePopover();
     };
+    setTimeout(() => document.addEventListener('pointerdown', outside), 0);
+    document.addEventListener('keydown', escape);
+    this.popoverCleanup = () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }
+
+  showTaskPopover(task, anchor) {
+    this.closePopover();
+    const pop = h('div', { class: 'cal-pop', role: 'dialog', 'aria-label': task.title },
+      h('span', { class: 'mono-label' }, `Task · ${task.list}${task.time ? ` · ${task.time}` : ''}`),
+      h('span', { class: 'display cal-pop-title' }, task.title),
+      task.details.length ? h('span', { class: 'serif-i' }, task.details.join(' ')) : null,
+      h('div', { class: 'cal-pop-actions' },
+        h('button', {
+          class: 'cal-pop-btn is-primary',
+          onclick: () => this.change(() => this.io.toggleTask(task)),
+        }, task.done ? 'Mark not done' : 'Mark done'),
+        h('button', { class: 'cal-pop-btn', onclick: () => this.io.openTasks() }, 'Open Tasks')));
+    const host = this.root.querySelector('.cal-main');
+    host.append(pop);
+    const hostBox = host.getBoundingClientRect();
+    const box = anchor.getBoundingClientRect();
+    pop.style.left = `${Math.min(Math.max(8, box.left - hostBox.left), hostBox.width - 330)}px`;
+    pop.style.top = `${box.bottom - hostBox.top + 6}px`;
+    this.popover = pop;
+    const outside = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) this.closePopover(); };
+    const escape = (e) => { if (e.key === 'Escape') this.closePopover(); };
     setTimeout(() => document.addEventListener('pointerdown', outside), 0);
     document.addEventListener('keydown', escape);
     this.popoverCleanup = () => {

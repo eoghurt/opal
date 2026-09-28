@@ -24,6 +24,8 @@ import { setProp, setFileColor } from '../shared/frontmatter.js';
 import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
+import { TasksView } from './views/tasks-view.js';
+import { TASKS_FOLDER, parseTasks, replaceTask, todayKey } from './tasks/tasks.js';
 import { CALENDAR_FOLDER, dayPath, keyToDate } from './calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
@@ -59,6 +61,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
   onLogbook: () => showLogbook(),
+  onTasks: () => showTasks(),
 });
 
 // ---------- Everything happens one step at a time ----------
@@ -90,8 +93,11 @@ let calendarState = { date: new Date(), mode: 'day' };
 let logbook = null;
 let logbookState = { kind: 'month', date: new Date() };
 
+let tasksView = null;
+
 // Called whenever another screen takes over.
 function leaveCalendar() {
+  tasksView = null;
   if (calendar) calendar.destroy();
   calendar = null;
   if (logbook) logbook.destroy();
@@ -419,7 +425,80 @@ function showCalendar(date) {
         openFile(path);
       },
       openLink: (target) => openLink(target),
+      loadTasks: loadDueTasks,
+      toggleTask: toggleTaskDone,
+      openTasks: () => showTasks(),
       onChange: (state) => { calendarState = state; },
+    });
+  });
+}
+
+// ---------- Tasks ----------
+
+function taskListNodes() {
+  const folder = findFolder(tree, TASKS_FOLDER, vault.name);
+  return folder ? folder.children.filter((n) => n.type === 'file' && /\.md$/i.test(n.name)) : [];
+}
+
+function taskListPath(name) {
+  const node = taskListNodes().find((n) => n.name.slice(0, -3).toLowerCase() === name.toLowerCase());
+  return node ? node.path : `${TASKS_FOLDER}/${name}.md`;
+}
+
+async function readTaskList(name) {
+  try {
+    return await window.opal.readFile(taskListPath(name));
+  } catch {
+    return null;
+  }
+}
+
+async function writeTaskList(name, text) {
+  const known = taskListNodes().some((n) => n.name.slice(0, -3).toLowerCase() === name.toLowerCase());
+  await window.opal.createFolder(TASKS_FOLDER, '');
+  const path = await window.opal.createNote(name, TASKS_FOLDER);
+  await window.opal.writeFile(path, text);
+  if (!known) await reloadTree();
+}
+
+// Every task with a due date, from every list (for the calendar).
+async function loadDueTasks() {
+  const lists = await Promise.all(taskListNodes().map(async (n) => {
+    const name = n.name.slice(0, -3);
+    return parseTasks((await readTaskList(name)) || '', name);
+  }));
+  return lists.flat().filter((t) => t.due);
+}
+
+async function toggleTaskDone(task) {
+  const text = (await readTaskList(task.list)) || '';
+  const done = !task.done;
+  await writeTaskList(task.list, replaceTask(text, task, { ...task, done, doneOn: done ? todayKey() : null }));
+}
+
+function showTasks() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'tasks' };
+    setTitle('Tasks');
+    sidebar.setActive(null, null);
+    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Tasks' }]);
+    viewEl.scrollTop = 0;
+    tasksView = new TasksView(viewEl, {
+      // "My Tasks" first, like Google Tasks; the rest alphabetically.
+      listNames: () => taskListNodes().map((n) => n.name.slice(0, -3)).sort((a, b) => (b === 'My Tasks') - (a === 'My Tasks') || a.localeCompare(b)),
+      readList: readTaskList,
+      writeList: writeTaskList,
+      renameList: async (name, next) => {
+        await window.opal.renameNote(taskListPath(name), next);
+        await reloadTree();
+      },
+      deleteList: async (name) => {
+        await window.opal.trashNote(taskListPath(name));
+        await reloadTree();
+      },
     });
   });
 }
@@ -446,6 +525,7 @@ function showLogbook() {
         calendarState = { ...calendarState, mode: 'day' };
         showCalendar(keyToDate(key));
       },
+      openTasks: () => showTasks(),
       onChange: (state) => { logbookState = state; },
     });
   });
@@ -556,6 +636,8 @@ function refreshFiles() {
       calendar.reload();
     } else if (screen.kind === 'logbook' && logbook) {
       logbook.reload();
+    } else if (screen.kind === 'tasks' && tasksView) {
+      tasksView.reload();
     } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
       await flushHomeStickies();
@@ -679,6 +761,7 @@ window.opal.onShowPalettes(showPalettes);
 window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggle());
 window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => showLogbook());
+window.opal.onShowTasks(() => showTasks());
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
 

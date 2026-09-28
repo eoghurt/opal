@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('opal', {
   revealInFinder: (relPath) => call('file:reveal', relPath),
   readBytes: (relPath) => call('file:read-bytes', relPath),
   setColor: (relPath, kind, color) => call('color:set', relPath, kind, color),
+  renameNote: (relPath, newName) => call('note:rename', relPath, newName),
+  trashNote: (relPath) => call('note:trash', relPath),
   getPalette: () => call('palette:get'),
   setPalette: (name) => call('palette:set', name),
 
@@ -36,6 +38,7 @@ contextBridge.exposeInMainWorld('opal', {
   onToggleSidebar: (callback) => ipcRenderer.on('ui:toggle-sidebar', () => callback()),
   onShowCalendar: (callback) => ipcRenderer.on('ui:show-calendar', () => callback()),
   onShowLogbook: (callback) => ipcRenderer.on('ui:show-logbook', () => callback()),
+  onShowTasks: (callback) => ipcRenderer.on('ui:show-tasks', () => callback()),
 
   // Main asks the window to save before quitting or switching vaults.
   // `callback` returns a promise; main is told whether saving succeeded.

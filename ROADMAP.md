@@ -28,13 +28,24 @@ their own Mac app with one click. File types live in file-types.json.
   worked, busiest days; click a day to see and open everything from it.
 - New PDF viewer (pdf.js) with collapsible page overview.
 
+## v0.5 — Writing & organising (done)
+- **Live preview** — markdown symbols hidden unless the cursor is on them;
+  pop-up formatting bar over selected text; Cmd+B/I/U/K.
+- **Sticky sizes** — ¼× to 2×.
+- **Panels** — every side panel can be resized and closed (Cmd+\ for the sidebar).
+- **Folder & page colours** — ten colours, stored as `opal-color` properties.
+- **Calendar colours** — 20 fills + 20 accents per event (`#color/…`, `#accent/…`).
+- **Tasks** — Google Tasks-style lists in `Tasks/*.md` (Obsidian Tasks format),
+  shown in the calendar and counted in the logbook.
+
 ## Later, in no particular order
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
 - **Downloadable palettes** — get more palettes as small files in the vault.
 - **Spreadsheet and slide notes** — new file types via `src/editor-registry.js`.
 - **Search, columns view, canvas view.**
-- **Calendar extras** — month view, repeating events, reminders.
+- **Calendar extras** — month view, repeating events, reminders; timed tasks in the day grid.
+- **Tasks extras** — drag to reorder, repeating tasks, move tasks between lists.
 - **Richer file viewing** — old .doc/.ppt/.xls files, HEIC photos, chart
   and SmartArt drawing in slides, speaker notes.
 - **Edit conflicts** — when a note is typed in Opal and changed elsewhere at

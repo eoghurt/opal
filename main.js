@@ -319,6 +319,27 @@ function serveVaultFile(request) {
   }
 }
 
+// Renames a note in place (same folder). Returns its new path.
+async function renameNote(relPath, newName) {
+  const full = resolveNotePath(relPath);
+  const fileName = `${safeFileName(String(newName).replace(/\.md$/i, ''))}.md`;
+  const folder = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+  const newRel = joinRel(folder, fileName);
+  const newFull = resolveNotePath(newRel);
+  if (newFull.toLowerCase() !== full.toLowerCase() && fs.existsSync(newFull)) {
+    throw new Error(`There's already a note called “${fileName.slice(0, -3)}” there.`);
+  }
+  await fs.promises.rename(full, newFull);
+  scheduleRefresh();
+  return newRel;
+}
+
+// Moves a note to the Mac's Trash (recoverable from there).
+async function trashNote(relPath) {
+  await shell.trashItem(resolveNotePath(relPath));
+  scheduleRefresh();
+}
+
 // Opens a vault file in its usual Mac app (e.g. Preview, Word). Only known
 // file types, so this can never be used to launch a program.
 async function openInDefaultApp(relPath) {
@@ -543,6 +564,8 @@ ipcMain.handle('note:previews', (_event, paths) => notePreviews(paths));
 ipcMain.handle('file:open-external', (_event, relPath) => openInDefaultApp(relPath));
 ipcMain.handle('file:reveal', (_event, relPath) => revealInFinder(relPath));
 ipcMain.handle('color:set', (_event, relPath, kind, color) => setColor(relPath, kind, color));
+ipcMain.handle('note:rename', (_event, relPath, newName) => renameNote(relPath, newName));
+ipcMain.handle('note:trash', (_event, relPath) => trashNote(relPath));
 ipcMain.handle('file:read-bytes', (_event, relPath) => readFileBytes(relPath));
 ipcMain.handle('folder:create', (_event, name, parent) => createFolder(name, parent));
 ipcMain.handle('palette:get', () => getPalette());
@@ -581,6 +604,7 @@ function buildMenu() {
         { label: 'Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
         { label: 'Logbook', accelerator: 'CmdOrCtrl+Shift+L', click: () => { if (win) win.webContents.send('ui:show-logbook'); } },
+        { label: 'Tasks', accelerator: 'CmdOrCtrl+Shift+T', click: () => { if (win) win.webContents.send('ui:show-tasks'); } },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

@@ -6,7 +6,7 @@ import { h } from '../ui.js';
 import { makePanel } from '../panel.js';
 import { noteName } from '../format.js';
 import { clock, dayKey, keyToDate, startOfWeek, addDays } from '../calendar/events.js';
-import { periodRange, shiftPeriod, daysIn, summarise, dayScore, loadEvents } from '../logbook/activity.js';
+import { periodRange, shiftPeriod, daysIn, summarise, dayScore, loadEvents, loadTasksDone } from '../logbook/activity.js';
 
 const LEVELS = 4; // heatmap steps above "nothing"
 
@@ -20,11 +20,11 @@ function fmtChange(now, before, unit) {
 
 export class LogbookView {
   // getFiles() → every file node; readFile(path) → text.
-  constructor(container, { kind, date, getFiles, readFile, openFile, openCalendarDay, onChange }) {
+  constructor(container, { kind, date, getFiles, readFile, openFile, openCalendarDay, openTasks, onChange }) {
     this.container = container;
     this.kind = kind || 'month';
     this.date = date || new Date();
-    this.io = { getFiles, readFile, openFile, openCalendarDay, onChange: onChange || (() => {}) };
+    this.io = { getFiles, readFile, openFile, openCalendarDay, openTasks: openTasks || (() => {}), onChange: onChange || (() => {}) };
     this.selected = null;
     this.root = h('div', { class: 'logbook' });
     this.tooltip = h('div', { class: 'lb-tip', role: 'tooltip', hidden: true });
@@ -52,14 +52,16 @@ export class LogbookView {
     const files = this.io.getFiles();
     const range = periodRange(this.kind, this.date);
     const before = periodRange(this.kind, shiftPeriod(this.kind, this.date, -1));
-    const [events, eventsBefore] = await Promise.all([
+    const [events, eventsBefore, tasks, tasksBefore] = await Promise.all([
       loadEvents(files, range, this.io.readFile),
       loadEvents(files, before, this.io.readFile),
+      loadTasksDone(files, range, this.io.readFile),
+      loadTasksDone(files, before, this.io.readFile),
     ]);
     this.range = range;
     this.thresholds = null;
-    this.data = summarise(files, events, range);
-    this.previous = summarise(files, eventsBefore, before);
+    this.data = summarise(files, events, range, tasks);
+    this.previous = summarise(files, eventsBefore, before, tasksBefore);
     if (!this.selected) {
       const today = dayKey(new Date());
       const keys = daysIn(range);
@@ -112,6 +114,7 @@ export class LogbookView {
       tile('Notes created', t.created, p.created),
       tile('Notes edited', t.edited, p.edited, 'last change in this period'),
       tile('Calendar events', t.events, p.events),
+      tile('Tasks done', t.tasks, p.tasks),
       tile('Files added', t.added, p.added, 'PDFs, pictures, Office…'));
 
     const main = h('div', { class: 'lb-main' },
@@ -178,6 +181,7 @@ export class LogbookView {
     if (day.created.length) parts.push(`${day.created.length} new note${day.created.length > 1 ? 's' : ''}`);
     if (day.edited.length) parts.push(`${day.edited.length} edited`);
     if (day.events.length) parts.push(`${day.events.length} event${day.events.length > 1 ? 's' : ''}`);
+    if (day.tasks.length) parts.push(`${day.tasks.length} task${day.tasks.length > 1 ? 's' : ''} done`);
     if (day.added.length) parts.push(`${day.added.length} file${day.added.length > 1 ? 's' : ''} added`);
     return `${date} · ${parts.join(', ')}`;
   }
@@ -287,7 +291,7 @@ export class LogbookView {
   // The selected day, in full.
   dayDetail() {
     const key = this.selected;
-    const day = this.data.perDay[key] || { created: [], edited: [], added: [], events: [] };
+    const day = this.data.perDay[key] || { created: [], edited: [], added: [], events: [], tasks: [] };
     const date = keyToDate(key);
     const item = (mark, label, onclick, meta) => h('button', { class: 'lb-item', onclick },
       h('span', { class: 'lb-item-mark', 'aria-hidden': 'true' }, mark),
@@ -302,6 +306,7 @@ export class LogbookView {
       dayScore(day)
         ? h('div', { class: 'lb-groups' },
           group('Events', day.events.slice().sort((a, b) => a.start - b.start).map((e) => item(e.allDay ? '◆' : clock(e.start), e.title, () => this.io.openCalendarDay(key)))),
+          group('Tasks done', day.tasks.map((t) => item('✓', t.title, () => this.io.openTasks(), t.list))),
           group('New notes', day.created.map((f) => item('+', noteName(f.path), () => this.io.openFile(f.path), f.path.includes('/') ? f.path.split('/').slice(0, -1).join('/') : null))),
           group('Edited', day.edited.map((f) => item('✎', noteName(f.path), () => this.io.openFile(f.path), f.path.includes('/') ? f.path.split('/').slice(0, -1).join('/') : null))),
           group('Files added', day.added.map((f) => item('↓', f.path.split('/').pop(), () => this.io.openFile(f.path)))))

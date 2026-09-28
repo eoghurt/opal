@@ -4,6 +4,7 @@
 
 import { dayKey, addDays, startOfWeek, parseEvents, keyToDate } from '../calendar/events.js';
 import { kindOf } from '../file-types.js';
+import { parseTasks } from '../tasks/tasks.js';
 
 // [start, end) of the period that contains `date`.
 export function periodRange(kind, date) {
@@ -33,10 +34,11 @@ const inRange = (ms, range) => ms >= range.start.getTime() && ms < range.end.get
 const topFolder = (path) => (path.includes('/') ? path.split('/')[0] : 'Vault root');
 
 // files: every file node in the vault. eventsByDay: { 'YYYY-MM-DD': [events] }.
-export function summarise(files, eventsByDay, range) {
+// tasksByDay: { 'YYYY-MM-DD': [tasks finished that day] }.
+export function summarise(files, eventsByDay, range, tasksByDay = {}) {
   const perDay = {};
   const ensure = (key) => {
-    if (!perDay[key]) perDay[key] = { created: [], edited: [], added: [], events: [] };
+    if (!perDay[key]) perDay[key] = { created: [], edited: [], added: [], events: [], tasks: [] };
     return perDay[key];
   };
   const folders = {};
@@ -60,19 +62,46 @@ export function summarise(files, eventsByDay, range) {
   for (const [key, events] of Object.entries(eventsByDay)) {
     if (inRange(keyToDate(key).getTime(), range) && events.length) ensure(key).events.push(...events);
   }
+  for (const [key, tasks] of Object.entries(tasksByDay)) {
+    if (inRange(keyToDate(key).getTime(), range) && tasks.length) ensure(key).tasks.push(...tasks);
+  }
 
-  const totals = { created: 0, edited: 0, events: 0, added: 0 };
+  const totals = { created: 0, edited: 0, events: 0, added: 0, tasks: 0 };
   for (const day of Object.values(perDay)) {
     totals.created += day.created.length;
     totals.edited += day.edited.length;
     totals.events += day.events.length;
     totals.added += day.added.length;
+    totals.tasks += day.tasks.length;
   }
   return { perDay, totals, folders };
 }
 
 export function dayScore(day) {
-  return day ? day.created.length + day.edited.length + day.added.length + day.events.length : 0;
+  return day ? day.created.length + day.edited.length + day.added.length + day.events.length + day.tasks.length : 0;
+}
+
+// Tasks (and subtasks) finished in a range, by the day they were done (✅ date).
+export async function loadTasksDone(files, range, readFile) {
+  const out = {};
+  const lists = files.filter((f) => /^Tasks\/[^/]+\.md$/i.test(f.path));
+  await Promise.all(lists.map(async (f) => {
+    let text = '';
+    try {
+      text = await readFile(f.path);
+    } catch {
+      return;
+    }
+    const list = f.path.slice(6, -3);
+    for (const task of parseTasks(text, list)) {
+      for (const t of [task, ...task.subtasks.map((s) => ({ ...s, list }))]) {
+        if (t.done && t.doneOn && inRange(keyToDate(t.doneOn).getTime(), range)) {
+          (out[t.doneOn] = out[t.doneOn] || []).push({ title: t.title, list });
+        }
+      }
+    }
+  }));
+  return out;
 }
 
 // Reads the calendar day notes that fall in a range.
