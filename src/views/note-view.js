@@ -4,17 +4,18 @@
 
 import { h } from '../ui.js';
 import { makePanel } from '../panel.js';
-import { slotFor } from '../palettes.js';
+import { colorOf, swatchRow } from '../item-colors.js';
+import { stripFrontmatter } from '../../shared/frontmatter.js';
 import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../format.js';
 import { findFile, findFolder, countNotes } from '../tree.js';
 import { stripStickies } from '../../shared/stickies.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor };
     this.tree = [];
     this.text = '';
 
@@ -47,11 +48,15 @@ export class NoteView {
     return this.folderPath ? this.folderPath.split('/').pop() : this.vaultName;
   }
 
+  folderNode() {
+    return findFolder(this.tree, this.folderPath, this.vaultName);
+  }
+
   renderChips() {
-    const slot = slotFor(this.folderPath || this.vaultName);
+    const note = findFile(this.tree, this.filePath);
     this.chips.replaceChildren(
-      h('span', { class: 'chip', style: 'background: var(--c1)' }, 'Note'),
-      h('button', { class: 'chip', style: `background: var(--c${slot})`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
+      h('span', { class: 'chip', style: `background: ${colorOf(note)}` }, 'Note'),
+      h('button', { class: 'chip', style: `background: ${colorOf(this.folderPath ? this.folderNode() : null)}`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
       h('span', { class: 'chip chip-plain' }, `${noteName(this.filePath)}.md`),
       h('button', { class: 'chip chip-add', onclick: () => this.handlers.onAddSticky() }, '+ Sticky'),
     );
@@ -59,12 +64,12 @@ export class NoteView {
 
   renderLeft() {
     const node = findFile(this.tree, this.filePath);
-    const words = (this.text.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
+    const words = (stripFrontmatter(this.text).match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
     const links = linksIn(this.text);
     const row = (term, ...value) => [h('dt', null, term), h('dd', null, ...value)];
 
     const details = h('dl', { class: 'meta-list' },
-      row('Folder', h('span', { class: 'swatch', style: `background: var(--c${slotFor(this.folderPath || this.vaultName)})` }), this.folderPath || 'Vault root'),
+      row('Folder', h('span', { class: 'swatch', style: `background: ${colorOf(this.folderPath ? this.folderNode() : null)}` }), this.folderPath || 'Vault root'),
       row('File', `${noteName(this.filePath)}.md`),
       row('Created', node && node.created ? shortDate(node.created) : '—'),
       row('Edited', node && node.modified ? `${relativeDay(node.modified)} ${clockTime(node.modified)}` : '—'),
@@ -83,19 +88,20 @@ export class NoteView {
         }, h('span', { class: 'outline-num' }, pad2(i + 1)), hd.text))
         : h('span', { class: 'hand side-hint' }, 'add # headings to get an outline'));
 
-    const palettes = h('div', { class: 'side-block' },
+    const colour = h('div', { class: 'side-block' },
+      h('span', { class: 'mono-label' }, 'Colour'),
+      swatchRow(node && node.color, (name) => this.handlers.onSetColor(this.filePath, 'file', name)),
       h('button', { class: 'serif-link', onclick: this.handlers.onPalettes }, 'Change palette →'));
 
-    this.leftBody.replaceChildren(details, outline, palettes);
+    this.leftBody.replaceChildren(details, outline, colour);
   }
 
   renderRight() {
     const folder = findFolder(this.tree, this.folderPath, this.vaultName);
-    const slot = slotFor(this.folderPath || this.vaultName);
-    const siblings = folder ? folder.children.filter((n) => n.type === 'file') : [];
+    const siblings = folder ? folder.children.filter((n) => n.type === 'file' && (!n.quiet || n.path === this.filePath)) : [];
     const name = this.folderName();
 
-    const home = h('button', { class: 'folder-card', style: `background: var(--c${slot})`, onclick: () => this.handlers.onOpenFolder(this.folderPath) },
+    const home = h('button', { class: 'folder-card', style: `background: ${colorOf(this.folderPath ? folder : null)}`, onclick: () => this.handlers.onOpenFolder(this.folderPath) },
       h('span', { class: 'mono-label' }, 'Folder home'),
       h('span', { class: 'display folder-card-name' }, name),
       h('span', { class: 'serif-i' }, folder ? `${countNotes(folder)} notes` : ''));
@@ -107,7 +113,7 @@ export class NoteView {
           class: `sibling${active ? ' is-active' : ''}`,
           'aria-current': active ? 'page' : null,
           onclick: () => this.handlers.onOpenFile(file.path),
-        }, h('span', { class: 'outline-num' }, pad2(i + 1)), noteName(file.path));
+        }, h('span', { class: 'swatch', style: `background: ${colorOf(file)}` }), noteName(file.path));
       }));
 
     const links = linksIn(this.text);

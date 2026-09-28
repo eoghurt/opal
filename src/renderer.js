@@ -19,6 +19,9 @@ import { FileView } from './views/file-view.js';
 import { fileUrl } from './file-types.js';
 import { StickyLayer } from './sticky-layer.js';
 import { makePanel } from './panel.js';
+import { showColorMenu } from './item-colors.js';
+import { setProp, setFileColor } from '../shared/frontmatter.js';
+import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
 import { CALENDAR_FOLDER, dayPath, keyToDate } from './calendar/events.js';
@@ -47,6 +50,7 @@ const sidebar = new Sidebar(sidebarPanel, {
   onOpenFile: (p) => openFile(p),
   onOpenFolder: (p) => openFolder(p),
   onSwitchVault: () => window.opal.chooseVault(),
+  onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
 });
 
 const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
@@ -173,6 +177,7 @@ function showHome(folderPath, notice) {
     onNewNote: () => newNote(),
     onNewFolder: () => newFolder(),
     onAddSticky: () => homeStickies && homeStickies.layer.add(viewEl.scrollTop),
+    onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
   });
   homeStickies = folderHomeStickies(folderPath, folder, home);
 }
@@ -258,6 +263,7 @@ async function showNote(filePath) {
     onPalettes: () => showPalettes(),
     onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
     onAddSticky: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - noteView.center.offsetTop),
+    onSetColor: (path, kind, color) => setItemColor(path, kind, color),
   });
 
   let changeTimer = null;
@@ -311,6 +317,7 @@ async function showViewer(filePath, ViewerType) {
     vaultName: vault.name,
     onOpenFile: (p) => openFile(p),
     onOpenFolder: (p) => openFolder(p),
+    onSetColor: (path, kind, color) => setItemColor(path, kind, color),
   });
   const viewer = new ViewerType({
     parent: fileView.viewerHost,
@@ -442,6 +449,45 @@ function showLogbook() {
       onChange: (state) => { logbookState = state; },
     });
   });
+}
+
+// ---------- Folder & page colours ----------
+
+function colorMenu(event, node, kind) {
+  showColorMenu(event, {
+    title: kind === 'folder' ? node.name : noteName(node.path),
+    current: node.color,
+    onPick: (color) => setItemColor(node.path, kind, color),
+  });
+}
+
+// Which note stores a folder's or file's colour.
+function colorNotePath(path, kind) {
+  const folder = kind === 'folder' ? path : parentOf(path);
+  if (kind === 'file' && kindOf(path) === 'note') return path;
+  const name = folder ? folder.split('/').pop() : vault.name;
+  return `${folder ? `${folder}/` : ''}${name}.md`;
+}
+
+async function setItemColor(path, kind, color) {
+  try {
+    const target = colorNotePath(path, kind);
+    const open = current && current.editor.getStickies && current.filePath.toLowerCase() === target.toLowerCase();
+    if (open) {
+      // The note is open: change it through the editor so nothing typed is lost.
+      const text = current.editor.getText();
+      const next = kind === 'file' && kindOf(path) !== 'note'
+        ? setFileColor(text, path.split('/').pop(), color)
+        : setProp(text, 'opal-color', color);
+      current.editor.replaceText(next);
+      await current.editor.flush();
+      await refreshFiles();
+    } else {
+      await window.opal.setColor(path, kind, color);
+    }
+  } catch (err) {
+    alert(`Couldn't change the colour.\n\n${err.message}`);
+  }
 }
 
 // Follows a [[link]]: main finds the note (or creates it), then we open it.

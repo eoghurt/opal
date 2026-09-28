@@ -4,18 +4,18 @@
 
 import { h } from '../ui.js';
 import { makePanel } from '../panel.js';
-import { slotFor } from '../palettes.js';
+import { colorOf, swatchRow } from '../item-colors.js';
 import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../format.js';
 import { findFile, findFolder } from '../tree.js';
 import { kindOf, kindLabel, formatSize } from '../file-types.js';
 
 export class FileView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onSetColor }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
     this.kind = kindOf(filePath);
-    this.handlers = { onOpenFile, onOpenFolder };
+    this.handlers = { onOpenFile, onOpenFolder, onSetColor };
     this.tree = [];
 
     this.left = h('aside', { class: 'note-left file-left', 'aria-label': 'File details' });
@@ -40,19 +40,19 @@ export class FileView {
 
   render() {
     const node = findFile(this.tree, this.filePath);
-    const slot = slotFor(this.folderPath || this.vaultName);
+    const folderColor = colorOf(this.folderPath ? findFolder(this.tree, this.folderPath, this.vaultName) : null);
     const fileName = this.filePath.split('/').pop();
 
     this.chips.replaceChildren(
-      h('span', { class: 'chip', style: 'background: var(--c3)' }, kindLabel(this.kind)),
-      h('button', { class: 'chip', style: `background: var(--c${slot})`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
+      h('span', { class: 'chip', style: `background: ${colorOf(node)}` }, kindLabel(this.kind)),
+      h('button', { class: 'chip', style: `background: ${folderColor}`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
       h('span', { class: 'chip chip-plain' }, fileName),
       h('span', { class: 'chip chip-plain chip-quiet' }, 'View only'),
     );
 
     const row = (term, ...value) => [h('dt', null, term), h('dd', null, ...value)];
     const details = h('dl', { class: 'meta-list' },
-      row('Folder', h('span', { class: 'swatch', style: `background: var(--c${slot})` }), this.folderPath || 'Vault root'),
+      row('Folder', h('span', { class: 'swatch', style: `background: ${folderColor}` }), this.folderPath || 'Vault root'),
       row('File', fileName),
       row('Kind', kindLabel(this.kind)),
       row('Size', formatSize(node && node.size)),
@@ -65,7 +65,7 @@ export class FileView {
       h('button', { class: 'home-action', onclick: () => this.run(() => window.opal.revealInFinder(this.filePath)) }, 'Show in Finder'));
 
     const folder = findFolder(this.tree, this.folderPath, this.vaultName);
-    const siblings = folder ? folder.children.filter((n) => n.type === 'file') : [];
+    const siblings = folder ? folder.children.filter((n) => n.type === 'file' && (!n.quiet || n.path === this.filePath)) : [];
     const list = h('div', { class: 'sibling-list' },
       siblings.map((file, i) => {
         const active = file.path === this.filePath;
@@ -73,11 +73,16 @@ export class FileView {
           class: `sibling${active ? ' is-active' : ''}`,
           'aria-current': active ? 'page' : null,
           onclick: () => this.handlers.onOpenFile(file.path),
-        }, h('span', { class: 'outline-num' }, pad2(i + 1)), noteName(file.path));
+        }, h('span', { class: 'swatch', style: `background: ${colorOf(file)}` }), noteName(file.path));
       }));
+
+    const colour = h('div', { class: 'side-block' },
+      h('span', { class: 'mono-label' }, 'Colour'),
+      swatchRow(node && node.color, (name) => this.handlers.onSetColor(this.filePath, 'file', name)));
 
     this.leftBody.replaceChildren(
       details,
+      colour,
       actions,
       h('div', { class: 'side-label mono-label' }, h('span', null, `Also in ${this.folderName()}`), h('span', null, pad2(siblings.length))),
       list,

@@ -2,15 +2,16 @@
 // Clicking a folder's name opens its home page; the arrow just expands it.
 
 import { h, icon } from './ui.js';
-import { slotFor } from './palettes.js';
+import { colorOf } from './item-colors.js';
 import { noteName, pad2 } from './format.js';
 
 export class Sidebar {
-  constructor(container, { onOpenFile, onOpenFolder, onSwitchVault }) {
+  constructor(container, { onOpenFile, onOpenFolder, onSwitchVault, onColorMenu }) {
     this.container = container;
     this.onOpenFile = onOpenFile;
     this.onOpenFolder = onOpenFolder;
     this.onSwitchVault = onSwitchVault;
+    this.onColorMenu = onColorMenu;
     this.vault = null;
     this.tree = [];
     this.active = { kind: null, path: null };
@@ -69,7 +70,7 @@ export class Sidebar {
 
   rows(nodes, depth) {
     const out = [];
-    for (const node of nodes) {
+    for (const node of nodes.filter((n) => !n.quiet)) {
       if (node.type === 'folder') {
         out.push(this.folderRow(node, depth));
         if (this.expanded.has(node.path)) out.push(...this.rows(node.children, depth + 1));
@@ -83,7 +84,11 @@ export class Sidebar {
   folderRow(node, depth) {
     const open = this.expanded.has(node.path);
     const current = this.active.kind === 'folder' && this.active.path === node.path;
-    return h('div', { class: `side-row side-folder${current ? ' is-current' : ''}`, style: `padding-left: ${4 + depth * 14}px` },
+    return h('div', {
+      class: `side-row side-folder${current ? ' is-current' : ''}`,
+      style: `padding-left: ${4 + depth * 14}px`,
+      oncontextmenu: (event) => this.onColorMenu(event, node, 'folder'),
+    },
       h('button', {
         class: `side-caret${open ? ' is-open' : ''}`,
         'aria-label': `${open ? 'Collapse' : 'Expand'} ${node.name}`,
@@ -102,7 +107,7 @@ export class Sidebar {
           this.onOpenFolder(node.path);
         },
       },
-      h('span', { class: 'swatch', style: `background: var(--c${slotFor(node.path)})` }),
+      h('span', { class: 'swatch', style: `background: ${colorOf(node)}` }),
       node.name),
     );
   }
@@ -114,6 +119,7 @@ export class Sidebar {
       style: `padding-left: ${26 + depth * 14}px`,
       title: node.path,
       onclick: () => this.onOpenFile(node.path),
-    }, noteName(node.path));
+      oncontextmenu: (event) => this.onColorMenu(event, node, 'file'),
+    }, h('span', { class: 'swatch swatch-dot', style: `background: ${colorOf(node)}` }), noteName(node.path));
   }
 }

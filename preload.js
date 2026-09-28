@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('opal', {
   openExternal: (relPath) => call('file:open-external', relPath),
   revealInFinder: (relPath) => call('file:reveal', relPath),
   readBytes: (relPath) => call('file:read-bytes', relPath),
+  setColor: (relPath, kind, color) => call('color:set', relPath, kind, color),
   getPalette: () => call('palette:get'),
   setPalette: (name) => call('palette:set', name),
 

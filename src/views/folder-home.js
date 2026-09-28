@@ -4,6 +4,7 @@
 
 import { h, scribbleArrow } from '../ui.js';
 import { slotFor } from '../palettes.js';
+import { colorOf } from '../item-colors.js';
 import { noteName, relativeDay, shortDate, pad2 } from '../format.js';
 import { countNotes, latestModified, recentFiles } from '../tree.js';
 import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-types.js';
@@ -12,16 +13,18 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
-  const files = folder.children
-    .filter((n) => n.type === 'file')
+  const allFiles = folder.children.filter((n) => n.type === 'file');
+  const files = allFiles
+    .filter((n) => !n.quiet)
     .sort((a, b) => (b.modified || 0) - (a.modified || 0));
   const total = countNotes(folder);
 
   // A note with the same name as its folder (like School/School.md) is the
   // folder's own note: its first line becomes the description.
-  const folderNote = files.find((f) => noteName(f.path).toLowerCase() === folder.name.toLowerCase());
+  const folderNoteFile = allFiles.find((f) => noteName(f.path).toLowerCase() === folder.name.toLowerCase());
+  const folderNote = folderNoteFile && !folderNoteFile.quiet ? folderNoteFile : null;
   const description = h('p', { class: 'home-desc' },
     folderNote ? '' : `Tip: a note named “${folder.name || 'Home'}” in here becomes this line.`);
   if (!folderNote) description.classList.add('is-tip');
@@ -62,18 +65,23 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
 
   if (subfolders.length) {
     sections.push(h('section', { class: 'home-folders', 'aria-label': `Folders in ${folder.name}` },
-      subfolders.map((sub) => folderTile(sub, onOpenFolder, wantPreview))));
+      subfolders.map((sub) => folderTile(sub, onOpenFolder, wantPreview, onColorMenu))));
   }
 
   if (files.length) {
     sections.push(h('section', { class: 'home-cards', 'aria-label': `Notes in ${folder.name}` },
       files.map((file) => {
         const kind = kindOf(file.path);
-        if (kind === 'image') return photoCard(file, onOpenFile);
-        if (kind !== 'note') return fileCard(file, kind, onOpenFile);
-        const preview = h('span', { class: 'card-preview' });
-        wantPreview(file.path, preview);
-        return noteCard(file, preview, onOpenFile);
+        let cell;
+        if (kind === 'image') cell = photoCard(file, onOpenFile);
+        else if (kind !== 'note') cell = fileCard(file, kind, onOpenFile);
+        else {
+          const preview = h('span', { class: 'card-preview' });
+          wantPreview(file.path, preview);
+          cell = noteCard(file, preview, onOpenFile);
+        }
+        cell.addEventListener('contextmenu', (event) => onColorMenu(event, file, 'file'));
+        return cell;
       })));
   } else {
     sections.push(h('section', { class: 'home-empty' },
@@ -103,15 +111,19 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
 
 // The sheets peeking out of a folder show its two most recently edited files
 // (front sheet = newest). Empty folders show blank paper.
-function folderTile(folder, onOpenFolder, wantPreview) {
-  const slot = slotFor(folder.path);
+function folderTile(folder, onOpenFolder, wantPreview, onColorMenu) {
+  const color = colorOf(folder);
   const latest = latestModified(folder);
   const [newest, next] = recentFiles(folder.children, 2);
-  return h('button', { class: 'folder-tile', onclick: () => onOpenFolder(folder.path) },
+  return h('button', {
+    class: 'folder-tile',
+    onclick: () => onOpenFolder(folder.path),
+    oncontextmenu: (event) => onColorMenu(event, folder, 'folder'),
+  },
     h('span', { class: 'folder-sheet sheet-a', 'aria-hidden': 'true' }, next ? sheetPreview(next, wantPreview) : null),
     h('span', { class: 'folder-sheet sheet-b', 'aria-hidden': 'true' }, newest ? sheetPreview(newest, wantPreview) : null),
-    h('span', { class: 'folder-tab', style: `background: var(--c${slot})` }),
-    h('span', { class: 'folder-body', style: `background: var(--c${slot})` },
+    h('span', { class: 'folder-tab', style: `background: ${color}` }),
+    h('span', { class: 'folder-body', style: `background: ${color}` },
       h('span', { class: 'display folder-name' }, folder.name),
       h('span', { class: 'folder-foot' },
         h('span', { class: 'serif-i' }, latest ? `edited ${relativeDay(latest)}` : 'empty'),
@@ -137,37 +149,35 @@ function sheetPreview(file, wantPreview) {
 
 // Pictures look like a taped-in polaroid.
 function photoCard(file, onOpenFile) {
-  const slot = slotFor(file.path);
-  const tilt = slot % 2 ? -2 : 1.6;
+  const tilt = slotFor(file.path) % 2 ? -2 : 1.6;
   return h('div', { class: 'card-cell' },
     h('button', { class: 'photo-card', style: `transform: rotate(${tilt}deg)`, onclick: () => onOpenFile(file.path) },
-      h('span', { class: 'tape', style: `background: var(--c${slot})`, 'aria-hidden': 'true' }),
+      h('span', { class: 'tape', style: `background: ${colorOf(file)}`, 'aria-hidden': 'true' }),
       h('img', { class: 'photo-img', src: fileUrl(file.path, file.modified), alt: '', loading: 'lazy', decoding: 'async' }),
       h('span', { class: 'hand photo-caption' }, noteName(file.path).replace(/\.[^.]+$/, ''))));
 }
 
 // PDFs, media and Office files: a card stamped with the file type.
 function fileCard(file, kind, onOpenFile) {
-  const slot = slotFor(file.path);
   const ext = extensionOf(file.path).slice(1).toUpperCase();
   return h('div', { class: 'card-cell' },
     h('button', { class: `note-card file-card kind-${kind}`, onclick: () => onOpenFile(file.path) },
       h('span', { class: 'card-label mono-label' }, h('span', null, kindLabel(kind)), h('span', null, formatSize(file.size))),
       h('span', { class: 'display card-title' }, noteName(file.path).replace(/\.[^.]+$/, '')),
-      h('span', { class: 'type-block', style: `background: var(--c${slot})` },
+      h('span', { class: 'type-block', style: `background: ${colorOf(file)}` },
         h('span', { class: 'display type-block-ext' }, ext)),
       h('span', { class: 'serif-i card-foot' }, file.modified ? `edited ${relativeDay(file.modified)}` : '')));
 }
 
 function noteCard(file, preview, onOpenFile) {
-  const slot = slotFor(file.path);
-  const look = CARD_LOOKS[slot % CARD_LOOKS.length];
+  const look = CARD_LOOKS[slotFor(file.path) % CARD_LOOKS.length];
+  const color = colorOf(file);
   const card = h('button', {
     class: `note-card look-${look}`,
-    style: look === 'block' ? `background: var(--c${slot})` : null,
+    style: look === 'block' ? `background: ${color}` : `--item-color: ${color}`,
     onclick: () => onOpenFile(file.path),
   },
-  look === 'taped' ? h('span', { class: 'tape', style: `background: var(--c${slot})`, 'aria-hidden': 'true' }) : null,
+  look === 'taped' ? h('span', { class: 'tape', style: `background: ${color}`, 'aria-hidden': 'true' }) : null,
   h('span', { class: 'card-label mono-label' }, h('span', null, 'Note'), h('span', null, file.modified ? shortDate(file.modified) : '')),
   h('span', { class: 'display card-title' }, noteName(file.path)),
   preview,

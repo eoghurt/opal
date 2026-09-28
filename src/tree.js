@@ -1,6 +1,11 @@
 // Helpers for the folder tree that main.js sends:
 //   [{ type: 'folder', name, path, children }, { type: 'file', name, path, created, modified }]
 
+// Children to show in lists (skips behind-the-scenes folder notes).
+export function visible(nodes) {
+  return nodes.filter((n) => !n.quiet);
+}
+
 export function flattenFiles(nodes, out = []) {
   for (const node of nodes) {
     if (node.type === 'file') out.push(node);
@@ -25,7 +30,7 @@ export function findFolder(nodes, folderPath, rootName = '') {
 }
 
 export function countNotes(folder) {
-  return flattenFiles(folder.children).length;
+  return flattenFiles(folder.children).filter((f) => !f.quiet).length;
 }
 
 export function latestModified(folder) {
@@ -34,6 +39,7 @@ export function latestModified(folder) {
 
 export function recentFiles(nodes, limit) {
   return flattenFiles(nodes)
+    .filter((f) => !f.quiet)
     .sort((a, b) => (b.modified || 0) - (a.modified || 0))
     .slice(0, limit);
 }

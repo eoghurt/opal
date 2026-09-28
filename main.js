@@ -6,6 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const FILE_TYPES = require('./file-types.json');
+const frontmatter = require('./shared/frontmatter.js');
+const { stripStickies } = require('./shared/stickies.js');
 
 app.setName('Opal');
 // Lets automated tests use a throwaway settings folder instead of the real one.
@@ -75,7 +77,13 @@ function isHidden(name) {
 // Builds the folder tree:
 //   [{ type: 'folder', name, path, children }, { type: 'file', name, path, created, modified }].
 // Paths are relative to the vault and always use '/'. Dates are milliseconds.
+// Folders and files also carry `color` (one of the ten names, or null =
+// the default), read from note properties (see shared/frontmatter.js).
 async function scanFolder(relFolder) {
+  return (await scanDir(relFolder)).nodes;
+}
+
+async function scanDir(relFolder) {
   const entries = await fs.promises.readdir(path.join(vaultPath, relFolder), { withFileTypes: true });
   const folders = [];
   const files = [];
@@ -84,17 +92,95 @@ async function scanFolder(relFolder) {
     const relPath = relFolder ? `${relFolder}/${entry.name}` : entry.name;
     try {
       if (entry.isDirectory()) {
-        folders.push({ type: 'folder', name: entry.name, path: relPath, children: await scanFolder(relPath) });
+        const inside = await scanDir(relPath);
+        folders.push({ type: 'folder', name: entry.name, path: relPath, children: inside.nodes, color: inside.color });
       } else if (entry.isFile() && isKnownFile(entry.name)) {
-        const stat = await fs.promises.stat(path.join(vaultPath, relPath));
-        files.push({ type: 'file', name: entry.name, path: relPath, created: stat.birthtimeMs, modified: stat.mtimeMs, size: stat.size });
+        const full = path.join(vaultPath, relPath);
+        const stat = await fs.promises.stat(full);
+        const file = { type: 'file', name: entry.name, path: relPath, created: stat.birthtimeMs, modified: stat.mtimeMs, size: stat.size, color: null };
+        if (isNoteFile(entry.name)) Object.assign(file, await noteProps(full, stat.mtimeMs));
+        files.push(file);
       }
     } catch {
       // The entry vanished mid-scan; the next refresh will catch up.
     }
   }));
+
+  // The folder's own note (School/School.md; the vault's is named after the
+  // vault) holds the folder's colour and the colours of its non-note files.
+  const folderName = relFolder ? path.posix.basename(relFolder) : path.basename(vaultPath);
+  const folderNote = files.find((f) => f.name.toLowerCase() === `${folderName.toLowerCase()}.md`);
+  const map = folderNote ? folderNote.fileColors || {} : {};
+  for (const file of files) {
+    if (!isNoteFile(file.name)) file.color = frontmatter.validColor(map[file.name]);
+    // A folder note that only holds Opal's settings stays behind the scenes.
+    file.quiet = file === folderNote && Boolean(file.settingsOnly);
+    delete file.fileColors;
+    delete file.settingsOnly;
+  }
+
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-  return [...folders.sort(byName), ...files.sort(byName)];
+  return { nodes: [...folders.sort(byName), ...files.sort(byName)], color: folderNote ? folderNote.color : null };
+}
+
+// A note's Opal properties, from the start of the file (cached until it changes).
+const propsCache = new Map();
+
+async function noteProps(full, mtimeMs) {
+  const cached = propsCache.get(full);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.props;
+  let head = '';
+  const handle = await fs.promises.open(full, 'r');
+  try {
+    const buffer = Buffer.alloc(4096);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    head = buffer.toString('utf8', 0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+  const props = {
+    color: frontmatter.validColor(frontmatter.getProp(head, 'opal-color')),
+    fileColors: frontmatter.fileColors(head),
+    // Nothing but Opal's own settings (colours, stickies) in it?
+    settingsOnly: head.length < 4096 && !stripStickies(frontmatter.stripFrontmatter(head)).trim(),
+  };
+  propsCache.set(full, { mtimeMs, props });
+  return props;
+}
+
+// ---------- Colours ----------
+
+// Sets the colour of a folder or file (null = back to the default).
+// Notes keep it in their own properties; folders in their folder note
+// (created if needed); other files in their folder's note.
+async function setColor(relPath, kind, color) {
+  if (color !== null && !frontmatter.validColor(color)) throw new Error('Unknown colour.');
+  let notePath;
+  let change;
+  if (kind === 'folder') {
+    resolveFolderPath(relPath);
+    const name = relPath ? path.posix.basename(relPath) : path.basename(vaultPath);
+    notePath = joinRel(relPath, `${name}.md`);
+    change = (text) => frontmatter.setProp(text, 'opal-color', color);
+  } else if (isNoteFile(relPath)) {
+    notePath = relPath;
+    change = (text) => frontmatter.setProp(text, 'opal-color', color);
+  } else {
+    resolveVaultFile(relPath);
+    const folder = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+    const name = folder ? path.posix.basename(folder) : path.basename(vaultPath);
+    notePath = joinRel(folder, `${name}.md`);
+    change = (text) => frontmatter.setFileColor(text, path.posix.basename(relPath), color);
+  }
+  let text = '';
+  try {
+    text = await readNote(notePath);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  await writeNote(notePath, change(text));
+  scheduleRefresh(); // Opal's own save isn't picked up by the watcher
+  return notePath;
 }
 
 // A short plain-text preview of a note, for cards: skips front matter and
@@ -456,6 +542,7 @@ ipcMain.handle('note:create', (_event, name, folder) => createNote(name, folder)
 ipcMain.handle('note:previews', (_event, paths) => notePreviews(paths));
 ipcMain.handle('file:open-external', (_event, relPath) => openInDefaultApp(relPath));
 ipcMain.handle('file:reveal', (_event, relPath) => revealInFinder(relPath));
+ipcMain.handle('color:set', (_event, relPath, kind, color) => setColor(relPath, kind, color));
 ipcMain.handle('file:read-bytes', (_event, relPath) => readFileBytes(relPath));
 ipcMain.handle('folder:create', (_event, name, parent) => createFolder(name, parent));
 ipcMain.handle('palette:get', () => getPalette());

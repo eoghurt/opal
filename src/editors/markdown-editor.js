@@ -9,6 +9,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Prec } from '@codemirror/state';
 import { livePreview, formatBar, formatKeymap } from './markdown-live.js';
 import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
+import { frontmatterRange } from '../../shared/frontmatter.js';
 
 // Marks changes that came from the file on disk, not from typing.
 const fromDisk = Annotation.define();
@@ -53,12 +54,20 @@ const hiddenStickies = StateField.define({
   ],
 });
 
+// Also hides a properties block that only holds Opal's settings (like colour).
 function stickyDecorations(state) {
-  const range = stickyBlockRange(state.doc.toString());
-  if (!range) return Decoration.none;
-  const from = state.doc.lineAt(range.from).from;
-  const to = state.doc.lineAt(range.to).to;
-  return Decoration.set([Decoration.replace({ block: true }).range(from, to)]);
+  const text = state.doc.toString();
+  const hidden = [];
+  const props = frontmatterRange(text);
+  if (props && props.onlyOpal) {
+    const to = state.doc.lineAt(Math.max(0, props.to - 1)).to;
+    hidden.push(Decoration.replace({ block: true }).range(0, to));
+  }
+  const range = stickyBlockRange(text);
+  if (range) {
+    hidden.push(Decoration.replace({ block: true }).range(state.doc.lineAt(range.from).from, state.doc.lineAt(range.to).to));
+  }
+  return hidden.length ? Decoration.set(hidden, true) : Decoration.none;
 }
 
 // Scrapbook type: SF Pro bold headings, serif italics, mono code, faint markup symbols.
