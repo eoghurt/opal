@@ -9,7 +9,7 @@ import { makePanel } from '../panel.js';
 import { slotFor } from '../palettes.js';
 import {
   SNAP, dayKey, keyToDate, addDays, startOfWeek, clock,
-  parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS, isDark,
+  parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS,
   parseSeries, formatSeries, occurrences, appendSeries,
 } from '../calendar/events.js';
 import { describeRule, shiftKey } from '../calendar/repeat.js';
@@ -121,35 +121,42 @@ export class CalendarView {
     const last = keyToDate(keys[keys.length - 1]);
 
     const month = this.mode === 'month';
-    const title = this.mode === 'day'
-      ? `${weekday(this.date)}.`
-      : month
-        ? `${this.date.toLocaleDateString(undefined, { month: 'long' })}.`
-        : `${first.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${last.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}.`;
-    const subtitle = this.mode === 'day' ? longDate(this.date) : month ? String(this.date.getFullYear()) : `Week of ${longDate(first)}`;
+    const monthName = (d, style = 'long') => d.toLocaleDateString(undefined, { month: style });
+    // Apple-style titles: "28 September 2026" / "September 2026" / "Sep – Oct 2026".
+    let main;
+    let sub = '';
+    if (this.mode === 'day') {
+      main = `${this.date.getDate()} ${monthName(this.date)}`;
+      sub = weekday(this.date);
+    } else if (month) {
+      main = monthName(this.date);
+    } else {
+      main = first.getMonth() === last.getMonth() ? monthName(first) : `${monthName(first, 'short')} – ${monthName(last, 'short')}`;
+      sub = `${first.getDate()} ${monthName(first, 'short')} – ${last.getDate()} ${monthName(last, 'short')}`;
+    }
+    const year = (this.mode === 'week' ? last : this.date).getFullYear();
     const shift = (steps) => (month
       ? new Date(this.date.getFullYear(), this.date.getMonth() + steps, 1)
       : addDays(this.date, steps * (this.mode === 'day' ? 1 : 7)));
     const modes = [['day', 'Day'], ['week', 'Week'], ['month', 'Month']];
     const addKey = month ? (keys.includes(dayKey(new Date())) ? dayKey(new Date()) : dayKey(new Date(this.date.getFullYear(), this.date.getMonth(), 1))) : keys[0];
 
-    const head = h('section', { class: 'home-head cal-head' },
-      h('div', { class: 'home-title' },
-        h('span', { class: 'mono-label' }, `Calendar · ${modes.find(([k]) => k === this.mode)[1]}`),
-        h('h1', { class: 'display home-h1 cal-h1' }, title),
-        h('p', { class: 'home-desc' }, subtitle)),
-      h('div', { class: 'cal-controls' },
-        h('div', { class: 'cal-segment', role: 'group', 'aria-label': 'View' },
-          modes.map(([key, label]) => h('button', {
-            class: `cal-seg${this.mode === key ? ' is-on' : ''}`,
-            'aria-pressed': String(this.mode === key),
-            onclick: () => this.go(this.date, key),
-          }, label))),
+    const head = h('header', { class: 'cal-top' },
+      h('div', { class: 'cal-title' },
+        h('h1', { class: 'cal-h1' }, main, h('span', { class: 'cal-h1-year' }, ` ${year}`)),
+        sub ? h('span', { class: 'cal-sub' }, sub) : null),
+      h('div', { class: 'cal-segment', role: 'group', 'aria-label': 'View' },
+        modes.map(([key, label]) => h('button', {
+          class: `cal-seg${this.mode === key ? ' is-on' : ''}`,
+          'aria-pressed': String(this.mode === key),
+          onclick: () => this.go(this.date, key),
+        }, label))),
+      h('div', { class: 'cal-top-right' },
         h('div', { class: 'cal-nav' },
           h('button', { class: 'cal-navbtn', 'aria-label': 'Previous', onclick: () => this.go(shift(-1)) }, '‹'),
           h('button', { class: 'cal-navbtn cal-today', onclick: () => this.go(new Date()) }, 'Today'),
           h('button', { class: 'cal-navbtn', 'aria-label': 'Next', onclick: () => this.go(shift(1)) }, '›')),
-        h('button', { class: 'home-action is-primary cal-add', onclick: () => this.createAt(addKey, this.defaultStart(addKey)) }, '+ Event')),
+        h('button', { class: 'cal-add', 'aria-label': 'New event', title: 'New event', onclick: () => this.createAt(addKey, this.defaultStart(addKey)) }, '+')),
     );
 
     const rail = this.renderRail(keys);
@@ -175,6 +182,7 @@ export class CalendarView {
       if (day.getMonth() !== month.getMonth()) classes.push('is-outside');
       if (key === today) classes.push('is-today');
       if (this.mode !== 'month' && keys.includes(key)) classes.push('is-shown');
+      if (key === dayKey(this.date) && this.mode === 'day') classes.push('is-selected');
       cells.push(h('button', {
         class: classes.join(' '),
         'aria-label': longDate(day),
@@ -447,21 +455,27 @@ export class CalendarView {
     return `var(--c${event.color || slotFor(event.title)})`;
   }
 
+  // Apple Calendar style: a soft tint of the colour, a solid edge on the left
+  // (the accent colour if there is one), and text in a deep shade of it.
   paint(event) {
-    const parts = [`background: ${this.fillOf(event)}`];
-    if (event.primary && isDark(EVENT_COLORS[event.primary])) parts.push('color: #FBF9F4');
-    if (event.secondary) parts.push(`border-left: 6px solid ${EVENT_COLORS[event.secondary]}`);
-    return parts.join('; ');
+    const base = this.fillOf(event);
+    const edge = event.secondary ? EVENT_COLORS[event.secondary] : base;
+    return [
+      `background: color-mix(in srgb, ${base} 26%, #FFFFFF)`,
+      `color: color-mix(in srgb, ${base} 45%, #16140F)`,
+      `border-left: 3px solid ${edge}`,
+    ].join('; ');
   }
 
   placeNowLine() {
     if (!this.inner) return;
-    this.inner.querySelectorAll('.cal-now').forEach((n) => n.remove());
+    this.inner.querySelectorAll('.cal-now, .cal-now-time').forEach((n) => n.remove());
     const now = new Date();
     const column = this.inner.querySelector(`.cal-day[data-key="${dayKey(now)}"]`);
     if (!column) return;
     const minutes = now.getHours() * 60 + now.getMinutes();
     column.append(h('span', { class: 'cal-now', style: `top: ${minutes * MINUTE}px`, 'aria-hidden': 'true' }));
+    this.inner.append(h('span', { class: 'cal-now-time', style: `top: ${minutes * MINUTE}px`, 'aria-hidden': 'true' }, clock(minutes)));
   }
 
   defaultStart(key) {
