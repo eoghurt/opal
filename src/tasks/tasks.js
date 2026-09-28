@@ -19,6 +19,8 @@ const TASK_LINE = /^(\s*)[-*+]\s\[([ xX])\]\s?(.*)$/;
 const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/;
 const TIME = /\s*⏰\s*(\d{1,2}:\d{2})/;
 const DONE_ON = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
+const PRIMARY = /\s*#color\/([a-z]+)\b/;
+const SECONDARY = /\s*#accent\/([a-z]+)\b/;
 const CREATED = /\s*➕\s*(\d{4}-\d{2}-\d{2})/;
 const STAR = /\s*⭐️?/;
 const REPEAT = new RegExp(`\\s*🔁\\s*${RULE_TEXT.source}`, 'i');
@@ -31,14 +33,18 @@ function parseLine(body) {
   const doneOn = DONE_ON.exec(body);
   const repeat = REPEAT.exec(body);
   const created = CREATED.exec(body);
+  const primary = PRIMARY.exec(body);
+  const secondary = SECONDARY.exec(body);
   return {
+    primary: primary ? primary[1] : null, // colours, as for calendar events
+    secondary: secondary ? secondary[1] : null,
     created: created ? created[1] : null,
     repeat: repeat ? normaliseRule(repeat[1]) : null,
     due: due ? due[1] : null,
     time: time ? time[1].padStart(5, '0') : null,
     doneOn: doneOn ? doneOn[1] : null,
     starred: STAR.test(body),
-    title: body.replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
+    title: body.replace(PRIMARY, '').replace(SECONDARY, '').replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
   };
 }
 
@@ -80,6 +86,8 @@ export function parseTasks(text, list) {
 
 function formatHead(task, indent = '') {
   const parts = [`${indent}- [${task.done ? 'x' : ' '}] ${task.title.trim()}`];
+  if (task.primary) parts.push(`#color/${task.primary}`);
+  if (task.secondary) parts.push(`#accent/${task.secondary}`);
   if (task.repeat) parts.push(`🔁 ${task.repeat}`);
   if (task.due) parts.push(`📅 ${task.due}`);
   if (task.due && task.time) parts.push(`⏰ ${task.time}`);
@@ -93,7 +101,7 @@ export function formatTask(task) {
   return [
     formatHead(task),
     ...task.details.filter((d) => d.trim()).map((d) => `    ${d.trim()}`),
-    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, starred: false, repeat: null }, '    ')),
+    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, starred: false, repeat: null, primary: null, secondary: null }, '    ')),
   ];
 }
 

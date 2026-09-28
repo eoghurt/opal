@@ -510,6 +510,11 @@ function showCalendar(date) {
       openLink: (target) => openLink(target),
       loadTasks: loadDueTasks,
       toggleTask: toggleTaskDone,
+      addTask: async ({ title, due, time, primary, secondary }) => {
+        const text = (await readTaskList(DEFAULT_LIST)) || '';
+        const task = { title, done: false, due, time, starred: false, repeat: null, doneOn: null, details: [], subtasks: [], primary, secondary };
+        await writeTaskList(DEFAULT_LIST, addTask(text, task, DEFAULT_LIST));
+      },
       updateTask: async (task, patch) => {
         const text = (await readTaskList(task.list)) || '';
         await writeTaskList(task.list, replaceTask(text, task, { ...task, ...patch }));

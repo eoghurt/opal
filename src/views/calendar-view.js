@@ -20,7 +20,7 @@ const REMIND_TIMED = [[null, 'No reminder'], [0, 'At the start'], [5, '5 minutes
 const REMIND_ALL_DAY = [[null, 'No reminder'], [0, 'On the day, 9:00'], [1440, 'Day before, 9:00']];
 const TASK_LENGTH = 30; // minutes a timed task takes up in the grid
 
-const HOUR = 52; // pixels per hour
+const HOUR = 39; // pixels per hour
 const MINUTE = HOUR / 60;
 const MONTH_ITEMS = 4; // events shown in a month cell before "+N more"
 
@@ -41,12 +41,12 @@ export class CalendarView {
   // noteDays() → Set of day keys that have a note. openDayNote(key), openLink(target).
   // readRepeats() → text of Calendar/Repeating.md ('' if none). writeRepeats(text).
   // updateTask(task, patch) changes a task's date/time (dragging it in the grid).
-  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, openTasks }) {
+  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, openTasks }) {
     this.container = container;
     this.date = date || new Date();
     this.mode = mode || 'day';
     this.io = {
-      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, updateTask, openTasks,
+      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, updateTask, addTask, openTasks,
       readRepeats: readRepeats || (async () => ''),
       writeRepeats,
       onChange: onChange || (() => {}),
@@ -122,17 +122,23 @@ export class CalendarView {
 
     const month = this.mode === 'month';
     const monthName = (d, style = 'long') => d.toLocaleDateString(undefined, { month: style });
-    // Apple-style titles: "28 September 2026" / "September 2026" / "Sep – Oct 2026".
+    // Titles: a handwritten "this week" / "today" over "28 Sep – 4 Oct 2026".
+    const today = new Date();
+    const dayDiff = Math.round((keyToDate(dayKey(this.date)) - keyToDate(dayKey(today))) / 86400000);
+    const weekDiff = Math.round((startOfWeek(this.date) - startOfWeek(today)) / (7 * 86400000));
+    const monthDiff = (this.date.getFullYear() - today.getFullYear()) * 12 + this.date.getMonth() - today.getMonth();
+    const near = (diff, unit) => ({ '-1': `last ${unit}`, 0: `this ${unit}`, 1: `next ${unit}` }[diff]);
     let main;
-    let sub = '';
+    let hand;
     if (this.mode === 'day') {
       main = `${this.date.getDate()} ${monthName(this.date)}`;
-      sub = weekday(this.date);
+      hand = { '-1': 'yesterday', 0: 'today', 1: 'tomorrow' }[dayDiff] || weekday(this.date).toLowerCase();
     } else if (month) {
       main = monthName(this.date);
+      hand = near(monthDiff, 'month') || '';
     } else {
-      main = first.getMonth() === last.getMonth() ? monthName(first) : `${monthName(first, 'short')} – ${monthName(last, 'short')}`;
-      sub = `${first.getDate()} ${monthName(first, 'short')} – ${last.getDate()} ${monthName(last, 'short')}`;
+      main = `${first.getDate()} ${monthName(first, 'short')} – ${last.getDate()} ${monthName(last, 'short')}`;
+      hand = near(weekDiff, 'week') || `week of ${first.getDate()} ${monthName(first, 'short')}`;
     }
     const year = (this.mode === 'week' ? last : this.date).getFullYear();
     const shift = (steps) => (month
@@ -143,20 +149,19 @@ export class CalendarView {
 
     const head = h('header', { class: 'cal-top' },
       h('div', { class: 'cal-title' },
-        h('h1', { class: 'cal-h1' }, main, h('span', { class: 'cal-h1-year' }, ` ${year}`)),
-        sub ? h('span', { class: 'cal-sub' }, sub) : null),
+        hand ? h('span', { class: 'hand cal-hand' }, hand) : null,
+        h('h1', { class: 'display cal-h1' }, main, h('span', { class: 'cal-h1-year' }, ` ${year}`))),
       h('div', { class: 'cal-segment', role: 'group', 'aria-label': 'View' },
         modes.map(([key, label]) => h('button', {
           class: `cal-seg${this.mode === key ? ' is-on' : ''}`,
           'aria-pressed': String(this.mode === key),
           onclick: () => this.go(this.date, key),
         }, label))),
-      h('div', { class: 'cal-top-right' },
-        h('div', { class: 'cal-nav' },
-          h('button', { class: 'cal-navbtn', 'aria-label': 'Previous', onclick: () => this.go(shift(-1)) }, '‹'),
-          h('button', { class: 'cal-navbtn cal-today', onclick: () => this.go(new Date()) }, 'Today'),
-          h('button', { class: 'cal-navbtn', 'aria-label': 'Next', onclick: () => this.go(shift(1)) }, '›')),
-        h('button', { class: 'cal-add', 'aria-label': 'New event', title: 'New event', onclick: () => this.createAt(addKey, this.defaultStart(addKey)) }, '+')),
+      h('div', { class: 'cal-nav' },
+        h('button', { class: 'cal-navbtn', 'aria-label': 'Previous', onclick: () => this.go(shift(-1)) }, '‹'),
+        h('button', { class: 'cal-navbtn cal-today', onclick: () => this.go(new Date()) }, 'Today'),
+        h('button', { class: 'cal-navbtn', 'aria-label': 'Next', onclick: () => this.go(shift(1)) }, '›'),
+        h('button', { class: 'cal-add', onclick: (e) => this.createAt(addKey, this.defaultStart(addKey), e.currentTarget) }, '+ Event')),
     );
 
     const rail = this.renderRail(keys);
@@ -165,6 +170,7 @@ export class CalendarView {
     makePanel(rail, { id: 'cal-rail', side: 'left', label: 'Month', width: 260, min: 220, max: 420 });
 
     if (month) return;
+    this.fitEvents();
     if (scroll !== null && this.scrolled) this.scrollEl.scrollTop = scroll;
     else this.scrollToMorning(keys);
   }
@@ -244,14 +250,11 @@ export class CalendarView {
       keys.map((key) => {
         const cell = h('div', { class: 'cal-allday-cell', 'data-key': key });
         cell.addEventListener('click', (event) => {
-          if (event.target === cell) this.createAllDay(key);
+          if (event.target === cell) this.createAllDay(key, cell);
         });
         // Tasks due this day without a time (timed ones sit in the grid).
         for (const t of this.tasks.filter((task) => task.due === key && !task.time)) {
-          cell.append(h('button', {
-            class: `cal-chip cal-task${t.done ? ' is-done' : ''}`,
-            onclick: (event) => this.showTaskPopover(t, event.currentTarget),
-          }, h('span', { class: 'cal-task-box', 'aria-hidden': 'true' }, t.done ? '✓' : ''), `${t.time ? `${t.time} ` : ''}${t.title}`));
+          cell.append(this.taskChip(t));
         }
         for (const e of (this.days[key]?.events || []).filter((ev) => ev.allDay)) {
           cell.append(this.chipEl(e, h('span', null, `${e.repeating ? '↻ ' : ''}${e.title}`)));
@@ -273,10 +276,52 @@ export class CalendarView {
 
   renderDayColumn(key, isToday) {
     const column = h('div', { class: `cal-day${isToday ? ' is-today' : ''}`, 'data-key': key });
-    column.addEventListener('click', (event) => {
-      if (event.target !== column) return;
-      const minutes = snap((event.offsetY / MINUTE) - 15);
-      this.createAt(key, Math.max(0, Math.min(minutes, 23 * 60)));
+    // Press and drag down empty space to draw a new event (a click makes an hour).
+    column.addEventListener('pointerdown', (down) => {
+      if (down.button !== 0 || down.target !== column) return;
+      down.preventDefault();
+      column.setPointerCapture(down.pointerId);
+      const box = column.getBoundingClientRect();
+      const at = (y) => Math.max(0, Math.min(24 * 60, Math.floor((y - box.top) / MINUTE / SNAP) * SNAP));
+      const from = Math.min(at(down.clientY), 24 * 60 - SNAP);
+      let to = from + SNAP;
+      let dragged = false;
+      const draft = h('div', { class: 'cal-event cal-draft', 'aria-hidden': 'true' },
+        h('span', { class: 'cal-event-title' }, '(new event)'),
+        h('span', { class: 'cal-event-time' }, ''));
+      const draw = () => {
+        const [a, b] = to > from ? [from, to] : [to, from + SNAP];
+        draft.style.top = `${a * MINUTE}px`;
+        draft.style.height = `${Math.max(14, (b - a) * MINUTE - 2)}px`;
+        draft.querySelector('.cal-event-time').textContent = `${clock(a)}–${clock(b)}`;
+        draft.dataset.start = a;
+        draft.dataset.end = b;
+      };
+      const move = (e) => {
+        const y = at(e.clientY + MINUTE * SNAP / 2);
+        if (!dragged && Math.abs(e.clientY - down.clientY) < 4) return;
+        if (!dragged) {
+          dragged = true;
+          this.closePopover();
+          column.append(draft);
+        }
+        to = y <= from ? Math.max(0, y - SNAP) : y;
+        draw();
+      };
+      const up = () => {
+        column.removeEventListener('pointermove', move);
+        column.removeEventListener('pointerup', up);
+        column.removeEventListener('pointercancel', up);
+        if (!dragged) {
+          to = Math.min(24 * 60, from + 60);
+          column.append(draft);
+          draw();
+        }
+        this.openCreate({ key, allDay: false, start: Number(draft.dataset.start), end: Number(draft.dataset.end) }, draft);
+      };
+      column.addEventListener('pointermove', move);
+      column.addEventListener('pointerup', up);
+      column.addEventListener('pointercancel', up);
     });
     const timedTasks = this.tasks.filter((t) => t.due === key && t.time).map((t) => {
       const [hh, mm] = t.time.split(':').map(Number);
@@ -288,8 +333,40 @@ export class CalendarView {
     return column;
   }
 
-  // A timed task in the day grid: tick box + title. Click for details, drag to
-  // change its time or day (written back to its list as 📅 / ⏰).
+  // The tick box on a task (ticks it off in its list).
+  tickBox(task) {
+    return h('button', {
+      type: 'button',
+      class: `cal-task-box${task.done ? ' is-done' : ''}`,
+      role: 'checkbox',
+      'aria-checked': String(task.done),
+      'aria-label': task.done ? `Mark “${task.title}” not done` : `Mark “${task.title}” done`,
+      onpointerdown: (e) => e.stopPropagation(),
+      onclick: (e) => {
+        e.stopPropagation();
+        this.change(() => this.io.toggleTask(task));
+      },
+    }, task.done ? '✓' : '');
+  }
+
+  taskPaint(task) {
+    return this.paint({ primary: task.primary, secondary: task.secondary, color: null, title: task.title });
+  }
+
+  // A task in the all-day row or a month cell: like an event chip, with a tick box.
+  taskChip(task) {
+    return h('div', { class: `cal-chip cal-task${task.done ? ' is-done' : ''}`, style: this.taskPaint(task) },
+      this.tickBox(task),
+      h('button', {
+        type: 'button',
+        class: 'cal-task-name',
+        title: task.title,
+        onclick: (event) => this.showTaskPopover(task, event.currentTarget),
+      }, `${task.time && this.mode === 'month' ? `${task.time} ` : ''}${task.title}`));
+  }
+
+  // A timed task in the day grid: an event card with a tick box. Click for
+  // details, drag to change its time or day (written back as 📅 / ⏰).
   taskBlockEl(item) {
     const { task } = item;
     const width = 100 / item.cols;
@@ -298,13 +375,13 @@ export class CalendarView {
       role: 'button',
       tabindex: '0',
       'aria-label': `Task: ${task.title}, ${task.time}${task.done ? ', done' : ''}`,
-      style: `top: ${item.start * MINUTE}px; height: ${TASK_LENGTH * MINUTE - 2}px; left: calc(${item.col * width}% + 2px); width: calc(${width}% - 5px);`,
+      style: `top: ${item.start * MINUTE}px; height: ${TASK_LENGTH * MINUTE - 2}px; left: calc(${item.col * width}% + 3px); width: calc(${width}% - 7px); --tilt: ${this.tiltOf(item)}deg; ${this.taskPaint(task)}`,
     },
-    h('span', { class: 'cal-task-box', 'aria-hidden': 'true' }, task.done ? '✓' : ''),
-    h('span', { class: 'cal-event-time' }, task.time),
-    h('span', { class: 'cal-event-title' }, task.title));
+    this.tickBox(task),
+    h('span', { class: 'cal-event-title' }, task.title),
+    h('span', { class: 'cal-event-time' }, task.time));
     el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === el) {
         e.preventDefault();
         this.showTaskPopover(task, el);
       }
@@ -315,17 +392,22 @@ export class CalendarView {
 
   eventEl(event) {
     const width = 100 / event.cols;
-    const short = event.end - event.start <= 30;
+    const height = Math.max(18, (event.end - event.start) * MINUTE - 2);
+    const short = height < 30; // one line: title and start time side by side
+    // The title gets every line that fits (ending in "…"); the time and link
+    // only show if there's room left (see fitEvents).
+    const lines = Math.max(1, Math.floor((height - 8) / 13));
     const el = h('div', {
       class: `cal-event${short ? ' is-short' : ''}`,
       role: 'button',
       tabindex: '0',
       'aria-label': `${event.title}, ${clock(event.start)} to ${clock(event.end)}${event.repeating ? `, repeats ${event.rule}` : ''}`,
-      style: `top: ${event.start * MINUTE}px; height: ${Math.max(18, (event.end - event.start) * MINUTE - 2)}px; left: calc(${event.col * width}% + 2px); width: calc(${width}% - 5px); ${this.paint(event)}`,
+      style: `top: ${event.start * MINUTE}px; height: ${height}px; left: calc(${event.col * width}% + 3px); width: calc(${width}% - 7px); --tilt: ${this.tiltOf(event)}deg; ${this.paint(event)}`,
     },
-    h('span', { class: 'cal-event-time' }, `${clock(event.start)}–${clock(event.end)}`),
-    h('span', { class: 'cal-event-title' }, event.repeating ? h('span', { class: 'cal-repeat-mark', title: describeRule(event.rule, event.from) }, '↻ ') : null, event.title),
-    event.link && !short ? h('span', { class: 'cal-event-link' }, `→ ${event.link}`) : null,
+    h('span', { class: 'cal-event-title', style: short ? null : `-webkit-line-clamp: ${lines}` },
+      event.repeating ? h('span', { class: 'cal-repeat-mark', title: describeRule(event.rule, event.from) }, '↻ ') : null, event.title),
+    h('span', { class: 'cal-event-time' }, short ? clock(event.start) : `${clock(event.start)}–${clock(event.end)}`),
+    event.link && height > 60 ? h('span', { class: 'cal-event-link' }, `→ ${event.link}`) : null,
     h('span', { class: 'cal-resize', 'aria-hidden': 'true' }));
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -335,6 +417,33 @@ export class CalendarView {
     });
     this.makeDraggable(el, event);
     return el;
+  }
+
+  // Titles come first: when an event is too small for everything, its link
+  // line goes, then its time.
+  fitEvents() {
+    requestAnimationFrame(() => {
+      if (!this.inner) return;
+      for (const el of this.inner.querySelectorAll('.cal-event:not(.cal-draft)')) {
+        el.classList.remove('hide-time', 'hide-link');
+        const title = el.querySelector('.cal-event-title');
+        if (el.classList.contains('is-short')) {
+          if (title && title.scrollWidth > title.clientWidth + 1) el.classList.add('hide-time');
+          continue;
+        }
+        // Does this line run past the bottom of the card?
+        const over = (node) => node && node.offsetTop + node.offsetHeight > el.clientHeight - 2;
+        if (over(el.querySelector('.cal-event-link'))) el.classList.add('hide-link');
+        if (over(el.querySelector('.cal-event-time'))) el.classList.add('hide-time');
+      }
+    });
+  }
+
+  // A slight, steady tilt per event (the same every time it's drawn).
+  tiltOf(event) {
+    const seed = [...`${event.title}${event.start}`].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7);
+    const tilt = [-0.6, -0.3, 0.3, 0.5][seed % 4];
+    return this.mode === 'day' ? tilt * 0.15 : tilt; // wide cards barely tilt
   }
 
   // ---------- Month ----------
@@ -351,10 +460,7 @@ export class CalendarView {
       const events = (this.days[key]?.events || []).slice().sort((a, b) => (b.allDay - a.allDay) || a.start - b.start);
       const tasks = this.tasks.filter((t) => t.due === key).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       const items = [
-        ...tasks.map((t) => h('button', {
-          class: `cal-chip cal-task${t.done ? ' is-done' : ''}`,
-          onclick: (event) => this.showTaskPopover(t, event.currentTarget),
-        }, h('span', { class: 'cal-task-box', 'aria-hidden': 'true' }, t.done ? '✓' : ''), h('span', null, `${t.time ? `${t.time} ` : ''}${t.title}`))),
+        ...tasks.map((t) => this.taskChip(t)),
         ...events.map((e) => (e.allDay
           ? this.chipEl(e, h('span', null, `${e.repeating ? '↻ ' : ''}${e.title}`))
           : this.chipEl(e, [
@@ -376,7 +482,7 @@ export class CalendarView {
       items.slice(0, extra > 0 ? MONTH_ITEMS - 1 : MONTH_ITEMS),
       extra > 0 ? h('button', { class: 'cal-mmore', onclick: () => this.go(date, 'day') }, `+${extra + 1} more`) : null);
       cell.addEventListener('click', (event) => {
-        if (event.target === cell) this.createAt(key, this.defaultStart(key));
+        if (event.target === cell) this.createAllDay(key, cell);
       });
       return cell;
     });
@@ -455,27 +561,25 @@ export class CalendarView {
     return `var(--c${event.color || slotFor(event.title)})`;
   }
 
-  // Apple Calendar style: a soft tint of the colour, a solid edge on the left
-  // (the accent colour if there is one), and text in a deep shade of it.
+  // A soft card in the event's colour; an accent colour, if set, is a stripe
+  // down the left edge.
   paint(event) {
     const base = this.fillOf(event);
-    const edge = event.secondary ? EVENT_COLORS[event.secondary] : base;
-    return [
-      `background: color-mix(in srgb, ${base} 26%, #FFFFFF)`,
-      `color: color-mix(in srgb, ${base} 45%, #16140F)`,
-      `border-left: 3px solid ${edge}`,
-    ].join('; ');
+    const parts = [`background: color-mix(in srgb, ${base} 34%, #FFFFFF)`];
+    if (event.secondary) parts.push(`border-left: 4px solid ${EVENT_COLORS[event.secondary]}`);
+    return parts.join('; ');
   }
 
   placeNowLine() {
     if (!this.inner) return;
-    this.inner.querySelectorAll('.cal-now, .cal-now-time').forEach((n) => n.remove());
+    this.inner.querySelectorAll('.cal-now, .cal-now-time, .cal-now-hand').forEach((n) => n.remove());
     const now = new Date();
     const column = this.inner.querySelector(`.cal-day[data-key="${dayKey(now)}"]`);
     if (!column) return;
     const minutes = now.getHours() * 60 + now.getMinutes();
     column.append(h('span', { class: 'cal-now', style: `top: ${minutes * MINUTE}px`, 'aria-hidden': 'true' }));
     this.inner.append(h('span', { class: 'cal-now-time', style: `top: ${minutes * MINUTE}px`, 'aria-hidden': 'true' }, clock(minutes)));
+    column.append(h('span', { class: 'hand cal-now-hand', style: `top: ${minutes * MINUTE}px`, 'aria-hidden': 'true' }, 'now ↓'));
   }
 
   defaultStart(key) {
@@ -556,27 +660,7 @@ export class CalendarView {
 
   showPopover(event, anchor) {
     this.closePopover();
-    // Two rows of 20: the fill (primary) and the accent stripe (secondary).
-    const picker = (label, current, onPick, allowNone) => h('div', { class: 'cal-picker' },
-      h('span', { class: 'mono-label' }, label),
-      h('div', { class: 'cal-swatches', role: 'radiogroup', 'aria-label': label },
-        allowNone ? h('button', {
-          class: `cal-swatch is-none${!current ? ' is-on' : ''}`,
-          role: 'radio',
-          'aria-checked': String(!current),
-          'aria-label': 'No accent',
-          title: 'None',
-          onclick: () => onPick(null),
-        }) : null,
-        Object.entries(EVENT_COLORS).map(([name, hex]) => h('button', {
-          class: `cal-swatch${current === name ? ' is-on' : ''}`,
-          role: 'radio',
-          'aria-checked': String(current === name),
-          'aria-label': name,
-          title: name,
-          style: `background: ${hex}`,
-          onclick: () => onPick(name),
-        }))));
+    const picker = (label, current, onPick, allowNone) => this.colorPicker(label, current, onPick, allowNone);
     const swatches = h('div', { class: 'cal-pickers' },
       picker('Primary · fill', event.primary, (name) => this.updateEvent(event, { primary: name, color: null }), false),
       picker('Secondary · accent', event.secondary, (name) => this.updateEvent(event, { secondary: name }), true));
@@ -642,12 +726,72 @@ export class CalendarView {
     };
   }
 
+  // A row of the 20 event colours (plus "none" for the accent).
+  colorPicker(label, current, onPick, allowNone) {
+    return h('div', { class: 'cal-picker' },
+      h('span', { class: 'mono-label' }, label),
+      h('div', { class: 'cal-swatches', role: 'radiogroup', 'aria-label': label },
+        allowNone ? h('button', {
+          type: 'button',
+          class: `cal-swatch is-none${!current ? ' is-on' : ''}`,
+          role: 'radio',
+          'aria-checked': String(!current),
+          'aria-label': 'No accent',
+          title: 'None',
+          onclick: () => onPick(null),
+        }) : null,
+        Object.entries(EVENT_COLORS).map(([name, hex]) => h('button', {
+          type: 'button',
+          class: `cal-swatch${current === name ? ' is-on' : ''}`,
+          role: 'radio',
+          'aria-checked': String(current === name),
+          'aria-label': name,
+          title: name,
+          style: `background: ${hex}`,
+          onclick: () => onPick(name),
+        }))));
+  }
+
+  // Shows a popover beside `anchor` (or the top of the grid) and closes it on
+  // Escape or a click elsewhere; onClose runs when it goes.
+  placePopover(pop, anchor, onClose) {
+    const host = this.root.querySelector('.cal-main');
+    host.append(pop);
+    const hostBox = host.getBoundingClientRect();
+    const box = (anchor || host).getBoundingClientRect();
+    const width = pop.offsetWidth || 340;
+    const height = pop.offsetHeight || 380;
+    let left = box.right - hostBox.left + 10;
+    if (left + width > hostBox.width - 8) left = box.left - hostBox.left - width - 10;
+    left = Math.max(8, Math.min(left, hostBox.width - width - 8));
+    const top = Math.max(8, Math.min(box.top - hostBox.top, hostBox.height - height - 8));
+    pop.style.left = `${left}px`;
+    pop.style.top = `${top}px`;
+    this.popover = pop;
+    const outside = (e) => {
+      if (!pop.contains(e.target) && !(anchor && anchor.contains(e.target))) this.closePopover();
+    };
+    const escape = (e) => {
+      if (e.key === 'Escape') this.closePopover();
+    };
+    setTimeout(() => document.addEventListener('pointerdown', outside), 0);
+    document.addEventListener('keydown', escape);
+    this.popoverCleanup = () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+      if (onClose) onClose();
+    };
+  }
+
   showTaskPopover(task, anchor) {
     this.closePopover();
     const pop = h('div', { class: 'cal-pop', role: 'dialog', 'aria-label': task.title },
       h('span', { class: 'mono-label' }, `Task · ${task.list}${task.time ? ` · ${task.time}` : ''}`),
       h('span', { class: 'display cal-pop-title' }, task.title),
       task.details.length ? h('span', { class: 'serif-i' }, task.details.join(' ')) : null,
+      h('div', { class: 'cal-pickers' },
+        this.colorPicker('Primary · fill', task.primary, (name) => this.change(() => this.io.updateTask(task, { primary: name })), false),
+        this.colorPicker('Secondary · accent', task.secondary, (name) => this.change(() => this.io.updateTask(task, { secondary: name })), true)),
       h('div', { class: 'cal-pop-actions' },
         h('button', {
           class: 'cal-pop-btn is-primary',
@@ -695,22 +839,115 @@ export class CalendarView {
     return longDate(keyToDate(key));
   }
 
-  createAt(key, start) {
-    return this.create(key, { allDay: false, start, end: Math.min(24 * 60, start + 60) });
+  createAt(key, start, anchor) {
+    return this.openCreate({ key, allDay: false, start, end: Math.min(24 * 60, start + 60) }, anchor);
   }
 
-  createAllDay(key) {
-    return this.create(key, { allDay: true, start: 0, end: 24 * 60 });
+  createAllDay(key, anchor) {
+    return this.openCreate({ key, allDay: true, start: 0, end: 24 * 60 }, anchor);
   }
 
-  async create(key, when) {
-    const label = when.allDay ? `New all-day event · ${weekday(keyToDate(key))}` : `New event · ${weekday(keyToDate(key))} ${clock(when.start)}`;
-    const text = await askName(label, 'What’s happening? [[links]] work too');
-    if (!text) return;
-    const line = formatEvent({ ...when, text, color: null });
-    await this.change(async () => {
-      await this.io.writeDay(key, insertEvent(await this.freshText(key), line, this.dateLabel(key)));
+  // Google Calendar-style quick create: title, event or task, times and
+  // colours are all set before anything is written to the notes.
+  openCreate(draft, anchor) {
+    this.closePopover();
+    const state = { kind: 'event', title: '', primary: null, secondary: null, ...draft };
+    const preview = anchor && anchor.classList.contains('cal-draft') ? anchor : null;
+    const title = h('input', { class: 'cal-new-title', placeholder: 'Add a title', 'aria-label': 'Title', spellcheck: 'true' });
+    const startIn = h('input', { type: 'time', class: 'cal-pop-select cal-new-time', step: String(SNAP * 60), value: clock(state.start), 'aria-label': 'Starts' });
+    const endIn = h('input', { type: 'time', class: 'cal-pop-select cal-new-time', step: String(SNAP * 60), value: clock(Math.min(state.end, 24 * 60 - 1)), 'aria-label': 'Ends' });
+    const allDay = h('input', { type: 'checkbox', checked: state.allDay, 'aria-label': 'All day' });
+    const toMinutes = (v) => {
+      const [hh, mm] = String(v || '0:0').split(':').map(Number);
+      return (hh || 0) * 60 + (mm || 0);
+    };
+    const kindBtn = (kind, label) => h('button', {
+      type: 'button',
+      class: `cal-new-kind${state.kind === kind ? ' is-on' : ''}`,
+      'aria-pressed': String(state.kind === kind),
+      onclick: () => { state.kind = kind; sync(); },
+    }, label);
+    const kinds = h('div', { class: 'cal-new-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('event', 'Event'), kindBtn('task', 'Task'));
+    const endWrap = h('span', { class: 'cal-new-end' }, h('span', null, '–'), endIn);
+    const allDayWrap = h('label', { class: 'cal-new-allday' }, allDay, 'All day');
+    const pickers = h('div', { class: 'cal-pickers' });
+    const drawPickers = () => pickers.replaceChildren(
+      this.colorPicker('Primary · fill', state.primary, (name) => { state.primary = name; sync(); }, false),
+      this.colorPicker('Secondary · accent', state.secondary, (name) => { state.secondary = name; sync(); }, true));
+    const sync = () => {
+      kinds.querySelectorAll('.cal-new-kind').forEach((b) => {
+        const on = b.textContent.toLowerCase() === state.kind;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+      state.allDay = allDay.checked;
+      startIn.disabled = state.allDay;
+      endWrap.hidden = state.allDay || state.kind === 'task';
+      allDayWrap.querySelector('input').setAttribute('aria-label', state.kind === 'task' ? 'No time' : 'All day');
+      allDayWrap.lastChild.textContent = state.kind === 'task' ? 'No time' : 'All day';
+      title.placeholder = state.kind === 'task' ? 'Add a task' : 'Add a title';
+      drawPickers();
+      if (preview) {
+        preview.setAttribute('style', `${preview.getAttribute('style').replace(/background[^;]*;?|border-left[^;]*;?/g, '')}; ${this.paint({ ...state, title: state.title || 'x', color: null })}`);
+        preview.querySelector('.cal-event-title').textContent = state.title || (state.kind === 'task' ? '(new task)' : '(new event)');
+        preview.classList.toggle('is-task', state.kind === 'task');
+      }
+    };
+    title.addEventListener('input', () => { state.title = title.value; sync(); });
+    allDay.addEventListener('change', sync);
+    const timesChanged = () => {
+      state.start = Math.min(toMinutes(startIn.value), 24 * 60 - SNAP);
+      state.end = Math.max(state.start + SNAP, Math.min(24 * 60, toMinutes(endIn.value) || 24 * 60));
+      if (preview) {
+        preview.style.top = `${state.start * MINUTE}px`;
+        preview.style.height = `${Math.max(14, (state.end - state.start) * MINUTE - 2)}px`;
+        preview.querySelector('.cal-event-time').textContent = `${clock(state.start)}–${clock(state.end)}`;
+      }
+    };
+    startIn.addEventListener('change', timesChanged);
+    endIn.addEventListener('change', timesChanged);
+
+    const save = () => {
+      const text = title.value.trim();
+      if (!text) {
+        title.focus();
+        title.classList.add('is-empty');
+        return;
+      }
+      const { key } = state;
+      const start = state.allDay ? 0 : state.start;
+      const end = state.allDay ? 24 * 60 : state.end;
+      if (state.kind === 'task') {
+        this.change(() => this.io.addTask({
+          title: text, due: key, time: state.allDay ? null : clock(start), primary: state.primary, secondary: state.secondary,
+        }));
+      } else {
+        const line = formatEvent({ allDay: state.allDay, start, end, text, color: null, primary: state.primary, secondary: state.secondary });
+        this.change(async () => {
+          await this.io.writeDay(key, insertEvent(await this.freshText(key), line, this.dateLabel(key)));
+        });
+      }
+    };
+    title.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        save();
+      }
     });
+
+    const pop = h('div', { class: 'cal-pop cal-new', role: 'dialog', 'aria-label': 'New event or task' },
+      title,
+      kinds,
+      h('div', { class: 'cal-new-when' },
+        h('span', { class: 'mono-label' }, keyToDate(state.key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })),
+        startIn, endWrap, allDayWrap),
+      pickers,
+      h('div', { class: 'cal-pop-actions' },
+        h('button', { class: 'cal-pop-btn is-primary', onclick: save }, 'Save'),
+        h('button', { class: 'cal-pop-btn', onclick: () => this.closePopover() }, 'Cancel')));
+    sync();
+    this.placePopover(pop, anchor, () => { if (preview) preview.remove(); });
+    title.focus();
   }
 
   // ---------- Repeating series (Calendar/Repeating.md) ----------
