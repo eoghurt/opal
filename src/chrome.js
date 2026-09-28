@@ -13,12 +13,13 @@ const STATUS_TEXT = {
 };
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onPalettes, onOpenFile }) {
+  constructor(topbar, footer, { onHome, onPalettes, onOpenFile, onCalendar }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
     this.onPalettes = onPalettes;
     this.onOpenFile = onOpenFile;
+    this.onCalendar = onCalendar;
     this.crumbs = [];
     this.palette = null;
     this.recent = [];
@@ -73,7 +74,8 @@ export class Chrome {
         h('span', { class: 'wordmark-square' }),
         h('span', { class: 'wordmark-text' }, 'opal')),
       crumbs,
-      h('div', { class: 'bar-cell bar-date' }, todayStamp()),
+      h('button', { class: 'bar-cell bar-link', onclick: () => this.onCalendar() }, 'Calendar'),
+      h('button', { class: 'bar-cell bar-date', onclick: () => this.onCalendar(new Date()), title: 'Today in the calendar' }, todayStamp()),
       paletteCell,
     ].filter(Boolean));
   }

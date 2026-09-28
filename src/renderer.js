@@ -18,6 +18,8 @@ import { NoteView } from './views/note-view.js';
 import { FileView } from './views/file-view.js';
 import { fileUrl } from './file-types.js';
 import { StickyLayer } from './sticky-layer.js';
+import { CalendarView } from './views/calendar-view.js';
+import { CALENDAR_FOLDER, dayPath } from './calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
 import { applyPalette } from './palettes.js';
@@ -48,6 +50,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onHome: () => vault && openFolder(''),
   onPalettes: () => showPalettes(),
   onOpenFile: (p) => openFile(p),
+  onCalendar: (date) => showCalendar(date),
 });
 
 // ---------- Everything happens one step at a time ----------
@@ -71,6 +74,14 @@ async function closeCurrent() {
 
 // Stickies on the folder home on screen: { layer, flush } or null.
 let homeStickies = null;
+// The calendar on screen (and where it was last left).
+let calendar = null;
+let calendarState = { date: new Date(), mode: 'day' };
+
+function leaveCalendar() {
+  if (calendar) calendar.destroy();
+  calendar = null;
+}
 
 async function flushHomeStickies() {
   if (homeStickies) await homeStickies.flush();
@@ -114,6 +125,7 @@ function setTitle(text) {
 }
 
 function showWelcome(problem) {
+  leaveCalendar();
   screen = { kind: 'welcome' };
   setTitle('');
   sidebar.setActive(null, null);
@@ -135,6 +147,7 @@ function showHome(folderPath, notice) {
     folderPath = '';
     folder = findFolder(tree, '', vault.name);
   }
+  leaveCalendar();
   screen = { kind: 'home', folderPath };
   setTitle(folder.name);
   sidebar.setActive('folder', folderPath);
@@ -202,6 +215,7 @@ function folderHomeStickies(folderPath, folder, home) {
 
 async function showNote(filePath) {
   homeStickies = null;
+  leaveCalendar();
   const EditorType = editorForFile(filePath);
   if (!EditorType) {
     showHome(parentOf(filePath), `Opal can't open this kind of file yet: ${filePath}`);
@@ -320,6 +334,7 @@ function showPalettes() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
     homeStickies = null;
+    leaveCalendar();
     screen = { kind: 'palettes' };
     setTitle('Palettes');
     sidebar.setActive(null, null);
@@ -341,6 +356,54 @@ function drawPalettes() {
     },
   });
   viewEl.scrollTop = scrollTop;
+}
+
+// ---------- Calendar ----------
+
+function showCalendar(date) {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    if (date) calendarState = { ...calendarState, date };
+    screen = { kind: 'calendar' };
+    setTitle('Calendar');
+    sidebar.setActive(null, null);
+    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Calendar' }]);
+    viewEl.scrollTop = 0;
+    calendar = new CalendarView(viewEl, {
+      date: calendarState.date,
+      mode: calendarState.mode,
+      readDay: async (key) => {
+        try {
+          return await window.opal.readFile(dayPath(key));
+        } catch {
+          return null;
+        }
+      },
+      writeDay: async (key, text) => {
+        await window.opal.createFolder(CALENDAR_FOLDER, '');
+        const path = await window.opal.createNote(key, CALENDAR_FOLDER);
+        await window.opal.writeFile(path, text);
+      },
+      noteDays: () => {
+        const folder = findFolder(tree, CALENDAR_FOLDER, vault.name);
+        const keys = new Set();
+        for (const node of folder ? folder.children : []) {
+          const match = node.type === 'file' && /^(\d{4}-\d{2}-\d{2})\.md$/i.exec(node.name);
+          if (match) keys.add(match[1]);
+        }
+        return keys;
+      },
+      openDayNote: async (key) => {
+        await window.opal.createFolder(CALENDAR_FOLDER, '');
+        const path = await window.opal.createNote(key, CALENDAR_FOLDER);
+        openFile(path);
+      },
+      openLink: (target) => openLink(target),
+      onChange: (state) => { calendarState = state; },
+    });
+  });
 }
 
 // Follows a [[link]]: main finds the note (or creates it), then we open it.
@@ -405,7 +468,9 @@ function refreshFiles() {
       return;
     }
 
-    if (screen.kind === 'home') {
+    if (screen.kind === 'calendar' && calendar) {
+      calendar.reload();
+    } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
       await flushHomeStickies();
       const gone = screen.folderPath && !findFolder(tree, screen.folderPath, vault.name);
@@ -525,6 +590,7 @@ window.opal.onNewNoteRequest(newNote);
 window.opal.onNewFolderRequest(newFolder);
 window.opal.onGoHome(() => vault && openFolder(''));
 window.opal.onShowPalettes(showPalettes);
+window.opal.onShowCalendar(() => showCalendar());
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
 

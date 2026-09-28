@@ -47,7 +47,7 @@ export function scribbleArrow({ width, height, d, head, style }) {
 // Resolves to the trimmed name, or null if cancelled (Escape or clicking away).
 let cancelOpenAsk = null;
 
-export function askName(label, placeholder = 'Name, then Enter') {
+export function askName(label, placeholder = 'Name, then Enter', initial = '') {
   if (cancelOpenAsk) cancelOpenAsk();
   return new Promise((resolve) => {
     const input = h('input', { class: 'ask-input', placeholder, spellcheck: 'false', 'aria-label': label });
@@ -67,6 +67,8 @@ export function askName(label, placeholder = 'Name, then Enter') {
     });
     input.addEventListener('blur', () => finish(null));
     document.body.append(box);
+    input.value = initial;
     input.focus();
+    input.select();
   });
 }

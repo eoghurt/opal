@@ -1,0 +1,169 @@
+// Calendar events live in daily notes: Calendar/2026-09-28.md (the same
+// naming Obsidian's Daily Notes use). One event per line:
+//
+//   - 09:00–10:30 Maths test [[Exam timetable]] #c3
+//   - all day Excursion #c2
+//
+// #c1 … #c5 picks a palette colour. Anything else in the note is left alone.
+
+export const CALENDAR_FOLDER = 'Calendar';
+export const SNAP = 15; // minutes
+
+const EVENT_LINE = /^(\s*[-*]\s+)(?:(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})|(all[ -]day))\s+(.*?)\s*$/i;
+const COLOR_TAG = /(^|\s)#c([1-5])\b/;
+const LINK = /\[\[([^[\]\n|#]+)(?:#[^[\]\n|]*)?(?:\|([^[\]\n]+))?\]\]/g;
+
+const pad = (n) => String(n).padStart(2, '0');
+
+export function dayKey(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function keyToDate(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function dayPath(key) {
+  return `${CALENDAR_FOLDER}/${key}.md`;
+}
+
+export function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+export function startOfWeek(date) {
+  const day = (date.getDay() + 6) % 7; // Monday first
+  return addDays(new Date(date.getFullYear(), date.getMonth(), date.getDate()), -day);
+}
+
+export function clock(minutes) {
+  const m = Math.max(0, Math.min(24 * 60, Math.round(minutes)));
+  return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+}
+
+// Friendly title: colour tag removed; a link at the end is shown separately
+// (as "→ Page"), a link in the middle reads as its text.
+const JOINING_WORDS = /\b(with|to|at|for|and|of|about|from|on|in|by|the|a|an|see|re|vs)$/i;
+
+function displayTitle(text) {
+  const clean = text.replace(COLOR_TAG, '$1').trim();
+  const before = clean.replace(/(\s*\[\[[^[\]\n]+\]\])+\s*$/, '').trim();
+  // "Maths test [[Exam timetable]]" → "Maths test"; but "Lunch with [[Sam]]" keeps Sam.
+  const splitOff = before && before !== clean && !JOINING_WORDS.test(before.replace(/[\s–—:-]+$/, ''));
+  return (splitOff ? before : clean)
+    .replace(LINK, (_m, target, alias) => (alias || target).trim())
+    .replace(/\s[–—-]\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// All events in one day note's text.
+export function parseEvents(text, key) {
+  const events = [];
+  text.split(/\r?\n/).forEach((line, index) => {
+    const match = EVENT_LINE.exec(line);
+    if (!match) return;
+    const body = match[7];
+    const color = COLOR_TAG.exec(body);
+    const link = new RegExp(LINK.source).exec(body);
+    const allDay = Boolean(match[6]);
+    let start = allDay ? 0 : Number(match[2]) * 60 + Number(match[3]);
+    let end = allDay ? 24 * 60 : Number(match[4]) * 60 + Number(match[5]);
+    start = Math.min(start, 24 * 60 - SNAP);
+    if (end <= start) end = Math.min(start + 60, 24 * 60);
+    end = Math.min(end, 24 * 60);
+    events.push({
+      day: key,
+      line: index,
+      raw: line,
+      allDay,
+      start,
+      end,
+      text: body.replace(COLOR_TAG, '$1').trim(), // what's written, minus the colour tag
+      title: displayTitle(body) || 'Untitled',
+      color: color ? Number(color[2]) : null,
+      link: link ? link[1].trim() : null,
+    });
+  });
+  return events;
+}
+
+export function formatEvent({ allDay, start, end, text, color }) {
+  const when = allDay ? 'all day' : `${clock(start)}–${clock(end)}`;
+  return `- ${when} ${text.trim()}${color ? ` #c${color}` : ''}`;
+}
+
+function splitLines(text) {
+  return { lines: text.split(/\r?\n/), nl: /\r\n/.test(text) ? '\r\n' : '\n' };
+}
+
+// Finds an event's line: where it was, or (if the note changed) wherever it is now.
+function findLine(lines, event) {
+  if (lines[event.line] === event.raw) return event.line;
+  const index = lines.indexOf(event.raw);
+  if (index === -1) throw new Error('That event was changed somewhere else. The calendar has been refreshed — try again.');
+  return index;
+}
+
+// Replaces (or with null, removes) an event's line.
+export function replaceEvent(text, event, newLine) {
+  const { lines, nl } = splitLines(text);
+  const index = findLine(lines, event);
+  if (newLine === null) lines.splice(index, 1);
+  else lines[index] = newLine;
+  return lines.join(nl);
+}
+
+// Adds an event line under the note's "## Schedule" heading (made if missing),
+// keeping the schedule in time order.
+export function insertEvent(text, newLine, dateLabel) {
+  if (!text.trim()) return `# ${dateLabel}\n\n## Schedule\n${newLine}\n`;
+  const { lines, nl } = splitLines(text);
+  let heading = lines.findIndex((l) => /^#{1,6}\s+schedule\s*$/i.test(l));
+  if (heading === -1) {
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    lines.push('', '## Schedule', newLine, '');
+    return lines.join(nl);
+  }
+  const newStart = parseEvents(newLine, '')[0];
+  let at = heading + 1;
+  while (at < lines.length && !/^#{1,6}\s/.test(lines[at])) {
+    const existing = parseEvents(lines[at], '')[0];
+    if (existing && newStart && (existing.allDay ? 0 : existing.start) > (newStart.allDay ? 0 : newStart.start)) break;
+    if (!existing && !lines[at].trim()) break;
+    at++;
+  }
+  lines.splice(at, 0, newLine);
+  return lines.join(nl);
+}
+
+// Side-by-side columns for overlapping events (like Apple/Google Calendar).
+// Adds `col` and `cols` to each timed event.
+export function layoutColumns(events) {
+  const timed = events.filter((e) => !e.allDay).sort((a, b) => a.start - b.start || b.end - a.end);
+  let cluster = [];
+  let clusterEnd = -1;
+  const finish = () => {
+    const columns = [];
+    for (const event of cluster) {
+      let col = columns.findIndex((endAt) => endAt <= event.start);
+      if (col === -1) col = columns.length;
+      columns[col] = event.end;
+      event.col = col;
+    }
+    for (const event of cluster) event.cols = columns.length;
+  };
+  for (const event of timed) {
+    if (cluster.length && event.start >= clusterEnd) {
+      finish();
+      cluster = [];
+    }
+    cluster.push(event);
+    clusterEnd = Math.max(clusterEnd, event.end);
+  }
+  if (cluster.length) finish();
+  return timed;
+}
