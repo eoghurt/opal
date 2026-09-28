@@ -25,8 +25,8 @@ import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
 import { TasksView } from './views/tasks-view.js';
-import { TASKS_FOLDER, parseTasks, toggleTask, replaceTask } from './tasks/tasks.js';
-import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate } from './calendar/events.js';
+import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, todayKey } from './tasks/tasks.js';
+import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences } from './calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
 import { applyPalette } from './palettes.js';
@@ -35,6 +35,7 @@ import { findFile, findFolder, recentFiles, flattenFiles } from './tree.js';
 import { noteName, parentOf } from './format.js';
 import { Reminders } from './reminders.js';
 import { openSearch } from './search.js';
+import { InboxView, INBOX_PATH } from './views/inbox-view.js';
 
 const viewEl = document.getElementById('view');
 
@@ -63,6 +64,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
+  onInbox: () => showInbox(),
   onLogbook: () => showLogbook(),
   onTasks: () => showTasks(),
 });
@@ -97,10 +99,12 @@ let logbook = null;
 let logbookState = { kind: 'month', date: new Date() };
 
 let tasksView = null;
+let inboxView = null;
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
   tasksView = null;
+  inboxView = null;
   if (calendar) calendar.destroy();
   calendar = null;
   if (logbook) logbook.destroy();
@@ -131,6 +135,7 @@ async function reloadTree() {
   sidebar.setTree(tree);
   chrome.setRecent(recentFiles(tree, 6));
   reminders.refresh();
+  updateInboxCount();
 }
 
 // ---------- Reminders ----------
@@ -561,6 +566,115 @@ function showTasks() {
   });
 }
 
+// ---------- Inbox ----------
+
+async function readNoteOrNull(path) {
+  if (!findFile(tree, path)) return null;
+  try {
+    return await window.opal.readFile(path);
+  } catch {
+    return null;
+  }
+}
+
+async function writeInbox(text) {
+  const known = Boolean(findFile(tree, INBOX_PATH));
+  const path = await window.opal.createNote('Inbox', '');
+  await window.opal.writeFile(path, text);
+  if (!known) await reloadTree();
+  else updateInboxCount();
+}
+
+// Every task in every list (open and done).
+async function loadAllTasks() {
+  const lists = await Promise.all(taskListNodes().map(async (n) => {
+    const name = n.name.slice(0, -3);
+    return parseTasks((await readTaskList(name)) || '', name);
+  }));
+  return lists.flat();
+}
+
+// One day's events: its day note plus repeating events that land on it.
+async function loadDayEvents(key) {
+  const [dayText, repeats] = await Promise.all([readNoteOrNull(dayPath(key)), readNoteOrNull(REPEATS_PATH)]);
+  return [...parseEvents(dayText || '', key), ...occurrences(parseSeries(repeats || ''), key)];
+}
+
+// The number on the Inbox button: captured items + overdue + due today.
+let inboxCountTimer = null;
+function updateInboxCount() {
+  clearTimeout(inboxCountTimer);
+  inboxCountTimer = setTimeout(async () => {
+    if (!vault) {
+      chrome.setInboxCount(0);
+      return;
+    }
+    try {
+      const today = todayKey();
+      const [inbox, tasks] = await Promise.all([readNoteOrNull(INBOX_PATH), loadAllTasks()]);
+      const captured = parseTasks(inbox || '', 'Inbox').filter((t) => !t.done).length;
+      const due = tasks.filter((t) => !t.done && t.due && t.due <= today).length;
+      chrome.setInboxCount(captured + due);
+    } catch {
+      // Try again on the next change.
+    }
+  }, 300);
+}
+
+function showInbox() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'inbox' };
+    setTitle('Inbox');
+    sidebar.setActive(null, null);
+    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Inbox' }]);
+    viewEl.scrollTop = 0;
+    inboxView = new InboxView(viewEl, {
+      readInbox: () => readNoteOrNull(INBOX_PATH),
+      writeInbox,
+      loadTasks: loadAllTasks,
+      listNames: () => {
+        const names = taskListNodes().map((n) => n.name.slice(0, -3));
+        return names.sort((a, b) => (b === DEFAULT_LIST) - (a === DEFAULT_LIST) || a.localeCompare(b));
+      },
+      toggleTask: toggleTaskDone,
+      addToList: async (list, task) => {
+        const text = (await readTaskList(list)) || '';
+        await writeTaskList(list, addTask(text, task, list));
+      },
+      openTasks: () => showTasks(),
+      loadEvents: loadDayEvents,
+      openCalendarDay: (key) => {
+        calendarState = { ...calendarState, mode: 'day' };
+        showCalendar(keyToDate(key));
+      },
+      loadChecklists: () => window.opal.openCheckboxes(),
+      tickChecklist: async (item) => {
+        const text = await window.opal.readFile(item.path);
+        const lines = text.split(/\r?\n/);
+        const nl = /\r\n/.test(text) ? '\r\n' : '\n';
+        let index = lines[item.line - 1] === item.raw ? item.line - 1 : lines.indexOf(item.raw);
+        if (index === -1) throw new Error('That item was changed somewhere else. The Inbox has been refreshed — try again.');
+        lines[index] = lines[index].replace('[ ]', '[x]');
+        await window.opal.writeFile(item.path, lines.join(nl));
+      },
+      openAt: async (path, line) => {
+        await openFile(path);
+        if (current && current.filePath === path && current.editor.goToLine) current.editor.goToLine(line);
+      },
+      makeNote: async (name, body) => {
+        const path = await window.opal.createNote(name, '');
+        const existing = (await window.opal.readFile(path)) || '';
+        await window.opal.writeFile(path, existing.trim() ? `${existing.replace(/\s+$/, '')}\n\n${body}\n` : `# ${name}\n\n${body}\n`);
+        await reloadTree();
+        await openFile(path);
+      },
+    });
+  });
+}
+
 // ---------- Logbook ----------
 
 function showLogbook() {
@@ -696,6 +810,8 @@ function refreshFiles() {
       logbook.reload();
     } else if (screen.kind === 'tasks' && tasksView) {
       tasksView.reload();
+    } else if (screen.kind === 'inbox' && inboxView) {
+      inboxView.reload();
     } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
       await flushHomeStickies();
@@ -821,6 +937,7 @@ window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggl
 window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => showLogbook());
 window.opal.onShowTasks(() => showTasks());
+window.opal.onShowInbox(() => showInbox());
 window.opal.onOpenReminder(openReminder);
 window.opal.onSearch(startSearch);
 window.opal.onVaultChanged(loadVault);

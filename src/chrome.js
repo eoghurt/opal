@@ -13,7 +13,7 @@ const STATUS_TEXT = {
 };
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onPalettes, onOpenFile, onCalendar, onLogbook, onTasks, onSearch }) {
+  constructor(topbar, footer, { onHome, onPalettes, onOpenFile, onCalendar, onLogbook, onTasks, onSearch, onInbox }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
@@ -23,6 +23,8 @@ export class Chrome {
     this.onLogbook = onLogbook;
     this.onTasks = onTasks;
     this.onSearch = onSearch;
+    this.onInbox = onInbox;
+    this.inboxCount = 0;
     this.crumbs = [];
     this.palette = null;
     this.recent = [];
@@ -33,6 +35,13 @@ export class Chrome {
   // crumbs: [{ label, onClick }] — the last one is where you are.
   setCrumbs(crumbs) {
     this.crumbs = crumbs;
+    this.renderTop();
+  }
+
+  // The number on the Inbox button (things waiting).
+  setInboxCount(count) {
+    if (count === this.inboxCount) return;
+    this.inboxCount = count;
     this.renderTop();
   }
 
@@ -78,6 +87,12 @@ export class Chrome {
         h('span', { class: 'wordmark-text' }, 'opal')),
       crumbs,
       h('button', { class: 'bar-cell bar-link bar-search', onclick: () => this.onSearch(), title: 'Search (⌘O names · ⌘⇧F text)' }, 'Search'),
+      h('button', {
+        class: 'bar-cell bar-link bar-inbox',
+        onclick: () => this.onInbox(),
+        title: 'Inbox (⌘⇧I)',
+        'aria-label': this.inboxCount ? `Inbox, ${this.inboxCount} waiting` : 'Inbox',
+      }, 'Inbox', this.inboxCount ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, this.inboxCount > 99 ? '99+' : String(this.inboxCount)) : null),
       h('button', { class: 'bar-cell bar-link', onclick: () => this.onCalendar() }, 'Calendar'),
       h('button', { class: 'bar-cell bar-link', onclick: () => this.onTasks() }, 'Tasks'),
       h('button', { class: 'bar-cell bar-link', onclick: () => this.onLogbook() }, 'Logbook'),

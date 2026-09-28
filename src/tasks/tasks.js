@@ -6,7 +6,7 @@
 //       - [ ] Check the drawer first   ← subtask (indented checkbox)
 //   - [x] Return library books ✅ 2026-09-27
 //
-// 📅 due date, ⏰ time, ⭐ starred, ✅ date it was done, 🔁 repeat (e.g.
+// 📅 due date, ⏰ time, ⭐ starred, ➕ date it was added, ✅ date it was done, 🔁 repeat (e.g.
 // "🔁 every week" — ticking it off adds the next one, as Obsidian Tasks does).
 // Anything else in the note (headings, text) is left alone.
 
@@ -19,6 +19,7 @@ const TASK_LINE = /^(\s*)[-*+]\s\[([ xX])\]\s?(.*)$/;
 const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/;
 const TIME = /\s*⏰\s*(\d{1,2}:\d{2})/;
 const DONE_ON = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
+const CREATED = /\s*➕\s*(\d{4}-\d{2}-\d{2})/;
 const STAR = /\s*⭐️?/;
 const REPEAT = new RegExp(`\\s*🔁\\s*${RULE_TEXT.source}`, 'i');
 
@@ -29,13 +30,15 @@ function parseLine(body) {
   const time = TIME.exec(body);
   const doneOn = DONE_ON.exec(body);
   const repeat = REPEAT.exec(body);
+  const created = CREATED.exec(body);
   return {
+    created: created ? created[1] : null,
     repeat: repeat ? normaliseRule(repeat[1]) : null,
     due: due ? due[1] : null,
     time: time ? time[1].padStart(5, '0') : null,
     doneOn: doneOn ? doneOn[1] : null,
     starred: STAR.test(body),
-    title: body.replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
+    title: body.replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
   };
 }
 
@@ -81,6 +84,7 @@ function formatHead(task, indent = '') {
   if (task.due) parts.push(`📅 ${task.due}`);
   if (task.due && task.time) parts.push(`⏰ ${task.time}`);
   if (task.starred) parts.push('⭐');
+  if (task.created) parts.push(`➕ ${task.created}`);
   if (task.done && task.doneOn) parts.push(`✅ ${task.doneOn}`);
   return parts.join(' ');
 }

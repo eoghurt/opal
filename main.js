@@ -626,6 +626,28 @@ async function searchVault(query) {
   return results.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path)).slice(0, 60);
 }
 
+// Unticked checklist items ("- [ ] …") in notes outside Tasks/ and the Inbox,
+// for the Inbox screen. → [{ path, line (1-based), raw, text }]
+async function openCheckboxes() {
+  if (!vaultPath) return [];
+  const found = [];
+  for (const relPath of await listNotes()) {
+    if (/^tasks\//i.test(relPath) || /^inbox\.md$/i.test(relPath)) continue;
+    let text;
+    try {
+      text = await noteText(relPath);
+    } catch {
+      continue;
+    }
+    if (!text.includes('[ ]')) continue;
+    text.split(/\r?\n/).forEach((raw, index) => {
+      const match = /^\s*[-*+]\s\[ \]\s+(\S.*)$/.exec(raw);
+      if (match && found.length < 300) found.push({ path: relPath, line: index + 1, raw, text: match[1].trim() });
+    });
+  }
+  return found;
+}
+
 // ---------- Reminders ----------
 // The window works out when reminders are due; this just shows them as Mac
 // notifications. Clicking one brings Opal forward on that day or on Tasks.
@@ -652,6 +674,7 @@ function showNotification(payload) {
   return true;
 }
 
+ipcMain.handle('vault:checkboxes', () => openCheckboxes());
 ipcMain.handle('vault:search', (_event, query) => searchVault(query));
 ipcMain.handle('notify:show', (_event, payload) => showNotification(payload));
 ipcMain.handle('vault:get', () => vaultInfo());
@@ -708,6 +731,7 @@ function buildMenu() {
         { label: 'Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
         { label: 'Logbook', accelerator: 'CmdOrCtrl+Shift+L', click: () => { if (win) win.webContents.send('ui:show-logbook'); } },
+        { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', click: () => { if (win) win.webContents.send('ui:show-inbox'); } },
         { label: 'Tasks', accelerator: 'CmdOrCtrl+Shift+T', click: () => { if (win) win.webContents.send('ui:show-tasks'); } },
         { type: 'separator' },
         { role: 'resetZoom' },

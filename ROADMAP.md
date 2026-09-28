@@ -56,6 +56,14 @@ their own Mac app with one click. File types live in file-types.json.
 - **Search** — ⌘O jumps to any page, folder or file by name; ⌘⇧F searches inside
   every note and opens the note with the match selected. Also a Search button in the top bar.
 
+## v0.9 — Tables, sleeker calendar, Inbox (done)
+- **Tables** — Word-style tables inside notes, saved as HTML `<table>` (shows in
+  Obsidian too): merge/split, resize columns and rows, cell colours, alignment,
+  borders, margins, header row. `+ Table` in a note, or ⌘⌥T.
+- **Calendar** — Apple Calendar look: tinted events, red today circle and now-line.
+- **Inbox** — ⌘⇧I: quick capture into `Inbox.md`, then → task or → note; overdue,
+  today, next 7 days, undated tasks, and loose checklist items from any note.
+
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
