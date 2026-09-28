@@ -553,6 +553,77 @@ function flushWindow({ closeEditor = false } = {}) {
 
 // ---------- IPC: what the window is allowed to ask for ----------
 
+// ---------- Search ----------
+// Looks through every note's text for the query. Notes are read from disk and
+// remembered in memory only (until they change), never stored anywhere else.
+
+const searchCache = new Map(); // full path → { mtimeMs, text }
+const SEARCH_MAX_BYTES = 5 * 1024 * 1024;
+
+async function listNotes(relFolder = '', out = []) {
+  let entries;
+  try {
+    entries = await fs.promises.readdir(path.join(vaultPath, relFolder), { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (isHidden(entry.name)) continue;
+    const relPath = relFolder ? `${relFolder}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) await listNotes(relPath, out);
+    else if (entry.isFile() && isNoteFile(entry.name)) out.push(relPath);
+  }
+  return out;
+}
+
+async function noteText(relPath) {
+  const full = path.join(vaultPath, relPath);
+  const stat = await fs.promises.stat(full);
+  if (stat.size > SEARCH_MAX_BYTES) return '';
+  const cached = searchCache.get(full);
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.text;
+  const text = new TextDecoder('utf-8').decode(await fs.promises.readFile(full));
+  searchCache.set(full, { mtimeMs: stat.mtimeMs, text });
+  return text;
+}
+
+// → [{ path, count, matches: [{ line (1-based), text, at, length }] }], best first.
+async function searchVault(query) {
+  if (!vaultPath || typeof query !== 'string') return [];
+  const needle = query.trim().toLowerCase().slice(0, 200);
+  if (needle.length < 2) return [];
+  const results = [];
+  for (const relPath of await listNotes()) {
+    let text;
+    try {
+      text = await noteText(relPath);
+    } catch {
+      continue;
+    }
+    const lower = text.toLowerCase();
+    if (!lower.includes(needle)) continue;
+    const lines = text.split(/\r?\n/);
+    const matches = [];
+    let count = 0;
+    lines.forEach((line, index) => {
+      let at = line.toLowerCase().indexOf(needle);
+      if (at === -1) return;
+      if (matches.length < 3) {
+        // A window of the line around the match, so long lines stay readable.
+        const from = Math.max(0, at - 50);
+        const snippet = line.slice(from, at + needle.length + 90);
+        matches.push({ line: index + 1, text: (from ? '…' : '') + snippet, at: at - from + (from ? 1 : 0), length: needle.length, column: at });
+      }
+      while (at !== -1) {
+        count++;
+        at = line.toLowerCase().indexOf(needle, at + needle.length);
+      }
+    });
+    results.push({ path: relPath, count, matches });
+  }
+  return results.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path)).slice(0, 60);
+}
+
 // ---------- Reminders ----------
 // The window works out when reminders are due; this just shows them as Mac
 // notifications. Clicking one brings Opal forward on that day or on Tasks.
@@ -579,6 +650,7 @@ function showNotification(payload) {
   return true;
 }
 
+ipcMain.handle('vault:search', (_event, query) => searchVault(query));
 ipcMain.handle('notify:show', (_event, payload) => showNotification(payload));
 ipcMain.handle('vault:get', () => vaultInfo());
 ipcMain.handle('vault:choose', () => switchVault());
@@ -616,6 +688,9 @@ function buildMenu() {
           accelerator: 'CmdOrCtrl+Shift+N',
           click: () => { if (win) win.webContents.send('folder:new-request'); },
         },
+        { label: 'Quick Open…', accelerator: 'CmdOrCtrl+O', click: () => { if (win) win.webContents.send('ui:search', 'open'); } },
+        { label: 'Search Vault…', accelerator: 'CmdOrCtrl+Shift+F', click: () => { if (win) win.webContents.send('ui:search', 'text'); } },
+        { type: 'separator' },
         { label: 'Switch Vault…', accelerator: 'CmdOrCtrl+Shift+O', click: () => switchVault() },
         { type: 'separator' },
         { role: 'close' },

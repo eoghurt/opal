@@ -34,6 +34,7 @@ import { askName, h, scribbleArrow } from './ui.js';
 import { findFile, findFolder, recentFiles, flattenFiles } from './tree.js';
 import { noteName, parentOf } from './format.js';
 import { Reminders } from './reminders.js';
+import { openSearch } from './search.js';
 
 const viewEl = document.getElementById('view');
 
@@ -61,6 +62,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onPalettes: () => showPalettes(),
   onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
+  onSearch: () => startSearch('open'),
   onLogbook: () => showLogbook(),
   onTasks: () => showTasks(),
 });
@@ -138,6 +140,22 @@ const reminders = new Reminders({
   listFiles: () => (vault ? flattenFiles(tree) : []),
   notify: (payload) => window.opal.notify(payload).catch(() => {}),
 });
+
+// ---------- Search ----------
+
+function startSearch(mode) {
+  if (!vault) return;
+  openSearch({
+    tree: () => tree,
+    search: (query) => window.opal.search(query),
+    openFile: (path) => openFile(path),
+    openFolder: (path) => openFolder(path),
+    openAt: async (path, line, column, length) => {
+      await openFile(path);
+      if (current && current.filePath === path && current.editor.goToLine) current.editor.goToLine(line, column, length);
+    },
+  }, { mode });
+}
 
 function openReminder(open) {
   if (!vault || !open) return;
@@ -803,6 +821,7 @@ window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => showLogbook());
 window.opal.onShowTasks(() => showTasks());
 window.opal.onOpenReminder(openReminder);
+window.opal.onSearch(startSearch);
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
 

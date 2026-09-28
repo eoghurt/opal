@@ -52,12 +52,16 @@ their own Mac app with one click. File types live in file-types.json.
 - **Custom repeats** — "every 2 weeks on Monday, Wednesday", "every 3 days", "every 6 months".
 - **Timed tasks in the grid** — tasks with a ⏰ time sit in the Day/Week grid; drag to reschedule.
 
+## v0.8 — Search (done)
+- **Search** — ⌘O jumps to any page, folder or file by name; ⌘⇧F searches inside
+  every note and opens the note with the match selected. Also a Search button in the top bar.
+
 ## Later, in no particular order
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
 - **Downloadable palettes** — get more palettes as small files in the vault.
 - **Spreadsheet and slide notes** — new file types via `src/editor-registry.js`.
-- **Search, columns view, canvas view.**
+- **Columns view, canvas view.** Search extras: tags, filters by folder or date.
 - **Calendar extras** — reminders even when Opal is closed (a small menu-bar helper).
 - **Tasks extras** — drag subtasks, reorder lists, repeat "when done".
 - **Richer file viewing** — old .doc/.ppt/.xls files, HEIC photos, chart

@@ -228,10 +228,13 @@ export class MarkdownEditor {
   }
 
   // Moves the cursor to the start of a line (1-based) and scrolls to it.
-  goToLine(lineNumber) {
+  // Moves to a line (1-based); with a column and length, selects that text.
+  goToLine(lineNumber, column = 0, length = 0) {
     const doc = this.view.state.doc;
     const line = doc.line(Math.min(Math.max(1, lineNumber), doc.lines));
-    this.view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
+    const from = Math.min(line.from + column, line.to);
+    const to = Math.min(from + length, line.to);
+    this.view.dispatch({ selection: { anchor: from, head: to }, effects: EditorView.scrollIntoView(from, { y: 'center' }) });
     this.view.focus();
   }
 

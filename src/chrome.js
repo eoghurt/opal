@@ -13,7 +13,7 @@ const STATUS_TEXT = {
 };
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onPalettes, onOpenFile, onCalendar, onLogbook, onTasks }) {
+  constructor(topbar, footer, { onHome, onPalettes, onOpenFile, onCalendar, onLogbook, onTasks, onSearch }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
@@ -22,6 +22,7 @@ export class Chrome {
     this.onCalendar = onCalendar;
     this.onLogbook = onLogbook;
     this.onTasks = onTasks;
+    this.onSearch = onSearch;
     this.crumbs = [];
     this.palette = null;
     this.recent = [];
@@ -76,6 +77,7 @@ export class Chrome {
         h('span', { class: 'wordmark-square' }),
         h('span', { class: 'wordmark-text' }, 'opal')),
       crumbs,
+      h('button', { class: 'bar-cell bar-link bar-search', onclick: () => this.onSearch(), title: 'Search (⌘O names · ⌘⇧F text)' }, 'Search'),
       h('button', { class: 'bar-cell bar-link', onclick: () => this.onCalendar() }, 'Calendar'),
       h('button', { class: 'bar-cell bar-link', onclick: () => this.onTasks() }, 'Tasks'),
       h('button', { class: 'bar-cell bar-link', onclick: () => this.onLogbook() }, 'Logbook'),
