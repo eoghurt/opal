@@ -46,7 +46,7 @@ function vaultInfo() {
 }
 
 function setVault(folder) {
-  vaultPath = folder;
+  vaultPath = path.resolve(folder);
   saveSettings({ ...loadSettings(), vaultPath: folder });
   watchVault();
   if (win) win.webContents.send('vault:changed', vaultInfo());
@@ -116,8 +116,69 @@ async function pickFolder() {
 
 async function switchVault() {
   const folder = await pickFolder();
-  if (folder) setVault(folder);
+  if (!folder) return vaultInfo();
+  // Save and close the open note before the vault changes underneath it.
+  const flushed = await flushWindow({ closeEditor: true });
+  if (!flushed.ok) {
+    dialog.showMessageBox(win, {
+      type: 'warning',
+      message: 'Opal could not save the current note, so the vault was not switched.',
+      detail: flushed.error,
+    });
+    return vaultInfo();
+  }
+  setVault(folder);
   return vaultInfo();
+}
+
+// ---------- Reading and writing notes ----------
+
+// Turns a vault-relative path from the window into a full path.
+// Refuses anything outside the vault, hidden, or not a note.
+function resolveNotePath(relPath) {
+  if (!vaultPath) throw new Error('No vault is open.');
+  if (typeof relPath !== 'string') throw new Error('Invalid path.');
+  const full = path.resolve(vaultPath, relPath);
+  if (!full.startsWith(vaultPath + path.sep)) throw new Error('That path is outside the vault.');
+  if (path.relative(vaultPath, full).split(path.sep).some(isHidden)) throw new Error('That path is hidden.');
+  if (!isNoteFile(full)) throw new Error('That is not a note file.');
+  return full;
+}
+
+async function readNote(relPath) {
+  return fs.promises.readFile(resolveNotePath(relPath), 'utf8');
+}
+
+// Writes to a hidden temp file first, then swaps it in, so a crash mid-save
+// can never leave a half-written note.
+async function writeNote(relPath, content) {
+  if (typeof content !== 'string') throw new Error('Invalid content.');
+  const full = resolveNotePath(relPath);
+  const temp = path.join(path.dirname(full), `.${path.basename(full)}.opal-saving`);
+  await fs.promises.mkdir(path.dirname(full), { recursive: true });
+  await fs.promises.writeFile(temp, content, 'utf8');
+  await fs.promises.rename(temp, full);
+}
+
+// Asks the window to save any unsaved typing, and waits until it has.
+let flushCounter = 0;
+
+function flushWindow({ closeEditor = false } = {}) {
+  return new Promise((resolve) => {
+    if (!win || win.isDestroyed()) return resolve({ ok: true });
+    const id = ++flushCounter;
+    const onDone = (_event, reply) => {
+      if (reply && reply.id === id) finish(reply);
+    };
+    const timer = setTimeout(() => finish({ ok: false, error: 'The window did not respond.' }), 5000);
+    function finish(reply) {
+      clearTimeout(timer);
+      ipcMain.removeListener('app:flush-done', onDone);
+      resolve(reply);
+    }
+    ipcMain.on('app:flush-done', onDone);
+    win.webContents.send('app:flush', { id, closeEditor });
+  });
 }
 
 // ---------- IPC: what the window is allowed to ask for ----------
@@ -125,6 +186,8 @@ async function switchVault() {
 ipcMain.handle('vault:get', () => vaultInfo());
 ipcMain.handle('vault:choose', () => switchVault());
 ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));
+ipcMain.handle('file:read', (_event, relPath) => readNote(relPath));
+ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, content));
 
 // ---------- Window and menu ----------
 
@@ -140,7 +203,19 @@ function buildMenu() {
       ],
     },
     { role: 'editMenu' },
-    { role: 'viewMenu' },
+    {
+      // No "Reload": reloading the page could drop typing that hasn't been saved yet.
+      label: 'View',
+      submenu: [
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        { role: 'toggleDevTools' },
+      ],
+    },
     { role: 'windowMenu' },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -166,6 +241,31 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
   win.on('closed', () => { win = null; });
 
+  // Before the window closes (including Cmd+Q), make sure everything typed is saved.
+  let allowClose = false;
+  let closing = false;
+  win.on('close', async (event) => {
+    if (allowClose) return;
+    event.preventDefault();
+    if (closing) return;
+    closing = true;
+    const flushed = await flushWindow();
+    closing = false;
+    if (!flushed.ok) {
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'warning',
+        message: 'Some changes could not be saved.',
+        detail: `${flushed.error}\n\nIf you quit now, your latest typing in the open note will be lost.`,
+        buttons: ['Keep Window Open', 'Quit Anyway'],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (response === 0) return;
+    }
+    allowClose = true;
+    win.close();
+  });
+
   // First launch (or the saved folder has gone): ask for a vault.
   win.webContents.once('did-finish-load', () => {
     if (!vaultPath) switchVault();
@@ -174,7 +274,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   const saved = loadSettings().vaultPath;
-  if (saved && isFolder(saved)) vaultPath = saved;
+  if (saved && isFolder(saved)) vaultPath = path.resolve(saved);
   watchVault();
   buildMenu();
   createWindow();
