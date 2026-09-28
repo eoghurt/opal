@@ -37,6 +37,9 @@ import { Reminders } from './reminders.js';
 import { openSearch } from './search.js';
 import { InboxView, INBOX_PATH } from './views/inbox-view.js';
 
+// The Inbox is switched off for now (its code stays, ready to come back).
+const INBOX_ENABLED = false;
+
 const viewEl = document.getElementById('view');
 
 // Main passes the saved palette in the address so the first paint uses it.
@@ -64,7 +67,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
-  onInbox: () => showInbox(),
+  onInbox: INBOX_ENABLED ? () => showInbox() : null,
   onLogbook: () => showLogbook(),
   onTasks: () => showTasks(),
 });
@@ -145,6 +148,23 @@ const reminders = new Reminders({
   listFiles: () => (vault ? flattenFiles(tree) : []),
   notify: (payload) => window.opal.notify(payload).catch(() => {}),
 });
+
+// ---------- Renaming the open note (from its title) ----------
+
+async function renameOpenNote(filePath, newName) {
+  if (current && current.filePath === filePath) await current.editor.flush();
+  const newPath = await window.opal.renameNote(filePath, newName);
+  await reloadTree();
+  if (newPath !== filePath) {
+    // Close the editor without saving again (the old file name is gone — a
+    // save would bring it back), then reopen the note under its new name.
+    if (current && current.filePath === filePath) {
+      current.editor.destroy();
+      current = null;
+    }
+    await navigate(() => showNote(newPath));
+  }
+}
 
 // ---------- Search ----------
 
@@ -313,6 +333,7 @@ async function showNote(filePath) {
     onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
     onAddSticky: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - noteView.center.offsetTop),
     onInsertTable: (rows, cols) => current && current.editor.insertTable && current.editor.insertTable(rows, cols),
+    onRename: (newName) => renameOpenNote(filePath, newName),
     onSetColor: (path, kind, color) => setItemColor(path, kind, color),
   });
 
@@ -606,6 +627,7 @@ async function loadDayEvents(key) {
 // The number on the Inbox button: captured items + overdue + due today.
 let inboxCountTimer = null;
 function updateInboxCount() {
+  if (!INBOX_ENABLED) return;
   clearTimeout(inboxCountTimer);
   inboxCountTimer = setTimeout(async () => {
     if (!vault) {
@@ -625,7 +647,7 @@ function updateInboxCount() {
 }
 
 function showInbox() {
-  if (!vault) return Promise.resolve();
+  if (!vault || !INBOX_ENABLED) return Promise.resolve();
   return navigate(async () => {
     homeStickies = null;
     leaveCalendar();

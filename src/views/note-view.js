@@ -11,11 +11,11 @@ import { findFile, findFolder, countNotes } from '../tree.js';
 import { stripStickies } from '../../shared/stickies.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename };
     this.tree = [];
     this.text = '';
 
@@ -23,12 +23,68 @@ export class NoteView {
     this.right = h('aside', { class: 'note-right', 'aria-label': 'In this folder' });
     this.chips = h('div', { class: 'note-chips' });
     this.editorHost = h('div', { class: 'note-editor' });
-    const center = h('div', { class: 'note-center' }, this.chips, this.editorHost);
+    this.title = this.makeTitle();
+    const center = h('div', { class: 'note-center' }, this.chips, this.title, this.editorHost);
     this.center = center; // stickies sit on top of this
 
     container.replaceChildren(h('div', { class: 'note-view' }, this.left, center, this.right));
     this.leftBody = makePanel(this.left, { id: 'note-left', side: 'left', label: 'Details', width: 250 });
     this.rightBody = makePanel(this.right, { id: 'note-right', side: 'right', label: 'Folder', width: 250 });
+  }
+
+  // The note's name as a big title above the text. Editing it renames the
+  // note's file (Enter or clicking away saves; Escape puts it back).
+  makeTitle() {
+    const name = noteName(this.filePath);
+    const title = h('textarea', {
+      class: 'display note-title',
+      rows: '1',
+      spellcheck: 'false',
+      'aria-label': 'Note title (edit to rename)',
+    });
+    title.value = name;
+    const fit = () => {
+      title.style.height = 'auto';
+      title.style.height = `${title.scrollHeight}px`;
+    };
+    requestAnimationFrame(fit);
+    title.addEventListener('input', () => {
+      // A file name can't hold line breaks or slashes.
+      const clean = title.value.replace(/[\r\n]+/g, ' ').replace(/[/\\:]/g, '-');
+      if (clean !== title.value) title.value = clean;
+      fit();
+    });
+    let done = false;
+    const save = () => {
+      if (done) return;
+      const next = title.value.trim();
+      if (!next || next === name) {
+        title.value = name;
+        fit();
+        return;
+      }
+      done = true;
+      this.handlers.onRename(next).catch((err) => {
+        done = false;
+        title.value = name;
+        fit();
+        alert(`Couldn't rename the note.\n\n${err.message}`);
+      });
+    };
+    title.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        title.blur();
+        const editor = this.editorHost.querySelector('.cm-content');
+        if (editor) editor.focus();
+      } else if (event.key === 'Escape') {
+        title.value = name;
+        fit();
+        title.blur();
+      }
+    });
+    title.addEventListener('blur', save);
+    return title;
   }
 
   setTree(tree) {

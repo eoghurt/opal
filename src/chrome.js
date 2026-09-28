@@ -87,7 +87,7 @@ export class Chrome {
         h('span', { class: 'wordmark-text' }, 'opal')),
       crumbs,
       h('button', { class: 'bar-cell bar-link bar-search', onclick: () => this.onSearch(), title: 'Search (⌘O names · ⌘⇧F text)' }, 'Search'),
-      h('button', {
+      !this.onInbox ? null : h('button', {
         class: 'bar-cell bar-link bar-inbox',
         onclick: () => this.onInbox(),
         title: 'Inbox (⌘⇧I)',

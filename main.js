@@ -750,7 +750,7 @@ function buildMenu() {
         { label: 'Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
         { label: 'Logbook', accelerator: 'CmdOrCtrl+Shift+L', click: () => { if (win) win.webContents.send('ui:show-logbook'); } },
-        { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', click: () => { if (win) win.webContents.send('ui:show-inbox'); } },
+        // Inbox is switched off for now: { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', … 'ui:show-inbox' }
         { label: 'Tasks', accelerator: 'CmdOrCtrl+Shift+T', click: () => { if (win) win.webContents.send('ui:show-tasks'); } },
         { type: 'separator' },
         { role: 'resetZoom' },

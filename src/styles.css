@@ -2552,3 +2552,39 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .cm-editor .cm-tooltip-autocomplete > ul > li { padding: 4px 10px !important; font-size: 13.5px; }
 .cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--c2); color: var(--ink); }
 .cm-editor .cm-completionDetail { margin-left: 10px; font-family: var(--mono); font-size: 10.5px; font-style: normal; color: var(--ink-3); }
+
+/* ---------- Note title ---------- */
+
+.note-title {
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 0 44px;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--ink);
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+.note-title:focus { background: linear-gradient(transparent calc(100% - 3px), var(--c2) 0); }
+.note-title::placeholder { color: var(--ink-3); }
+
+/* ---------- Top bar: dark, slightly smaller ---------- */
+
+#topbar { height: 40px; background: var(--ink); color: var(--paper); font-size: 10px; border-bottom: var(--rule); }
+#topbar .bar-cell, #topbar .crumbs { border-right-color: rgba(251, 249, 244, 0.16); }
+#topbar .wordmark-text { font-size: 17px; color: var(--paper); }
+#topbar .wordmark-square { border-color: var(--paper); }
+#topbar .crumb { color: rgba(251, 249, 244, 0.7); }
+#topbar .crumb:hover { color: var(--paper); }
+#topbar .crumb-current { color: var(--paper); }
+#topbar .bar-link, #topbar .bar-date, #topbar .palette-chip { color: var(--paper); }
+#topbar .bar-link:hover, #topbar .bar-date:hover, #topbar .palette-chip:hover, #topbar .wordmark:hover { background: rgba(251, 249, 244, 0.12); color: var(--paper); }
+#topbar .chip-bars span { height: 14px; }
+#topbar button:focus-visible { outline: 2px solid var(--c2); outline-offset: -2px; }
+.note-title { padding: 0 44px 0 50px; }
