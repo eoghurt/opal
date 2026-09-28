@@ -63,13 +63,15 @@ body { display: flex; }
 }
 
 .vault-name {
+  flex: 1;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.vault-switch {
+.header-button {
+  flex-shrink: 0;
   font: inherit;
   font-size: 12px;
   padding: 3px 8px;
@@ -143,3 +145,12 @@ body { display: flex; }
 #note-status.error { color: #c62828; font-weight: 600; }
 
 #editor-host > .cm-editor { flex: 1; min-height: 0; }
+
+#new-note-box {
+  margin: 8px 10px 0;
+  padding: 5px 8px;
+  font: inherit;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  outline: none;
+}

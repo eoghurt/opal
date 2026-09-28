@@ -40,7 +40,7 @@ export class Sidebar {
     if (!this.tree.length) {
       const empty = document.createElement('div');
       empty.className = 'tree-empty';
-      empty.textContent = 'No notes yet.';
+      empty.textContent = 'No notes yet. Click “＋ New” to create one.';
       this.container.append(empty);
       return;
     }

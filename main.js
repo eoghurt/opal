@@ -200,8 +200,19 @@ async function resolveLink(rawTarget) {
     .sort((a, b) => a.split('/').length - b.split('/').length)[0];
   if (byName) return byName;
 
-  // 3. Not found: create an empty note in the vault root ('wx' never overwrites).
-  const relPath = `${safeFileName(target)}.md`;
+  // 3. Not found: create it in the vault root.
+  return createNote(target);
+}
+
+// Creates an empty note in the vault root and returns its path.
+// If a note with that name is already there, it is left untouched ('wx' never overwrites).
+async function createNote(rawName) {
+  if (!vaultPath) throw new Error('No vault is open.');
+  const relPath = `${safeFileName(String(rawName).replace(/\.md$/i, ''))}.md`;
+  // macOS ignores case, so "idea" and "Idea" are the same file: reuse the real spelling.
+  const wanted = normalizeName(relPath);
+  const existing = (await fs.promises.readdir(vaultPath)).find((n) => isNoteFile(n) && normalizeName(n) === wanted);
+  if (existing) return existing;
   try {
     await fs.promises.writeFile(resolveNotePath(relPath), '', { flag: 'wx' });
   } catch (err) {
@@ -239,6 +250,7 @@ ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));
 ipcMain.handle('file:read', (_event, relPath) => readNote(relPath));
 ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, content));
 ipcMain.handle('link:resolve', (_event, target) => resolveLink(target));
+ipcMain.handle('note:create', (_event, name) => createNote(name));
 
 // ---------- Window and menu ----------
 
@@ -248,6 +260,11 @@ function buildMenu() {
     {
       label: 'File',
       submenu: [
+        {
+          label: 'New Note',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => { if (win) win.webContents.send('note:new-request'); },
+        },
         { label: 'Switch Vault…', accelerator: 'CmdOrCtrl+Shift+O', click: () => switchVault() },
         { type: 'separator' },
         { role: 'close' },

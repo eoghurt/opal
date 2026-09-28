@@ -100,19 +100,58 @@ async function openLink(target) {
   }
 }
 
+let vaultOpen = false;
+
+function makeButton(label, title, onClick) {
+  const button = document.createElement('button');
+  button.className = 'header-button';
+  button.textContent = label;
+  button.title = title;
+  button.addEventListener('click', onClick);
+  return button;
+}
+
 function renderHeader(vault) {
   header.innerHTML = '';
   const name = document.createElement('div');
   name.className = 'vault-name';
   name.textContent = vault ? vault.name : 'No vault';
   name.title = vault ? vault.path : '';
+  header.append(name);
 
-  const button = document.createElement('button');
-  button.className = 'vault-switch';
-  button.textContent = vault ? 'Switch' : 'Choose folder…';
-  button.addEventListener('click', () => window.opal.chooseVault());
+  if (vault) header.append(makeButton('＋ New', 'New note (Cmd+N)', showNewNoteBox));
+  header.append(makeButton(vault ? 'Switch' : 'Choose folder…', 'Switch vault (Cmd+Shift+O)', () => window.opal.chooseVault()));
+}
 
-  header.append(name, button);
+// Shows a name box under the header; Enter creates the note, Escape cancels.
+function showNewNoteBox() {
+  if (!vaultOpen) return;
+  const existing = document.getElementById('new-note-box');
+  if (existing) return existing.focus();
+
+  const box = document.createElement('input');
+  box.id = 'new-note-box';
+  box.placeholder = 'New note name, then Enter';
+  box.spellcheck = false;
+  let done = false;
+  const finish = () => { done = true; box.remove(); };
+
+  box.addEventListener('keydown', async (event) => {
+    if (event.key === 'Escape') finish();
+    if (event.key !== 'Enter') return;
+    const name = box.value.trim();
+    finish();
+    if (!name) return;
+    try {
+      await openFile(await window.opal.createNote(name));
+    } catch (err) {
+      alert(`Could not create “${name}”.\n\n${err.message}`);
+    }
+  });
+  box.addEventListener('blur', () => { if (!done) finish(); });
+
+  header.after(box);
+  box.focus();
 }
 
 function refreshFiles() {
@@ -140,6 +179,7 @@ function loadVault(vault) {
       current.editor.destroy();
       current = null;
     }
+    vaultOpen = Boolean(vault);
     renderHeader(vault);
     sidebar.reset();
     showMessage(vault ? 'Select a note from the sidebar.' : 'Choose a folder to use as your vault.');
@@ -168,6 +208,7 @@ window.opal.onFlushRequest(({ closeEditor }) =>
     }
   }),
 );
+window.opal.onNewNoteRequest(showNewNoteBox);
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
 window.opal.getVault().then(loadVault);
