@@ -325,8 +325,14 @@ export class CalendarView {
     });
     const timedTasks = this.tasks.filter((t) => t.due === key && t.time).map((t) => {
       const [hh, mm] = t.time.split(':').map(Number);
-      const start = Math.min(hh * 60 + mm, 24 * 60 - TASK_LENGTH);
-      return { isTask: true, task: t, day: key, start, end: start + TASK_LENGTH, title: t.title };
+      const start = Math.min(hh * 60 + mm, 24 * 60 - SNAP);
+      // A task with an end time spans it, like an event; otherwise half an hour.
+      let end = start + TASK_LENGTH;
+      if (t.endTime) {
+        const [eh, em] = t.endTime.split(':').map(Number);
+        if (eh * 60 + em > start) end = eh * 60 + em;
+      }
+      return { isTask: true, task: t, day: key, start, end: Math.min(end, 24 * 60), title: t.title };
     });
     const items = layoutColumns([...(this.days[key]?.events || []).map((e) => ({ ...e })), ...timedTasks]);
     for (const item of items) column.append(item.isTask ? this.taskBlockEl(item) : this.eventEl(item));
@@ -365,21 +371,27 @@ export class CalendarView {
       }, `${task.time && this.mode === 'month' ? `${task.time} ` : ''}${task.title}`));
   }
 
-  // A timed task in the day grid: an event card with a tick box. Click for
-  // details, drag to change its time or day (written back as 📅 / ⏰).
+  // A timed task in the day grid: exactly like an event (any length, drag to
+  // move, drag the bottom edge to resize), plus a tick box.
   taskBlockEl(item) {
     const { task } = item;
     const width = 100 / item.cols;
+    const height = Math.max(18, (item.end - item.start) * MINUTE - 2);
+    const short = height < 30;
+    const lines = Math.max(1, Math.floor((height - 8) / 13));
+    const time = task.endTime ? `${clock(item.start)}–${clock(item.end)}` : clock(item.start);
     const el = h('div', {
-      class: `cal-event cal-task-block is-short${task.done ? ' is-done' : ''}`,
+      class: `cal-event cal-task-block${short ? ' is-short' : ''}${task.done ? ' is-done' : ''}`,
       role: 'button',
       tabindex: '0',
-      'aria-label': `Task: ${task.title}, ${task.time}${task.done ? ', done' : ''}`,
-      style: `top: ${item.start * MINUTE}px; height: ${TASK_LENGTH * MINUTE - 2}px; left: calc(${item.col * width}% + 3px); width: calc(${width}% - 7px); --tilt: ${this.tiltOf(item)}deg; ${this.taskPaint(task)}`,
+      'aria-label': `Task: ${task.title}, ${time}${task.done ? ', done' : ''}`,
+      style: `top: ${item.start * MINUTE}px; height: ${height}px; left: calc(${item.col * width}% + 3px); width: calc(${width}% - 7px); --tilt: ${this.tiltOf(item)}deg; ${this.taskPaint(task)}`,
     },
-    this.tickBox(task),
-    h('span', { class: 'cal-event-title' }, task.title),
-    h('span', { class: 'cal-event-time' }, task.time));
+    h('span', { class: 'cal-task-head' },
+      this.tickBox(task),
+      h('span', { class: 'cal-event-title', style: short ? null : `-webkit-line-clamp: ${lines}` }, task.title)),
+    h('span', { class: 'cal-event-time' }, short ? clock(item.start) : time),
+    h('span', { class: 'cal-resize', 'aria-hidden': 'true' }));
     el.addEventListener('keydown', (e) => {
       if ((e.key === 'Enter' || e.key === ' ') && e.target === el) {
         e.preventDefault();
@@ -631,7 +643,7 @@ export class CalendarView {
             el.style.transform = `translateX(${target.left - home.left}px)`;
           }
         }
-        el.querySelector('.cal-event-time').textContent = event.isTask ? clock(next.start) : `${clock(next.start)}–${clock(next.end)}`;
+        el.querySelector('.cal-event-time').textContent = `${clock(next.start)}–${clock(next.end)}`;
       };
 
       const up = () => {
@@ -646,7 +658,11 @@ export class CalendarView {
           return;
         }
         if (next.day === event.day && next.start === event.start && next.end === event.end) return;
-        if (event.isTask) this.change(() => this.io.updateTask(event.task, { due: next.day, time: clock(next.start) }));
+        if (event.isTask) {
+          // Keep (or set, after resizing) the task's end time along with its start.
+          const spans = event.task.endTime || next.end - next.start !== TASK_LENGTH;
+          this.change(() => this.io.updateTask(event.task, { due: next.day, time: clock(next.start), endTime: spans ? clock(next.end) : null }));
+        }
         else this.moveEvent(event, next);
       };
 
@@ -882,7 +898,7 @@ export class CalendarView {
       });
       state.allDay = allDay.checked;
       startIn.disabled = state.allDay;
-      endWrap.hidden = state.allDay || state.kind === 'task';
+      endWrap.hidden = state.allDay;
       allDayWrap.querySelector('input').setAttribute('aria-label', state.kind === 'task' ? 'No time' : 'All day');
       allDayWrap.lastChild.textContent = state.kind === 'task' ? 'No time' : 'All day';
       title.placeholder = state.kind === 'task' ? 'Add a task' : 'Add a title';
@@ -919,7 +935,7 @@ export class CalendarView {
       const end = state.allDay ? 24 * 60 : state.end;
       if (state.kind === 'task') {
         this.change(() => this.io.addTask({
-          title: text, due: key, time: state.allDay ? null : clock(start), primary: state.primary, secondary: state.secondary,
+          title: text, due: key, time: state.allDay ? null : clock(start), endTime: state.allDay ? null : clock(end), primary: state.primary, secondary: state.secondary,
         }));
       } else {
         const line = formatEvent({ allDay: state.allDay, start, end, text, color: null, primary: state.primary, secondary: state.secondary });

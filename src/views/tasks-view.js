@@ -285,7 +285,7 @@ export class TasksView {
       h('span', { class: 'task-title' }, task.title || 'Untitled'),
       task.details.length ? h('span', { class: 'task-details' }, task.details.join(' ')) : null,
       h('span', { class: 'task-meta' },
-        task.due ? h('span', { class: `task-due${isOverdue(task) ? ' is-overdue' : ''}` }, isOverdue(task) ? `overdue · ${dueLabel(task.due, task.time)}` : dueLabel(task.due, task.time)) : null,
+        task.due ? h('span', { class: `task-due${isOverdue(task) ? ' is-overdue' : ''}` }, isOverdue(task) ? `overdue · ${dueLabel(task.due, task.time, task.endTime)}` : dueLabel(task.due, task.time, task.endTime)) : null,
         task.repeat ? h('span', { class: 'task-subcount' }, `↻ ${shortRule(task.repeat)}`) : null,
         task.subtasks.length ? h('span', { class: 'task-subcount' }, `☐ ${subDone}/${task.subtasks.length}`) : null,
         showList ? h('span', { class: 'task-list-name' }, task.list) : null)),
@@ -381,9 +381,12 @@ export class TasksView {
     details.value = task.details.join('\n');
     details.addEventListener('change', () => save({ details: details.value.split('\n').map((l) => l.trim()).filter(Boolean) }));
     const date = h('input', { type: 'date', class: 'task-edit-date', value: task.due || '', 'aria-label': 'Due date' });
-    date.addEventListener('change', () => save({ due: date.value || null, time: date.value ? task.time : null }));
+    date.addEventListener('change', () => save({ due: date.value || null, time: date.value ? task.time : null, endTime: date.value ? task.endTime : null }));
     const time = h('input', { type: 'time', class: 'task-edit-date', value: task.time || '', 'aria-label': 'Time', disabled: !task.due });
-    time.addEventListener('change', () => save({ time: time.value || null }));
+    time.addEventListener('change', () => save({ time: time.value || null, endTime: time.value ? task.endTime : null }));
+    // Optional end time, so a task can take up a stretch of the day.
+    const endTime = h('input', { type: 'time', class: 'task-edit-date', value: task.endTime || '', 'aria-label': 'Until', disabled: !task.time });
+    endTime.addEventListener('change', () => save({ endTime: endTime.value && endTime.value > (task.time || '') ? endTime.value : null }));
 
     // A repeating task needs a date to count from: today, if it has none.
     const repeat = repeatPicker({
@@ -426,7 +429,9 @@ export class TasksView {
         h('span', { class: 'mono-label' }, 'Due'),
         date,
         time,
-        task.due ? h('button', { class: 'task-col-btn', onclick: () => save({ due: null, time: null }) }, 'Clear') : null),
+        h('span', { 'aria-hidden': 'true' }, '–'),
+        endTime,
+        task.due ? h('button', { class: 'task-col-btn', onclick: () => save({ due: null, time: null, endTime: null }) }, 'Clear') : null),
       h('div', { class: 'task-edit-row' },
         h('span', { class: 'mono-label' }, 'Repeat'),
         repeat),

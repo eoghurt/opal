@@ -17,7 +17,7 @@ export const DEFAULT_LIST = 'My Tasks';
 
 const TASK_LINE = /^(\s*)[-*+]\s\[([ xX])\]\s?(.*)$/;
 const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/;
-const TIME = /\s*⏰\s*(\d{1,2}:\d{2})/;
+const TIME = /\s*⏰\s*(\d{1,2}:\d{2})(?:\s*[–-]\s*(\d{1,2}:\d{2}))?/;
 const DONE_ON = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
 const PRIMARY = /\s*#color\/([a-z]+)\b/;
 const SECONDARY = /\s*#accent\/([a-z]+)\b/;
@@ -42,6 +42,7 @@ function parseLine(body) {
     repeat: repeat ? normaliseRule(repeat[1]) : null,
     due: due ? due[1] : null,
     time: time ? time[1].padStart(5, '0') : null,
+    endTime: time && time[2] ? time[2].padStart(5, '0') : null, // ⏰ 09:00–10:30
     doneOn: doneOn ? doneOn[1] : null,
     starred: STAR.test(body),
     title: body.replace(PRIMARY, '').replace(SECONDARY, '').replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
@@ -90,7 +91,7 @@ function formatHead(task, indent = '') {
   if (task.secondary) parts.push(`#accent/${task.secondary}`);
   if (task.repeat) parts.push(`🔁 ${task.repeat}`);
   if (task.due) parts.push(`📅 ${task.due}`);
-  if (task.due && task.time) parts.push(`⏰ ${task.time}`);
+  if (task.due && task.time) parts.push(`⏰ ${task.time}${task.endTime ? `–${task.endTime}` : ''}`);
   if (task.starred) parts.push('⭐');
   if (task.created) parts.push(`➕ ${task.created}`);
   if (task.done && task.doneOn) parts.push(`✅ ${task.doneOn}`);
@@ -208,7 +209,7 @@ export function todayKey(date = new Date()) {
 }
 
 // "Today", "Tomorrow", "Yesterday", "Fri 2 Oct", "2 Oct 2027"
-export function dueLabel(due, time) {
+export function dueLabel(due, time, endTime) {
   if (!due) return '';
   const [y, m, d] = due.split('-').map(Number);
   const date = new Date(y, m - 1, d);
@@ -220,7 +221,7 @@ export function dueLabel(due, time) {
   else if (days === -1) label = 'Yesterday';
   else if (days > 1 && days < 7) label = date.toLocaleDateString(undefined, { weekday: 'short' });
   else label = date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(y !== today.getFullYear() ? { year: 'numeric' } : {}) });
-  return time ? `${label}, ${time}` : label;
+  return time ? `${label}, ${time}${endTime ? `–${endTime}` : ''}` : label;
 }
 
 export function isOverdue(task) {
