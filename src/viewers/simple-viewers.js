@@ -1,15 +1,8 @@
-// Viewers for files the window already knows how to show: PDF, images, audio, video.
+// Viewers for files the window already knows how to show: images, audio, video.
+// (PDFs have their own viewer in pdf-viewer.js.)
 
 import { h } from '../ui.js';
 import { Viewer } from './viewer.js';
-
-// PDFs use the built-in PDF viewer (zoom, search, page thumbnails included).
-export class PdfViewer extends Viewer {
-  render() {
-    this.root.classList.add('viewer-pdf');
-    this.root.replaceChildren(h('iframe', { class: 'pdf-frame', src: this.url, title: 'PDF' }));
-  }
-}
 
 // Images sit on the page like a taped-in photo. Click to switch between
 // "fit to window" and actual size.

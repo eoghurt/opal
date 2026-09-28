@@ -235,14 +235,17 @@ async function openInDefaultApp(relPath) {
   if (problem) throw new Error(problem);
 }
 
-// Whole-file read for viewers that need the bytes (Word, Excel, PowerPoint).
+// Whole-file read for viewers that need the bytes (PDF, Word, Excel, PowerPoint).
+// PDFs (often big scans) get a higher limit than Office files.
 const MAX_VIEW_BYTES = 60 * 1024 * 1024;
+const MAX_PDF_BYTES = 300 * 1024 * 1024;
 
 async function readFileBytes(relPath) {
   const full = resolveVaultFile(relPath);
   if (isNoteFile(full)) throw new Error('Notes are read as text.');
   const { size } = await fs.promises.stat(full);
-  if (size > MAX_VIEW_BYTES) throw new Error('This file is too big to preview here.');
+  const limit = path.extname(full).toLowerCase() === '.pdf' ? MAX_PDF_BYTES : MAX_VIEW_BYTES;
+  if (size > limit) throw new Error('This file is too big to preview here.');
   return fs.promises.readFile(full);
 }
 

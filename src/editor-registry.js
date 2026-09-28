@@ -24,7 +24,8 @@
 // A class with `static editsText = true` gets the file's text as `content`.
 
 import { MarkdownEditor } from './editors/markdown-editor.js';
-import { PdfViewer, ImageViewer, AudioViewer, VideoViewer } from './viewers/simple-viewers.js';
+import { ImageViewer, AudioViewer, VideoViewer } from './viewers/simple-viewers.js';
+import { PdfViewer } from './viewers/pdf-viewer.js';
 import { DocxViewer, SheetViewer, SlidesViewer } from './viewers/office-viewers.js';
 import { kindOf } from './file-types.js';
 
