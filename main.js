@@ -136,12 +136,17 @@ function watchVault() {
   try {
     watcher = fs.watch(vaultPath, { recursive: true }, (_event, filename) => {
       if (filename && filename.split(path.sep).some(isHidden)) return;
+      if (filename && isOwnWrite(path.join(vaultPath, filename))) return;
       clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
         if (win) win.webContents.send('vault:files-changed');
       }, 200);
     });
-    watcher.on('error', (err) => console.error('Vault watcher error:', err));
+    watcher.on('error', (err) => {
+      // Usually means the vault folder itself was moved or deleted: let the window find out.
+      console.error('Vault watcher error:', err);
+      if (win) win.webContents.send('vault:files-changed');
+    });
   } catch (err) {
     console.error('Could not watch vault:', err);
   }
@@ -187,8 +192,15 @@ function resolveNotePath(relPath) {
   return full;
 }
 
+// Refuses files that aren't valid UTF-8 text: editing and saving them would
+// garble them. (A byte-order mark, if present, is kept as-is.)
 async function readNote(relPath) {
-  return fs.promises.readFile(resolveNotePath(relPath), 'utf8');
+  const bytes = await fs.promises.readFile(resolveNotePath(relPath));
+  try {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    throw new Error("This file isn't plain UTF-8 text, so Opal won't open it for editing — saving could damage it.");
+  }
 }
 
 // Writes to a hidden temp file first, then swaps it in, so a crash mid-save
@@ -200,6 +212,21 @@ async function writeNote(relPath, content) {
   await fs.promises.mkdir(path.dirname(full), { recursive: true });
   await fs.promises.writeFile(temp, content, 'utf8');
   await fs.promises.rename(temp, full);
+  ownWrites.set(full, Date.now());
+}
+
+// Notes Opal itself just saved. The folder watcher ignores these, so an
+// autosave doesn't make the whole vault get rescanned.
+const ownWrites = new Map();
+
+function isOwnWrite(fullPath) {
+  const at = ownWrites.get(fullPath);
+  if (!at) return false;
+  if (Date.now() - at > 2000) {
+    ownWrites.delete(fullPath);
+    return false;
+  }
+  return true;
 }
 
 // ---------- [[Links]] ----------
@@ -218,8 +245,10 @@ function normalizeName(name) {
 }
 
 // Characters macOS or other apps don't allow in file names become '-'.
+// Long names are cut to 180 characters (macOS allows about 255 bytes).
 function safeFileName(name) {
-  return name.replace(/[\\/:*?"<>|]/g, '-').replace(/^\.+/, '').trim() || 'Untitled';
+  const clean = name.replace(/[\\/:*?"<>|]/g, '-').replace(/^\.+/, '').trim();
+  return Array.from(clean).slice(0, 180).join('').trim() || 'Untitled';
 }
 
 // Finds the note a [[link]] points to, or creates it in the vault root.
@@ -407,7 +436,8 @@ function createWindow() {
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
-  win.loadFile(path.join(__dirname, 'src', 'index.html'));
+  // The palette goes along in the address so the first paint already has the right colours.
+  win.loadFile(path.join(__dirname, 'src', 'index.html'), { query: { palette: getPalette() } });
   win.on('closed', () => { win = null; });
 
   // Before the window closes (including Cmd+Q), make sure everything typed is saved.
@@ -441,12 +471,24 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  const saved = loadSettings().vaultPath;
-  if (saved && isFolder(saved)) vaultPath = path.resolve(saved);
-  watchVault();
-  buildMenu();
-  createWindow();
-});
+// Only one copy of Opal at a time: two copies editing the same notes would
+// save over each other. Opening it again just brings the existing window forward.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+
+  app.whenReady().then(() => {
+    const saved = loadSettings().vaultPath;
+    if (saved && isFolder(saved)) vaultPath = path.resolve(saved);
+    watchVault();
+    buildMenu();
+    createWindow();
+  });
+}
 
 app.on('window-all-closed', () => app.quit());

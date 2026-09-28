@@ -23,9 +23,13 @@ import { noteName, parentOf } from './format.js';
 
 const viewEl = document.getElementById('view');
 
+// Main passes the saved palette in the address so the first paint uses it.
+const initialPalette = new URLSearchParams(location.search).get('palette');
+if (initialPalette) applyPalette(initialPalette);
+
 let vault = null;
 let tree = [];
-let paletteName = 'Riso';
+let paletteName = initialPalette || 'Riso';
 let screen = { kind: 'welcome' }; // plus folderPath / filePath
 // The open note: { filePath, editor, noteView } or null.
 let current = null;
@@ -93,11 +97,17 @@ function crumbsFor(folderPath) {
   return crumbs;
 }
 
-function showWelcome() {
+function setTitle(text) {
+  document.title = text ? `${text} — Opal` : 'Opal';
+}
+
+function showWelcome(problem) {
   screen = { kind: 'welcome' };
+  setTitle('');
   sidebar.setActive(null, null);
   chrome.setCrumbs([{ label: 'Welcome' }]);
   viewEl.replaceChildren(h('div', { class: 'welcome' },
+    problem ? h('div', { class: 'home-notice welcome-notice' }, problem) : null,
     h('span', { class: 'mono-label' }, 'Opal · notes that live in plain files'),
     h('h1', { class: 'display home-h1' }, 'Opal.'),
     h('p', { class: 'home-desc' }, 'Pick a folder to be your vault. Any folder of markdown files works — even an Obsidian vault.'),
@@ -114,6 +124,7 @@ function showHome(folderPath, notice) {
     folder = findFolder(tree, '', vault.name);
   }
   screen = { kind: 'home', folderPath };
+  setTitle(folder.name);
   sidebar.setActive('folder', folderPath);
   chrome.setCrumbs(crumbsFor(folderPath));
   renderFolderHome(viewEl, {
@@ -161,7 +172,10 @@ async function showNote(filePath) {
   const editor = new EditorType({
     parent: noteView.editorHost,
     content,
-    save: (text) => window.opal.writeFile(filePath, text),
+    save: async (text) => {
+      await window.opal.writeFile(filePath, text);
+      noteSaved(filePath);
+    },
     onStatus: (status) => chrome.setStatus(status),
     onOpenLink: (target) => openLink(target),
     onChange: () => {
@@ -174,6 +188,7 @@ async function showNote(filePath) {
   noteView.setText(content);
 
   chrome.setStatus('Saved');
+  setTitle(noteName(filePath));
   chrome.setCrumbs([...crumbsFor(parentOf(filePath)), { label: noteName(filePath) }]);
   sidebar.setActive('file', filePath);
 }
@@ -196,6 +211,7 @@ function showPalettes() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
     screen = { kind: 'palettes' };
+    setTitle('Palettes');
     sidebar.setActive(null, null);
     chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Palettes' }]);
     viewEl.scrollTop = 0;
@@ -272,7 +288,12 @@ function refreshFiles() {
   // Queued so the listing is always fresher than any note just opened or created.
   return enqueue(async () => {
     if (!vault) return;
-    await reloadTree();
+    try {
+      await reloadTree();
+    } catch {
+      vaultWentMissing();
+      return;
+    }
 
     if (screen.kind === 'home') {
       showHome(screen.folderPath);
@@ -287,9 +308,53 @@ function refreshFiles() {
         showHome(parentOf(gone), `“${gone}” was moved or deleted outside Opal.`);
       } else {
         current.noteView.setTree(tree);
+        await pickUpOutsideEdits();
       }
     }
   });
+}
+
+// If another app (Obsidian, a text editor, sync) changed the open note, show
+// that version — the editor only accepts it when nothing here is unsaved.
+async function pickUpOutsideEdits() {
+  const { editor, filePath } = current;
+  if (!editor.reloadFromDisk || editor.isDirty) return;
+  const token = editor.saveToken;
+  let diskText;
+  try {
+    diskText = await window.opal.readFile(filePath);
+  } catch {
+    return;
+  }
+  if (current && current.editor === editor && editor.reloadFromDisk(diskText, token)) {
+    chrome.setStatus('Reloaded');
+  }
+}
+
+// Opal's own saves don't trigger a vault rescan, so keep the dates fresh here.
+function noteSaved(filePath) {
+  const node = findFile(tree, filePath);
+  if (node) {
+    node.modified = Date.now();
+    chrome.setRecent(recentFiles(tree, 6));
+    if (current && current.filePath === filePath) current.noteView.setTree(tree);
+  } else {
+    // The save recreated a file that had been deleted outside Opal.
+    reloadTree().catch(() => {});
+  }
+}
+
+// The vault folder was moved, renamed or deleted while Opal was open.
+function vaultWentMissing() {
+  if (current && current.editor.isDirty) return; // keep typing; its save will say if it fails
+  if (current) {
+    current.editor.destroy();
+    current = null;
+  }
+  tree = [];
+  sidebar.setTree([]);
+  chrome.setRecent([]);
+  showWelcome(`Can't find your vault folder “${vault.name}” any more — it may have been moved, renamed or deleted. Choose it again (or another folder).`);
 }
 
 function loadVault(newVault) {

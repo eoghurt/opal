@@ -896,3 +896,5 @@ button.chip:hover { box-shadow: 2px 2px 0 var(--ink); }
 
 .palette-use:hover:not(:disabled) { background: var(--c2); color: var(--ink); }
 .palette-use:disabled { background: transparent; color: var(--ink); cursor: default; }
+
+.welcome-notice { margin: 0 0 20px; max-width: 760px; border: var(--rule); }

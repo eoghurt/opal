@@ -1,10 +1,14 @@
 // Markdown editor built on CodeMirror 6, with autosave.
 
 import { EditorView, basicSetup } from 'codemirror';
+import { Annotation, EditorState } from '@codemirror/state';
 import { Decoration, MatchDecorator, ViewPlugin } from '@codemirror/view';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { markdown } from '@codemirror/lang-markdown';
+
+// Marks changes that came from the file on disk, not from typing.
+const fromDisk = Annotation.define();
 
 const SAVE_DELAY_MS = 500;
 const RETRY_DELAY_MS = 3000;
@@ -70,14 +74,21 @@ export class MarkdownEditor {
     this.onStatus = onStatus;
     this.onChange = onChange || (() => {});
     this.dirty = false;
+    this.saving = false;
+    this.saveCount = 0; // goes up after every save; see reloadFromDisk
     this.timer = null;
     this.queue = Promise.resolve(); // saves run one at a time, in order
+
+    // Keep Windows-style line endings if the whole file uses them, so saving
+    // doesn't rewrite every line.
+    const windowsLines = /\r\n/.test(content) && !/(^|[^\r])\n/.test(content);
 
     this.view = new EditorView({
       parent,
       doc: content,
       extensions: [
         basicSetup,
+        windowsLines ? EditorState.lineSeparator.of('\r\n') : [],
         markdown(),
         syntaxHighlighting(scrapbookHighlight),
         EditorView.lineWrapping,
@@ -99,7 +110,9 @@ export class MarkdownEditor {
           blur: (_event, view) => { view.dom.classList.remove('cmd-held'); },
         }),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) this.markEdited();
+          if (!update.docChanged) return;
+          if (update.transactions.some((tr) => tr.annotation(fromDisk))) this.onChange();
+          else this.markEdited();
         }),
       ],
     });
@@ -111,7 +124,38 @@ export class MarkdownEditor {
   }
 
   getText() {
-    return this.view.state.doc.toString();
+    return this.view.state.sliceDoc();
+  }
+
+  // A token to pass to reloadFromDisk: read it just before reading the file.
+  get saveToken() {
+    return this.saveCount;
+  }
+
+  // Another app changed the file: show its version, but only when nothing is
+  // being typed or saved here (and no save happened since the file was read),
+  // so neither side's changes are lost. Only the changed part is replaced, so
+  // the cursor and scroll position stay put. Returns true if it reloaded.
+  reloadFromDisk(diskText, token) {
+    if (this.dirty || this.saving || token !== this.saveCount) return false;
+    const current = this.getText();
+    if (diskText === current) return false;
+    let start = 0;
+    while (start < current.length && start < diskText.length && current[start] === diskText[start]) start++;
+    let endCur = current.length;
+    let endDisk = diskText.length;
+    while (endCur > start && endDisk > start && current[endCur - 1] === diskText[endDisk - 1]) {
+      endCur--;
+      endDisk--;
+    }
+    const state = this.view.state;
+    // Positions in the editor count line breaks as one character.
+    const toPos = (offset) => state.toText(current.slice(0, offset)).length;
+    this.view.dispatch({
+      changes: { from: toPos(start), to: toPos(endCur), insert: diskText.slice(start, endDisk) },
+      annotations: fromDisk.of(true),
+    });
+    return true;
   }
 
   // Moves the cursor to the start of a line (1-based) and scrolls to it.
@@ -147,15 +191,19 @@ export class MarkdownEditor {
   async writeIfDirty() {
     if (!this.dirty) return;
     this.dirty = false;
-    const text = this.view.state.doc.toString();
+    this.saving = true;
+    const text = this.getText();
     this.onStatus('Saving…');
     try {
       await this.save(text);
+      this.saveCount++;
       if (!this.dirty) this.onStatus('Saved');
     } catch (err) {
       this.dirty = true;
       this.onStatus('Save failed');
       throw err;
+    } finally {
+      this.saving = false;
     }
   }
 

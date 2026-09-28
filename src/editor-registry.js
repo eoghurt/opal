@@ -12,6 +12,8 @@
 //   editor.isDirty    true when there is typing not yet saved
 //   editor.getText()  the current content as text
 //   editor.goToLine(n) optional: jump to a line (used by the outline)
+//   editor.saveToken, editor.reloadFromDisk(text, token)  optional: pick up
+//                     changes made by other apps without losing any typing
 //   editor.flush()    saves any unsaved changes now; rejects if saving fails
 //   editor.destroy()  removes the editor from the page
 

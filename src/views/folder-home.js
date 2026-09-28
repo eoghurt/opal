@@ -20,7 +20,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
 
   // A note with the same name as its folder (like School/School.md) is the
   // folder's own note: its first line becomes the description.
-  const folderNote = isRoot ? null : files.find((f) => noteName(f.path).toLowerCase() === folder.name.toLowerCase());
+  const folderNote = files.find((f) => noteName(f.path).toLowerCase() === folder.name.toLowerCase());
   const description = h('p', { class: 'home-desc' },
     folderNote ? '' : `Tip: a note named “${folder.name || 'Home'}” in here becomes this line.`);
   if (!folderNote) description.classList.add('is-tip');

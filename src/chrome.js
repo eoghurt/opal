@@ -9,6 +9,7 @@ const STATUS_TEXT = {
   Edited: 'Editing',
   'Saving…': 'Saving…',
   'Save failed': 'Save failed — retrying',
+  Reloaded: 'Updated from disk',
 };
 
 export class Chrome {
@@ -81,7 +82,7 @@ export class Chrome {
     const list = h('div', { class: 'recent-list' });
     this.recent.forEach((file, i) => {
       if (i > 0) list.append(h('span', { 'aria-hidden': 'true' }, '/'));
-      list.append(h('button', { class: 'recent-item', onclick: () => this.onOpenFile(file.path) }, noteName(file.path)));
+      list.append(h('button', { class: 'recent-item', title: file.path, onclick: () => this.onOpenFile(file.path) }, noteName(file.path)));
     });
     const failed = this.status === 'Save failed';
     this.footer.replaceChildren(

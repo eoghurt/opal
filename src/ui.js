@@ -45,8 +45,10 @@ export function scribbleArrow({ width, height, d, head, style }) {
 
 // Asks for a name in a small box at the top of the window.
 // Resolves to the trimmed name, or null if cancelled (Escape or clicking away).
+let cancelOpenAsk = null;
+
 export function askName(label, placeholder = 'Name, then Enter') {
-  document.querySelector('.ask')?.remove();
+  if (cancelOpenAsk) cancelOpenAsk();
   return new Promise((resolve) => {
     const input = h('input', { class: 'ask-input', placeholder, spellcheck: 'false', 'aria-label': label });
     const box = h('div', { class: 'ask', role: 'dialog', 'aria-label': label }, h('div', { class: 'mono-label' }, label), input);
@@ -54,9 +56,11 @@ export function askName(label, placeholder = 'Name, then Enter') {
     const finish = (value) => {
       if (done) return;
       done = true;
+      cancelOpenAsk = null;
       box.remove();
       resolve(value);
     };
+    cancelOpenAsk = () => finish(null);
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') finish(null);
       if (event.key === 'Enter') finish(input.value.trim() || null);
