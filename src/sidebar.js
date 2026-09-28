@@ -1,12 +1,28 @@
-// Sidebar: draws the vault's folder tree and reports clicks on files.
+// Sidebar: the vault's folder tree — the second way to get around.
+// Clicking a folder's name opens its home page; the arrow just expands it.
+
+import { h, icon } from './ui.js';
+import { slotFor } from './palettes.js';
+import { noteName, pad2 } from './format.js';
 
 export class Sidebar {
-  constructor(container, { onOpenFile }) {
+  constructor(container, { onOpenFile, onOpenFolder, onSwitchVault }) {
     this.container = container;
     this.onOpenFile = onOpenFile;
+    this.onOpenFolder = onOpenFolder;
+    this.onSwitchVault = onSwitchVault;
+    this.vault = null;
     this.tree = [];
-    this.activePath = null;
-    this.expanded = new Set(); // folder paths the user has opened
+    this.active = { kind: null, path: null };
+    this.expanded = new Set(); // folder paths that are open
+  }
+
+  setVault(vault) {
+    this.vault = vault;
+    this.expanded.clear();
+    this.active = { kind: null, path: null };
+    this.tree = [];
+    this.render();
   }
 
   setTree(tree) {
@@ -14,74 +30,90 @@ export class Sidebar {
     this.render();
   }
 
-  // Resets remembered folders (used when switching vaults).
-  reset() {
-    this.expanded.clear();
-    this.activePath = null;
-    this.setTree([]);
-  }
-
-  setActive(filePath) {
-    this.activePath = filePath;
-    // Make sure the active file is visible by opening its parent folders.
-    const parts = filePath ? filePath.split('/') : [];
-    for (let i = 1; i < parts.length; i++) this.expanded.add(parts.slice(0, i).join('/'));
+  // kind: 'file' | 'folder' | null
+  setActive(kind, path) {
+    this.active = { kind, path };
+    if (path) {
+      const parts = path.split('/');
+      const upTo = kind === 'folder' ? parts.length : parts.length - 1;
+      for (let i = 1; i <= upTo; i++) this.expanded.add(parts.slice(0, i).join('/'));
+    }
     this.render();
   }
 
-  hasFile(filePath) {
-    const search = (nodes) => nodes.some((n) => (n.type === 'file' ? n.path === filePath : search(n.children)));
-    return search(this.tree);
-  }
-
   render() {
-    const scrollTop = this.container.scrollTop;
-    this.container.innerHTML = '';
-    if (!this.tree.length) {
-      const empty = document.createElement('div');
-      empty.className = 'tree-empty';
-      empty.textContent = 'No notes yet. Click “＋ New” to create one.';
-      this.container.append(empty);
-      return;
+    const oldTree = this.container.querySelector('.side-tree');
+    const scrollTop = oldTree ? oldTree.scrollTop : 0;
+
+    const vaultRow = h('div', { class: 'side-vault' },
+      h('button', {
+        class: `side-vault-name${this.active.kind === 'folder' && this.active.path === '' ? ' is-current' : ''}`,
+        title: this.vault ? this.vault.path : '',
+        onclick: () => this.vault && this.onOpenFolder(''),
+      }, this.vault ? this.vault.name : 'No vault'),
+      h('button', { class: 'side-switch mono-label', onclick: this.onSwitchVault }, this.vault ? 'Switch' : 'Choose…'),
+    );
+
+    const folderCount = this.tree.filter((n) => n.type === 'folder').length;
+    const label = h('div', { class: 'side-label mono-label' }, h('span', null, 'Folders'), h('span', null, pad2(folderCount)));
+
+    const list = h('nav', { class: 'side-tree', 'aria-label': 'Vault' });
+    if (this.vault && !this.tree.length) {
+      list.append(h('div', { class: 'side-empty hand' }, 'empty vault — make a note!'));
     }
-    this.container.append(this.renderNodes(this.tree, 0));
-    this.container.scrollTop = scrollTop;
+    list.append(...this.rows(this.tree, 0));
+
+    this.container.replaceChildren(vaultRow, label, list);
+    list.scrollTop = scrollTop;
   }
 
-  renderNodes(nodes, depth) {
-    const list = document.createElement('ul');
-    list.className = 'tree-list';
+  rows(nodes, depth) {
+    const out = [];
     for (const node of nodes) {
-      const item = document.createElement('li');
-      item.append(node.type === 'folder' ? this.renderFolder(node, depth) : this.renderFile(node, depth));
-      list.append(item);
+      if (node.type === 'folder') {
+        out.push(this.folderRow(node, depth));
+        if (this.expanded.has(node.path)) out.push(...this.rows(node.children, depth + 1));
+      } else {
+        out.push(this.fileRow(node, depth));
+      }
     }
-    return list;
+    return out;
   }
 
-  renderFolder(node, depth) {
-    const details = document.createElement('details');
-    details.open = this.expanded.has(node.path);
-    const summary = document.createElement('summary');
-    summary.className = 'tree-row tree-folder';
-    summary.style.paddingLeft = `${12 + depth * 14}px`;
-    summary.textContent = node.name;
-    details.append(summary, this.renderNodes(node.children, depth + 1));
-    details.addEventListener('toggle', () => {
-      if (details.open) this.expanded.add(node.path);
-      else this.expanded.delete(node.path);
-    });
-    return details;
+  folderRow(node, depth) {
+    const open = this.expanded.has(node.path);
+    const current = this.active.kind === 'folder' && this.active.path === node.path;
+    return h('div', { class: `side-row side-folder${current ? ' is-current' : ''}`, style: `padding-left: ${4 + depth * 14}px` },
+      h('button', {
+        class: `side-caret${open ? ' is-open' : ''}`,
+        'aria-label': `${open ? 'Collapse' : 'Expand'} ${node.name}`,
+        'aria-expanded': String(open),
+        onclick: () => {
+          if (open) this.expanded.delete(node.path);
+          else this.expanded.add(node.path);
+          this.render();
+        },
+      }, icon('chevron', 11)),
+      h('button', {
+        class: 'side-name',
+        title: node.path,
+        onclick: () => {
+          this.expanded.add(node.path);
+          this.onOpenFolder(node.path);
+        },
+      },
+      h('span', { class: 'swatch', style: `background: var(--c${slotFor(node.path)})` }),
+      node.name),
+    );
   }
 
-  renderFile(node, depth) {
-    const row = document.createElement('div');
-    row.className = 'tree-row tree-file';
-    if (node.path === this.activePath) row.classList.add('active');
-    row.style.paddingLeft = `${26 + depth * 14}px`;
-    row.textContent = node.name.replace(/\.md$/i, '');
-    row.title = node.path;
-    row.addEventListener('click', () => this.onOpenFile(node.path));
-    return row;
+  fileRow(node, depth) {
+    const active = this.active.kind === 'file' && this.active.path === node.path;
+    return h('button', {
+      class: `side-row side-file${active ? ' is-active' : ''}`,
+      style: `padding-left: ${26 + depth * 14}px`,
+      title: node.path,
+      onclick: () => this.onOpenFile(node.path),
+    }, noteName(node.path));
   }
 }

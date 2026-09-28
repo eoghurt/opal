@@ -63,24 +63,66 @@ function isHidden(name) {
   return name.startsWith('.');
 }
 
-// Builds the folder tree: [{ type: 'folder', name, path, children }, { type: 'file', name, path }].
-// Paths are relative to the vault and always use '/'. Folders with no notes are left out.
+// Builds the folder tree:
+//   [{ type: 'folder', name, path, children }, { type: 'file', name, path, created, modified }].
+// Paths are relative to the vault and always use '/'. Dates are milliseconds.
 async function scanFolder(relFolder) {
   const entries = await fs.promises.readdir(path.join(vaultPath, relFolder), { withFileTypes: true });
   const folders = [];
   const files = [];
-  for (const entry of entries) {
-    if (isHidden(entry.name)) continue;
+  await Promise.all(entries.map(async (entry) => {
+    if (isHidden(entry.name)) return;
     const relPath = relFolder ? `${relFolder}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      const children = await scanFolder(relPath);
-      if (children.length) folders.push({ type: 'folder', name: entry.name, path: relPath, children });
-    } else if (entry.isFile() && isNoteFile(entry.name)) {
-      files.push({ type: 'file', name: entry.name, path: relPath });
+    try {
+      if (entry.isDirectory()) {
+        folders.push({ type: 'folder', name: entry.name, path: relPath, children: await scanFolder(relPath) });
+      } else if (entry.isFile() && isNoteFile(entry.name)) {
+        const stat = await fs.promises.stat(path.join(vaultPath, relPath));
+        files.push({ type: 'file', name: entry.name, path: relPath, created: stat.birthtimeMs, modified: stat.mtimeMs });
+      }
+    } catch {
+      // The entry vanished mid-scan; the next refresh will catch up.
     }
-  }
+  }));
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   return [...folders.sort(byName), ...files.sort(byName)];
+}
+
+// A short plain-text preview of a note, for cards: skips front matter and
+// headings, strips markdown symbols.
+async function notePreview(relPath) {
+  const handle = await fs.promises.open(resolveNotePath(relPath), 'r');
+  try {
+    const buffer = Buffer.alloc(1200);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    let text = buffer.toString('utf8', 0, bytesRead).replace(/�+$/, '');
+    text = text.replace(/^---\n[\s\S]*?\n---\n?/, '');
+    return text
+      .split('\n')
+      .filter((line) => line.trim() && !/^\s*#/.test(line))
+      .join(' ')
+      .replace(/\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g, '$1')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[*_`>~]|^\s*[-+]\s|\s[-+]\s(?=\S)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 260);
+  } finally {
+    await handle.close();
+  }
+}
+
+async function notePreviews(relPaths) {
+  if (!Array.isArray(relPaths)) throw new Error('Invalid list.');
+  const result = {};
+  await Promise.all(relPaths.slice(0, 100).map(async (p) => {
+    try {
+      result[p] = await notePreview(p);
+    } catch {
+      result[p] = '';
+    }
+  }));
+  return result;
 }
 
 // Watches the vault for changes made outside Opal and tells the window to refresh.
@@ -204,21 +246,66 @@ async function resolveLink(rawTarget) {
   return createNote(target);
 }
 
-// Creates an empty note in the vault root and returns its path.
-// If a note with that name is already there, it is left untouched ('wx' never overwrites).
-async function createNote(rawName) {
+// Turns a vault-relative folder path from the window into a full path ('' = vault root).
+function resolveFolderPath(relFolder) {
   if (!vaultPath) throw new Error('No vault is open.');
-  const relPath = `${safeFileName(String(rawName).replace(/\.md$/i, ''))}.md`;
+  if (!relFolder) return vaultPath;
+  if (typeof relFolder !== 'string') throw new Error('Invalid folder.');
+  const full = path.resolve(vaultPath, relFolder);
+  if (!full.startsWith(vaultPath + path.sep)) throw new Error('That folder is outside the vault.');
+  if (path.relative(vaultPath, full).split(path.sep).some(isHidden)) throw new Error('That folder is hidden.');
+  return full;
+}
+
+function joinRel(relFolder, name) {
+  return relFolder ? `${relFolder}/${name}` : name;
+}
+
+// Creates an empty note in a folder (default: the vault root) and returns its path.
+// If a note with that name is already there, it is left untouched ('wx' never overwrites).
+async function createNote(rawName, relFolder = '') {
+  const folderFull = resolveFolderPath(relFolder);
+  const fileName = `${safeFileName(String(rawName).replace(/\.md$/i, ''))}.md`;
+  const relPath = joinRel(relFolder, fileName);
   // macOS ignores case, so "idea" and "Idea" are the same file: reuse the real spelling.
-  const wanted = normalizeName(relPath);
-  const existing = (await fs.promises.readdir(vaultPath)).find((n) => isNoteFile(n) && normalizeName(n) === wanted);
-  if (existing) return existing;
+  const wanted = normalizeName(fileName);
+  const existing = (await fs.promises.readdir(folderFull)).find((n) => isNoteFile(n) && normalizeName(n) === wanted);
+  if (existing) return joinRel(relFolder, existing);
   try {
     await fs.promises.writeFile(resolveNotePath(relPath), '', { flag: 'wx' });
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
   }
   return relPath;
+}
+
+// Creates a folder inside another (default: the vault root) and returns its path.
+async function createFolder(rawName, relParent = '') {
+  const parentFull = resolveFolderPath(relParent);
+  const name = safeFileName(String(rawName));
+  const relPath = joinRel(relParent, name);
+  resolveFolderPath(relPath);
+  try {
+    await fs.promises.mkdir(path.join(parentFull, name));
+  } catch (err) {
+    if (err.code !== 'EEXIST') throw err;
+  }
+  return relPath;
+}
+
+// ---------- Look ----------
+
+const PALETTES = ['Riso', 'Sorbet', 'Field notes', 'Metro', 'Postcard', 'Scrapbook'];
+
+function getPalette() {
+  const saved = loadSettings().palette;
+  return PALETTES.includes(saved) ? saved : 'Riso';
+}
+
+function setPalette(name) {
+  if (!PALETTES.includes(name)) throw new Error('Unknown palette.');
+  saveSettings({ ...loadSettings(), palette: name });
+  return name;
 }
 
 // Asks the window to save any unsaved typing, and waits until it has.
@@ -250,7 +337,11 @@ ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));
 ipcMain.handle('file:read', (_event, relPath) => readNote(relPath));
 ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, content));
 ipcMain.handle('link:resolve', (_event, target) => resolveLink(target));
-ipcMain.handle('note:create', (_event, name) => createNote(name));
+ipcMain.handle('note:create', (_event, name, folder) => createNote(name, folder));
+ipcMain.handle('note:previews', (_event, paths) => notePreviews(paths));
+ipcMain.handle('folder:create', (_event, name, parent) => createFolder(name, parent));
+ipcMain.handle('palette:get', () => getPalette());
+ipcMain.handle('palette:set', (_event, name) => setPalette(name));
 
 // ---------- Window and menu ----------
 
@@ -265,6 +356,11 @@ function buildMenu() {
           accelerator: 'CmdOrCtrl+N',
           click: () => { if (win) win.webContents.send('note:new-request'); },
         },
+        {
+          label: 'New Folder',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => { if (win) win.webContents.send('folder:new-request'); },
+        },
         { label: 'Switch Vault…', accelerator: 'CmdOrCtrl+Shift+O', click: () => switchVault() },
         { type: 'separator' },
         { role: 'close' },
@@ -275,6 +371,9 @@ function buildMenu() {
       // No "Reload": reloading the page could drop typing that hasn't been saved yet.
       label: 'View',
       submenu: [
+        { label: 'Vault Home', accelerator: 'CmdOrCtrl+Shift+H', click: () => { if (win) win.webContents.send('ui:go-home'); } },
+        { label: 'Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
+        { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },
@@ -291,8 +390,10 @@ function buildMenu() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1100,
-    height: 750,
+    width: 1440,
+    height: 900,
+    minWidth: 1100,
+    minHeight: 700,
     title: 'Opal',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

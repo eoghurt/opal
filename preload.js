@@ -11,11 +11,18 @@ contextBridge.exposeInMainWorld('opal', {
   readFile: (relPath) => ipcRenderer.invoke('file:read', relPath),
   writeFile: (relPath, content) => ipcRenderer.invoke('file:write', relPath, content),
   resolveLink: (target) => ipcRenderer.invoke('link:resolve', target),
-  createNote: (name) => ipcRenderer.invoke('note:create', name),
+  createNote: (name, folder) => ipcRenderer.invoke('note:create', name, folder),
+  createFolder: (name, parent) => ipcRenderer.invoke('folder:create', name, parent),
+  getPreviews: (paths) => ipcRenderer.invoke('note:previews', paths),
+  getPalette: () => ipcRenderer.invoke('palette:get'),
+  setPalette: (name) => ipcRenderer.invoke('palette:set', name),
 
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),
   onFilesChanged: (callback) => ipcRenderer.on('vault:files-changed', () => callback()),
   onNewNoteRequest: (callback) => ipcRenderer.on('note:new-request', () => callback()),
+  onNewFolderRequest: (callback) => ipcRenderer.on('folder:new-request', () => callback()),
+  onGoHome: (callback) => ipcRenderer.on('ui:go-home', () => callback()),
+  onShowPalettes: (callback) => ipcRenderer.on('ui:show-palettes', () => callback()),
 
   // Main asks the window to save before quitting or switching vaults.
   // `callback` returns a promise; main is told whether saving succeeded.

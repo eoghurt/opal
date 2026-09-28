@@ -1,21 +1,48 @@
-// Window code: wires the sidebar and the editor area together.
-// Bundled into dist/renderer.js by esbuild (`npm run build`).
+// Window code: decides what's on screen and moves between screens.
+// Bundled into dist/renderer.js (+ dist/renderer.css) by esbuild (`npm run build`).
+//
+// Screens: 'welcome' (no vault), 'home' (a folder's home page), 'note', 'palettes'.
+
+import '@fontsource/caveat/latin-500.css';
+import '@fontsource/caveat/latin-700.css';
+import '@fontsource/instrument-serif/latin-400.css';
+import '@fontsource/instrument-serif/latin-400-italic.css';
+import '@fontsource/jetbrains-mono/latin-400.css';
+import '@fontsource/jetbrains-mono/latin-600.css';
 
 import { Sidebar } from './sidebar.js';
+import { Chrome } from './chrome.js';
 import { editorForFile } from './editor-registry.js';
+import { renderFolderHome } from './views/folder-home.js';
+import { NoteView } from './views/note-view.js';
+import { renderPalettes } from './views/palettes-view.js';
+import { applyPalette } from './palettes.js';
+import { askName, h, scribbleArrow } from './ui.js';
+import { findFile, findFolder, recentFiles } from './tree.js';
+import { noteName, parentOf } from './format.js';
 
-const header = document.getElementById('sidebar-header');
-const editorHost = document.getElementById('editor-host');
-const noteHeader = document.getElementById('note-header');
-const noteTitle = document.getElementById('note-title');
-const noteStatus = document.getElementById('note-status');
+const viewEl = document.getElementById('view');
 
-const sidebar = new Sidebar(document.getElementById('file-tree'), {
-  onOpenFile: (filePath) => openFile(filePath),
+let vault = null;
+let tree = [];
+let paletteName = 'Riso';
+let screen = { kind: 'welcome' }; // plus folderPath / filePath
+// The open note: { filePath, editor, noteView } or null.
+let current = null;
+
+const sidebar = new Sidebar(document.getElementById('sidebar'), {
+  onOpenFile: (p) => openFile(p),
+  onOpenFolder: (p) => openFolder(p),
+  onSwitchVault: () => window.opal.chooseVault(),
 });
 
-// The open note: { filePath, editor } or null.
-let current = null;
+const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
+  onHome: () => vault && openFolder(''),
+  onPalettes: () => showPalettes(),
+  onOpenFile: (p) => openFile(p),
+});
+
+// ---------- Everything happens one step at a time ----------
 
 // Opening, closing and saving run one after another, never overlapping,
 // so a fast click can't skip saving the previous note.
@@ -26,20 +53,6 @@ function enqueue(task) {
   return run;
 }
 
-function showMessage(text) {
-  editorHost.innerHTML = '';
-  noteHeader.hidden = true;
-  const div = document.createElement('div');
-  div.className = 'empty-state';
-  div.textContent = text;
-  editorHost.append(div);
-}
-
-function setStatus(text) {
-  noteStatus.textContent = text;
-  noteStatus.classList.toggle('error', text === 'Save failed');
-}
-
 // Saves and removes the open editor. Throws (keeping the note open) if saving fails.
 async function closeCurrent() {
   if (!current) return;
@@ -48,47 +61,160 @@ async function closeCurrent() {
   current = null;
 }
 
-function openFile(filePath) {
+// Every move to another screen goes through here: it saves the open note
+// first, and stays put if that fails.
+function navigate(task) {
   return enqueue(async () => {
-    if (current && current.filePath === filePath) return;
-
     try {
       await closeCurrent();
     } catch (err) {
-      alert(`Opal could not save “${current.filePath}”, so it is staying open.\n\n${err.message}`);
+      alert(`Opal could not save “${noteName(current.filePath)}”, so it is staying open.\n\n${err.message}`);
       return;
     }
-
-    const EditorType = editorForFile(filePath);
-    if (!EditorType) {
-      showMessage(`Opal can't open this kind of file yet: ${filePath}`);
-      return;
-    }
-
-    let content;
-    try {
-      content = await window.opal.readFile(filePath);
-    } catch (err) {
-      showMessage(`Could not open ${filePath}: ${err.message}`);
-      return;
-    }
-
-    editorHost.innerHTML = '';
-    noteHeader.hidden = false;
-    noteTitle.textContent = filePath.replace(/\.md$/i, '');
-    setStatus('Saved');
-    current = {
-      filePath,
-      editor: new EditorType({
-        parent: editorHost,
-        content,
-        save: (text) => window.opal.writeFile(filePath, text),
-        onStatus: setStatus,
-        onOpenLink: openLink,
-      }),
-    };
-    sidebar.setActive(filePath);
+    await task();
   });
+}
+
+async function reloadTree() {
+  tree = await window.opal.listFiles();
+  sidebar.setTree(tree);
+  chrome.setRecent(recentFiles(tree, 6));
+}
+
+// ---------- Screens ----------
+
+function crumbsFor(folderPath) {
+  const crumbs = [{ label: vault.name, onClick: () => openFolder('') }];
+  const parts = folderPath ? folderPath.split('/') : [];
+  parts.forEach((part, i) => {
+    const target = parts.slice(0, i + 1).join('/');
+    crumbs.push({ label: part, onClick: () => openFolder(target) });
+  });
+  return crumbs;
+}
+
+function showWelcome() {
+  screen = { kind: 'welcome' };
+  sidebar.setActive(null, null);
+  chrome.setCrumbs([{ label: 'Welcome' }]);
+  viewEl.replaceChildren(h('div', { class: 'welcome' },
+    h('span', { class: 'mono-label' }, 'Opal · notes that live in plain files'),
+    h('h1', { class: 'display home-h1' }, 'Opal.'),
+    h('p', { class: 'home-desc' }, 'Pick a folder to be your vault. Any folder of markdown files works — even an Obsidian vault.'),
+    h('div', { class: 'welcome-row' },
+      h('button', { class: 'home-action is-primary welcome-button', onclick: () => window.opal.chooseVault() }, 'Choose a folder…'),
+      scribbleArrow({ width: 110, height: 60, d: 'M104 40 C 80 56, 40 54, 14 30', head: 'M12 44 L13 29 L27 30' }),
+      h('span', { class: 'hand welcome-hint' }, 'start here'))));
+}
+
+function showHome(folderPath, notice) {
+  let folder = findFolder(tree, folderPath, vault.name);
+  if (!folder) {
+    folderPath = '';
+    folder = findFolder(tree, '', vault.name);
+  }
+  screen = { kind: 'home', folderPath };
+  sidebar.setActive('folder', folderPath);
+  chrome.setCrumbs(crumbsFor(folderPath));
+  renderFolderHome(viewEl, {
+    folder,
+    isRoot: !folderPath,
+    notice,
+    getPreviews: (paths) => window.opal.getPreviews(paths),
+    onOpenFile: (p) => openFile(p),
+    onOpenFolder: (p) => openFolder(p),
+    onNewNote: () => newNote(),
+    onNewFolder: () => newFolder(),
+  });
+}
+
+async function showNote(filePath) {
+  const EditorType = editorForFile(filePath);
+  if (!EditorType) {
+    showHome(parentOf(filePath), `Opal can't open this kind of file yet: ${filePath}`);
+    return;
+  }
+
+  let content;
+  try {
+    content = await window.opal.readFile(filePath);
+  } catch (err) {
+    showHome(parentOf(filePath), `Could not open ${filePath}: ${err.message}`);
+    return;
+  }
+  if (!findFile(tree, filePath)) await reloadTree();
+
+  screen = { kind: 'note', filePath };
+  viewEl.scrollTop = 0;
+  const noteView = new NoteView(viewEl, {
+    filePath,
+    vaultName: vault.name,
+    onOpenFile: (p) => openFile(p),
+    onOpenFolder: (p) => openFolder(p),
+    onOpenLink: (target) => openLink(target),
+    onNewNoteHere: () => newNote(),
+    onPalettes: () => showPalettes(),
+    onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
+  });
+
+  let changeTimer = null;
+  const editor = new EditorType({
+    parent: noteView.editorHost,
+    content,
+    save: (text) => window.opal.writeFile(filePath, text),
+    onStatus: (status) => chrome.setStatus(status),
+    onOpenLink: (target) => openLink(target),
+    onChange: () => {
+      clearTimeout(changeTimer);
+      changeTimer = setTimeout(() => current && current.editor === editor && noteView.setText(editor.getText()), 300);
+    },
+  });
+  current = { filePath, editor, noteView };
+  noteView.setTree(tree);
+  noteView.setText(content);
+
+  chrome.setStatus('Saved');
+  chrome.setCrumbs([...crumbsFor(parentOf(filePath)), { label: noteName(filePath) }]);
+  sidebar.setActive('file', filePath);
+}
+
+// ---------- Moving around ----------
+
+function openFolder(folderPath) {
+  return navigate(async () => {
+    if (!findFolder(tree, folderPath, vault.name)) await reloadTree();
+    showHome(folderPath);
+  });
+}
+
+function openFile(filePath) {
+  if (current && current.filePath === filePath) return Promise.resolve();
+  return navigate(() => showNote(filePath));
+}
+
+function showPalettes() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    screen = { kind: 'palettes' };
+    sidebar.setActive(null, null);
+    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Palettes' }]);
+    viewEl.scrollTop = 0;
+    drawPalettes();
+  });
+}
+
+function drawPalettes() {
+  if (screen.kind !== 'palettes') return;
+  const scrollTop = viewEl.scrollTop;
+  renderPalettes(viewEl, {
+    active: paletteName,
+    onUse: async (name) => {
+      paletteName = await window.opal.setPalette(name);
+      chrome.setPalette(applyPalette(paletteName));
+      drawPalettes();
+    },
+  });
+  viewEl.scrollTop = scrollTop;
 }
 
 // Follows a [[link]]: main finds the note (or creates it), then we open it.
@@ -100,90 +226,89 @@ async function openLink(target) {
   }
 }
 
-let vaultOpen = false;
-
-function makeButton(label, title, onClick) {
-  const button = document.createElement('button');
-  button.className = 'header-button';
-  button.textContent = label;
-  button.title = title;
-  button.addEventListener('click', onClick);
-  return button;
+// The folder new things go into: the folder on screen, or the open note's folder.
+function currentFolder() {
+  if (screen.kind === 'home') return screen.folderPath;
+  if (screen.kind === 'note') return parentOf(screen.filePath);
+  return '';
 }
 
-function renderHeader(vault) {
-  header.innerHTML = '';
-  const name = document.createElement('div');
-  name.className = 'vault-name';
-  name.textContent = vault ? vault.name : 'No vault';
-  name.title = vault ? vault.path : '';
-  header.append(name);
-
-  if (vault) header.append(makeButton('＋ New', 'New note (Cmd+N)', showNewNoteBox));
-  header.append(makeButton(vault ? 'Switch' : 'Choose folder…', 'Switch vault (Cmd+Shift+O)', () => window.opal.chooseVault()));
+function folderLabel(folderPath) {
+  return folderPath ? folderPath.split('/').pop() : vault.name;
 }
 
-// Shows a name box under the header; Enter creates the note, Escape cancels.
-function showNewNoteBox() {
-  if (!vaultOpen) return;
-  const existing = document.getElementById('new-note-box');
-  if (existing) return existing.focus();
-
-  const box = document.createElement('input');
-  box.id = 'new-note-box';
-  box.placeholder = 'New note name, then Enter';
-  box.spellcheck = false;
-  let done = false;
-  const finish = () => { done = true; box.remove(); };
-
-  box.addEventListener('keydown', async (event) => {
-    if (event.key === 'Escape') finish();
-    if (event.key !== 'Enter') return;
-    const name = box.value.trim();
-    finish();
-    if (!name) return;
-    try {
-      await openFile(await window.opal.createNote(name));
-    } catch (err) {
-      alert(`Could not create “${name}”.\n\n${err.message}`);
-    }
-  });
-  box.addEventListener('blur', () => { if (!done) finish(); });
-
-  header.after(box);
-  box.focus();
+async function newNote() {
+  if (!vault) return;
+  const folder = currentFolder();
+  const name = await askName(`New note in ${folderLabel(folder)}`);
+  if (!name) return;
+  try {
+    const filePath = await window.opal.createNote(name, folder);
+    await openFile(filePath);
+  } catch (err) {
+    alert(`Could not create “${name}”.\n\n${err.message}`);
+  }
 }
+
+async function newFolder() {
+  if (!vault) return;
+  const parent = currentFolder();
+  const name = await askName(`New folder in ${folderLabel(parent)}`);
+  if (!name) return;
+  try {
+    const folderPath = await window.opal.createFolder(name, parent);
+    await navigate(async () => {
+      await reloadTree();
+      showHome(folderPath);
+    });
+  } catch (err) {
+    alert(`Could not create folder “${name}”.\n\n${err.message}`);
+  }
+}
+
+// ---------- Keeping up with the disk ----------
 
 function refreshFiles() {
   // Queued so the listing is always fresher than any note just opened or created.
   return enqueue(async () => {
-    sidebar.setTree(await window.opal.listFiles());
+    if (!vault) return;
+    await reloadTree();
 
-    // If the open note was moved or deleted outside Opal and nothing is waiting
-    // to be saved, close it. (With unsaved typing we keep it open and let the
-    // save recreate the file, so nothing is lost.)
-    if (current && !current.editor.isDirty && !sidebar.hasFile(current.filePath)) {
-      const gone = current.filePath;
-      current.editor.destroy();
-      current = null;
-      sidebar.setActive(null);
-      showMessage(`“${gone}” was moved or deleted outside Opal.`);
+    if (screen.kind === 'home') {
+      showHome(screen.folderPath);
+    } else if (screen.kind === 'note' && current) {
+      // If the open note was moved or deleted outside Opal and nothing is waiting
+      // to be saved, close it. (With unsaved typing we keep it open and let the
+      // save recreate the file, so nothing is lost.)
+      if (!current.editor.isDirty && !findFile(tree, current.filePath)) {
+        const gone = current.filePath;
+        current.editor.destroy();
+        current = null;
+        showHome(parentOf(gone), `“${gone}” was moved or deleted outside Opal.`);
+      } else {
+        current.noteView.setTree(tree);
+      }
     }
   });
 }
 
-function loadVault(vault) {
+function loadVault(newVault) {
   return enqueue(async () => {
     // Main already saved and closed the note before switching; this is a safety net.
     if (current) {
       current.editor.destroy();
       current = null;
     }
-    vaultOpen = Boolean(vault);
-    renderHeader(vault);
-    sidebar.reset();
-    showMessage(vault ? 'Select a note from the sidebar.' : 'Choose a folder to use as your vault.');
-    if (vault) sidebar.setTree(await window.opal.listFiles());
+    vault = newVault;
+    tree = [];
+    sidebar.setVault(vault);
+    chrome.setRecent([]);
+    if (!vault) {
+      showWelcome();
+      return;
+    }
+    await reloadTree();
+    showHome('');
   });
 }
 
@@ -201,14 +326,22 @@ window.opal.onFlushRequest(({ closeEditor }) =>
   enqueue(async () => {
     if (closeEditor) {
       await closeCurrent();
-      sidebar.setActive(null);
-      showMessage('Switching vault…');
+      screen = { kind: 'welcome' };
+      viewEl.replaceChildren(h('div', { class: 'welcome' }, h('p', { class: 'hand welcome-hint' }, 'switching vault…')));
     } else if (current) {
       await current.editor.flush();
     }
   }),
 );
-window.opal.onNewNoteRequest(showNewNoteBox);
+window.opal.onNewNoteRequest(newNote);
+window.opal.onNewFolderRequest(newFolder);
+window.opal.onGoHome(() => vault && openFolder(''));
+window.opal.onShowPalettes(showPalettes);
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
+
+window.opal.getPalette().then((name) => {
+  paletteName = name;
+  chrome.setPalette(applyPalette(name));
+});
 window.opal.getVault().then(loadVault);
