@@ -56,16 +56,6 @@ their own Mac app with one click. File types live in file-types.json.
 - **Search** — ⌘O jumps to any page, folder or file by name; ⌘⇧F searches inside
   every note and opens the note with the match selected. Also a Search button in the top bar.
 
-## Later, in no particular order
+## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
-- **Downloadable palettes** — get more palettes as small files in the vault.
-- **Spreadsheet and slide notes** — new file types via `src/editor-registry.js`.
-- **Columns view, canvas view.** Search extras: tags, filters by folder or date.
-- **Calendar extras** — reminders even when Opal is closed (a small menu-bar helper).
-- **Tasks extras** — drag subtasks, reorder lists, repeat "when done".
-- **Richer file viewing** — old .doc/.ppt/.xls files, HEIC photos, chart
-  and SmartArt drawing in slides, speaker notes.
-- **Edit conflicts** — when a note is typed in Opal and changed elsewhere at
-  the same moment, offer both versions instead of keeping Opal's.
-- **Dark mode.**

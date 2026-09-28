@@ -11,11 +11,11 @@ import { findFile, findFolder, countNotes } from '../tree.js';
 import { stripStickies } from '../../shared/stickies.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable };
     this.tree = [];
     this.text = '';
 
@@ -44,6 +44,72 @@ export class NoteView {
     this.renderRight();
   }
 
+  // Word-style size picker: hover to choose rows × columns, click to insert.
+  tablePicker(anchor) {
+    if (this.picker) {
+      this.closePicker();
+      return;
+    }
+    const MAX_R = 8;
+    const MAX_C = 10;
+    const label = h('span', { class: 'mono-label table-picker-label' }, 'Insert table');
+    const cells = [];
+    const grid = h('div', { class: 'table-picker-grid', role: 'grid', 'aria-label': 'Table size' });
+    let rows = 3;
+    let cols = 3;
+    const show = (r, c) => {
+      rows = r;
+      cols = c;
+      label.textContent = `${r} × ${c} table`;
+      for (const cell of cells) cell.el.classList.toggle('is-on', cell.r <= r && cell.c <= c);
+    };
+    for (let r = 1; r <= MAX_R; r++) {
+      for (let c = 1; c <= MAX_C; c++) {
+        const el = h('button', {
+          type: 'button',
+          class: 'table-picker-cell',
+          'aria-label': `${r} by ${c}`,
+          onmouseenter: () => show(r, c),
+          onfocus: () => show(r, c),
+          onmousedown: (e) => e.preventDefault(),
+          onclick: () => {
+            this.closePicker();
+            this.handlers.onInsertTable(r, c);
+          },
+        });
+        cells.push({ el, r, c });
+        grid.append(el);
+      }
+    }
+    const picker = h('div', { class: 'table-picker', role: 'dialog', 'aria-label': 'Insert table' }, label, grid,
+      h('span', { class: 'hand table-picker-hint' }, 'tip: ⌘⌥T adds a 3 × 3'));
+    document.body.append(picker);
+    const box = anchor.getBoundingClientRect();
+    picker.style.left = `${box.left}px`;
+    picker.style.top = `${box.bottom + 6}px`;
+    show(3, 3);
+    this.picker = picker;
+    const away = (e) => {
+      if (!picker.contains(e.target) && e.target !== anchor) this.closePicker();
+    };
+    const esc = (e) => {
+      if (e.key === 'Escape') this.closePicker();
+    };
+    setTimeout(() => document.addEventListener('mousedown', away), 0);
+    document.addEventListener('keydown', esc);
+    this.pickerCleanup = () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }
+
+  closePicker() {
+    if (this.picker) this.picker.remove();
+    if (this.pickerCleanup) this.pickerCleanup();
+    this.picker = null;
+    this.pickerCleanup = null;
+  }
+
   folderName() {
     return this.folderPath ? this.folderPath.split('/').pop() : this.vaultName;
   }
@@ -59,12 +125,13 @@ export class NoteView {
       h('button', { class: 'chip', style: `background: ${colorOf(this.folderPath ? this.folderNode() : null)}`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
       h('span', { class: 'chip chip-plain' }, `${noteName(this.filePath)}.md`),
       h('button', { class: 'chip chip-add', onclick: () => this.handlers.onAddSticky() }, '+ Sticky'),
+      h('button', { class: 'chip chip-add', 'aria-haspopup': 'dialog', onmousedown: (e) => e.preventDefault(), onclick: (e) => this.tablePicker(e.currentTarget) }, '+ Table'),
     );
   }
 
   renderLeft() {
     const node = findFile(this.tree, this.filePath);
-    const words = (stripFrontmatter(this.text).match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
+    const words = (stripFrontmatter(this.text).replace(/<[^>]*>/g, ' ').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
     const links = linksIn(this.text);
     const row = (term, ...value) => [h('dt', null, term), h('dd', null, ...value)];
 

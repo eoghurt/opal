@@ -2290,3 +2290,110 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .search-snippet mark { background: var(--c1); color: var(--ink); padding: 0 1px; border-bottom: 1.5px solid var(--ink); }
 .search-empty { padding: 14px; margin: 0; }
 .search-foot { padding: 7px 14px; border-top: var(--rule); color: var(--ink-3); font-size: 9.5px; }
+
+/* ---------- Tables in notes ---------- */
+
+.otable { position: relative; margin: 6px 0 12px; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+.otable-scroll { position: relative; overflow-x: auto; padding: 2px 2px 8px; }
+.otable-t { font-size: 14.5px; line-height: 1.45; color: var(--ink); background: transparent; }
+.otable-t td, .otable-t th { min-width: 28px; word-break: break-word; outline: none; caret-color: var(--ink); }
+.otable-t th { font-weight: 700; }
+.otable-t td:focus, .otable-t th:focus { box-shadow: inset 0 0 0 2px var(--ink); }
+.otable-t .is-sel { background-image: linear-gradient(rgba(61, 165, 217, 0.28), rgba(61, 165, 217, 0.28)); box-shadow: inset 0 0 0 1px rgba(47, 62, 117, 0.5); }
+.otable.is-multi .otable-t { user-select: none; }
+.otable.is-multi .otable-t td:focus, .otable.is-multi .otable-t th:focus { caret-color: transparent; }
+.otable.is-borderless .otable-t td, .otable.is-borderless .otable-t th { outline: 1px dashed rgba(22, 20, 15, 0.18); outline-offset: -1px; }
+.otable.is-resizing, .otable.is-resizing * { cursor: col-resize; user-select: none; }
+
+.otable-handles { position: absolute; inset: 0; pointer-events: none; }
+.otable-colh, .otable-rowh { position: absolute; pointer-events: auto; z-index: 2; }
+.otable-colh { width: 8px; cursor: col-resize; }
+.otable-rowh { height: 8px; cursor: row-resize; }
+.otable-colh:hover, .otable-rowh:hover { background: rgba(61, 165, 217, 0.45); }
+
+.otable-bar {
+  position: absolute;
+  bottom: calc(100% - 2px);
+  left: 0;
+  z-index: 6;
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  background: var(--paper);
+  border: var(--rule);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-family: var(--mono);
+}
+.otable.is-active .otable-bar { display: flex; }
+.otable-group { display: flex; align-items: center; gap: 2px; padding-right: 4px; border-right: var(--hair); }
+.otable-group:last-child { border-right: 0; }
+.otable-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); padding: 0 3px; }
+.otable-btn {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+}
+.otable-btn:hover:not(:disabled) { background: var(--c2); border-color: var(--ink); }
+.otable-btn:disabled { color: #B8B2A6; cursor: default; }
+.otable-btn.is-danger:hover { background: #D7263D; color: var(--white); }
+.otable-fill-icon { border-bottom: 4px solid var(--c1); padding: 0 2px; }
+.otable-text-icon { font-family: var(--display); font-weight: 800; font-size: 14px; border-bottom: 3px solid #D7263D; padding: 0 3px; }
+.otable-select { height: 26px; font-family: var(--mono); font-size: 11px; border: 1px solid var(--ink); border-radius: 2px; background: var(--white); padding: 0 4px; }
+.otable-check { display: flex; align-items: center; gap: 4px; font-size: 11px; padding: 0 6px; cursor: pointer; }
+.otable-check input { accent-color: var(--ink); }
+
+.otable-pop {
+  position: absolute;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: repeat(10, 22px);
+  gap: 4px;
+  padding: 8px;
+  background: var(--white);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.otable-swatch { width: 22px; height: 22px; border: 1.5px solid var(--ink); border-radius: 2px; }
+.otable-swatch.is-on { box-shadow: inset 0 0 0 3px var(--white), 0 0 0 1.5px var(--ink); }
+.otable-swatch.is-none { background: repeating-linear-gradient(135deg, #FFFFFF 0 4px, #E4DFD5 4px 5px); }
+
+.table-picker {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.table-picker-grid { display: grid; grid-template-columns: repeat(10, 18px); gap: 3px; }
+.table-picker-cell { width: 18px; height: 18px; border: 1px solid rgba(22, 20, 15, 0.35); background: var(--white); border-radius: 1px; }
+.table-picker-cell.is-on { background: var(--c2); border-color: var(--ink); }
+.table-picker-hint { font-size: 15px; color: var(--ink-3); }
+.otable-bar { bottom: calc(100% + 2px); flex-wrap: nowrap; max-width: none; width: max-content; }
+.otable-menu { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 200px; grid-template-columns: none; }
+.otable-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; font-family: var(--mono); }
+.otable-menu .otable-btn.is-wide { text-align: left; border-color: rgba(22, 20, 15, 0.25); }
+.otable-menu .otable-check { padding: 2px 0; }
+.otable-bar { max-width: 100%; flex-wrap: wrap; width: auto; }
+.otable-align-grid { display: grid; grid-template-columns: repeat(3, 34px); gap: 4px; }
+.otable-align { position: relative; width: 34px; height: 26px; border: 1px solid rgba(22, 20, 15, 0.35); border-radius: 2px; background: var(--white); }
+.otable-align:hover { border-color: var(--ink); background: var(--c2); }
+.otable-align.is-on { border: 1.5px solid var(--ink); background: var(--c2); }
+.otable-align-dot { position: absolute; width: 14px; height: 3px; background: var(--ink); border-radius: 1px; }
+.otable-align-dot.is-left { left: 4px; } .otable-align-dot.is-centre { left: 10px; } .otable-align-dot.is-right { right: 4px; }
+.otable-align-dot.is-top { top: 4px; } .otable-align-dot.is-middle { top: 11px; } .otable-align-dot.is-bottom { bottom: 4px; }
+.otable-menu:has(.otable-align-grid) { min-width: 0; }
+.otable-bar { gap: 2px; padding: 3px; }
+.otable-group { padding-right: 3px; gap: 1px; }
+.otable-btn { padding: 0 5px; min-width: 24px; font-size: 11px; }

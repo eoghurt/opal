@@ -307,6 +307,7 @@ async function showNote(filePath) {
     onPalettes: () => showPalettes(),
     onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
     onAddSticky: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - noteView.center.offsetTop),
+    onInsertTable: (rows, cols) => current && current.editor.insertTable && current.editor.insertTable(rows, cols),
     onSetColor: (path, kind, color) => setItemColor(path, kind, color),
   });
 

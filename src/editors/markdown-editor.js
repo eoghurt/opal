@@ -10,6 +10,8 @@ import { Prec } from '@codemirror/state';
 import { livePreview, formatBar, formatKeymap } from './markdown-live.js';
 import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
 import { frontmatterRange } from '../../shared/frontmatter.js';
+import { tableBlocks, insertTable } from '../tables/table-widget.js';
+import { keymap } from '@codemirror/view';
 
 // Marks changes that came from the file on disk, not from typing.
 const fromDisk = Annotation.define();
@@ -136,6 +138,7 @@ export class MarkdownEditor {
       doc: content,
       extensions: [
         Prec.high(formatKeymap),
+        Prec.high(keymap.of([{ key: 'Mod-Alt-t', run: (view) => { insertTable(view, 3, 3); return true; } }])),
         basicSetup,
         windowsLines ? EditorState.lineSeparator.of('\r\n') : [],
         markdown({ base: markdownLanguage }),
@@ -146,6 +149,7 @@ export class MarkdownEditor {
         theme,
         wikilinks,
         hiddenStickies,
+        tableBlocks,
         EditorView.domEventHandlers({
           // Cmd-click a [[link]] to open it; a plain click just places the cursor.
           mousedown: (event) => {
@@ -225,6 +229,11 @@ export class MarkdownEditor {
   // Saves stickies into the note like any other edit (autosaved, undoable).
   setStickies(list) {
     this.replaceText(writeStickies(this.getText(), list));
+  }
+
+  // A new rows × cols table below the cursor's line (see tables/).
+  insertTable(rows, cols) {
+    insertTable(this.view, rows, cols);
   }
 
   // Moves the cursor to the start of a line (1-based) and scrolls to it.

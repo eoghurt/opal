@@ -188,11 +188,13 @@ async function setColor(relPath, kind, color) {
 async function notePreview(relPath) {
   const handle = await fs.promises.open(resolveNotePath(relPath), 'r');
   try {
-    const buffer = Buffer.alloc(1200);
+    const buffer = Buffer.alloc(6000);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     let text = buffer.toString('utf8', 0, bytesRead).replace(/�+$/, '');
     text = text.replace(/^---\n[\s\S]*?\n---\n?/, '');
     text = text.replace(/<!--[\s\S]*?(-->|$)/g, ' ');
+    // HTML (like tables) shows as its words only.
+    text = text.replace(/<\/(td|th)>/gi, ' · ').replace(/<[^>]*(>|$)/g, ' ');
     return text
       .split('\n')
       .filter((line) => line.trim() && !/^\s*#/.test(line))
