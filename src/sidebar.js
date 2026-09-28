@@ -88,6 +88,7 @@ export class Sidebar {
       class: `side-row side-folder${current ? ' is-current' : ''}`,
       style: `padding-left: ${4 + depth * 14}px`,
       oncontextmenu: (event) => this.onColorMenu(event, node, 'folder'),
+      ondblclick: (event) => this.onColorMenu(event, node, 'folder'),
     },
       h('button', {
         class: `side-caret${open ? ' is-open' : ''}`,
@@ -120,6 +121,7 @@ export class Sidebar {
       title: node.path,
       onclick: () => this.onOpenFile(node.path),
       oncontextmenu: (event) => this.onColorMenu(event, node, 'file'),
+      ondblclick: (event) => this.onColorMenu(event, node, 'file'),
     }, h('span', { class: 'swatch swatch-dot', style: `background: ${colorOf(node)}` }), noteName(node.path));
   }
 }

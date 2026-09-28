@@ -11,6 +11,7 @@ import {
 } from '../tasks/tasks.js';
 import { shortRule } from '../calendar/repeat.js';
 import { repeatPicker } from '../repeat-picker.js';
+import { showMenu } from '../context-menu.js';
 
 const PREFS_KEY = 'opal.tasks';
 
@@ -295,9 +296,31 @@ export class TasksView {
         'aria-pressed': String(task.starred),
         onclick: () => this.updateTask(task, { starred: !task.starred }),
       }, task.starred ? '★' : '☆'));
+    // Right-click or double-click the row for its menu.
+    const openMenu = (event) => {
+      if (event.target.closest('input, textarea, select')) return;
+      showMenu(event, this.taskMenu(task));
+    };
+    row.addEventListener('contextmenu', openMenu);
+    row.addEventListener('dblclick', openMenu);
     const el = editing ? h('div', { class: 'task-wrap' }, row, this.editor(task)) : row;
     if (!task.done) el.dataset.raw = task.raw;
     return el;
+  }
+
+  taskMenu(task) {
+    const others = Object.keys(this.lists).filter((name) => name !== task.list);
+    return {
+      title: task.title,
+      items: [
+        { label: 'Edit…', onSelect: () => { this.editing = { list: task.list, raw: task.raw }; this.render(); this.focusEditor(); } },
+        { label: task.done ? 'Mark not done' : 'Mark done', onSelect: () => this.toggle(task) },
+        { label: task.starred ? 'Unstar' : 'Star', onSelect: () => this.updateTask(task, { starred: !task.starred }) },
+        ...(others.length ? ['separator', ...others.map((name) => ({ label: `Move to ${name}`, onSelect: () => this.moveTo(task, name, null) }))] : []),
+        'separator',
+        { label: 'Delete task', danger: true, onSelect: () => { this.editing = null; this.change(task.list, (text) => replaceTask(text, task, null)); } },
+      ],
+    };
   }
 
   // ---------- Dragging ----------

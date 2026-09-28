@@ -14,6 +14,7 @@ import {
 } from '../calendar/events.js';
 import { describeRule, shiftKey } from '../calendar/repeat.js';
 import { repeatPicker } from '../repeat-picker.js';
+import { showMenu } from '../context-menu.js';
 
 // Reminder choices (minutes before the start; all-day events start at 9:00).
 const REMIND_TIMED = [[null, 'No reminder'], [0, 'At the start'], [5, '5 minutes before'], [10, '10 minutes before'], [15, '15 minutes before'], [30, '30 minutes before'], [60, '1 hour before'], [1440, '1 day before']];
@@ -41,12 +42,12 @@ export class CalendarView {
   // noteDays() → Set of day keys that have a note. openDayNote(key), openLink(target).
   // readRepeats() → text of Calendar/Repeating.md ('' if none). writeRepeats(text).
   // updateTask(task, patch) changes a task's date/time (dragging it in the grid).
-  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, openTasks }) {
+  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, deleteTask, openTasks }) {
     this.container = container;
     this.date = date || new Date();
     this.mode = mode || 'day';
     this.io = {
-      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, updateTask, addTask, openTasks,
+      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, updateTask, addTask, deleteTask, openTasks,
       readRepeats: readRepeats || (async () => ''),
       writeRepeats,
       onChange: onChange || (() => {}),
@@ -455,6 +456,7 @@ export class CalendarView {
       due: shiftKey(task.due, days),
       startDate: task.startDate ? shiftKey(task.startDate, days) : null,
     })), () => this.showTaskPopover(task, chip));
+    this.menuOn(chip, () => this.taskMenu(task, chip));
     return chip;
   }
 
@@ -486,6 +488,7 @@ export class CalendarView {
       }
     });
     this.makeDraggable(el, item);
+    this.menuOn(el, () => this.taskMenu(task, el));
     return el;
   }
 
@@ -515,7 +518,55 @@ export class CalendarView {
       }
     });
     this.makeDraggable(el, event);
+    this.menuOn(el, () => this.eventMenu(event, el));
     return el;
+  }
+
+  // Right-click or double-click → the item's menu (instead of its popover).
+  menuOn(el, build) {
+    const open = (e) => {
+      this.closePopover();
+      showMenu(e, build());
+    };
+    el.addEventListener('contextmenu', open);
+    el.addEventListener('dblclick', open);
+  }
+
+  eventMenu(event, anchor) {
+    const items = [
+      { label: 'Edit…', onSelect: () => this.showPopover(event, anchor) },
+      { label: 'Rename…', onSelect: () => this.rename(event) },
+      event.repeating ? null : { label: 'Duplicate', onSelect: () => this.duplicateEvent(event) },
+      event.link ? { label: `Open “${event.link}”`, onSelect: () => this.io.openLink(event.link) } : null,
+      { label: 'Open day note', onSelect: () => this.io.openDayNote(event.day) },
+      'separator',
+      ...(event.repeating
+        ? [
+          { label: 'Delete this one', danger: true, onSelect: () => this.deleteEvent(event, 'one') },
+          { label: 'Delete every repeat', danger: true, onSelect: () => this.deleteEvent(event, 'all') },
+        ]
+        : [{ label: 'Delete', danger: true, onSelect: () => this.deleteEvent(event) }]),
+    ];
+    return { title: event.title, items };
+  }
+
+  taskMenu(task, anchor) {
+    return {
+      title: task.title,
+      items: [
+        { label: 'Edit…', onSelect: () => this.showTaskPopover(task, anchor) },
+        { label: task.done ? 'Mark not done' : 'Mark done', onSelect: () => this.change(() => this.io.toggleTask(task)) },
+        { label: 'Open in Tasks', onSelect: () => this.io.openTasks() },
+        'separator',
+        { label: 'Delete task', danger: true, onSelect: () => this.change(() => this.io.deleteTask(task)) },
+      ],
+    };
+  }
+
+  duplicateEvent(event) {
+    return this.change(async () => {
+      await this.io.writeDay(event.day, insertEvent(await this.freshText(event.day), formatEvent({ ...event, day: event.day }), this.dateLabel(event.day)));
+    });
   }
 
   // Titles come first: when an event is too small for everything, its link
@@ -602,6 +653,7 @@ export class CalendarView {
       'aria-label': `${event.title}${event.allDay ? ', all day' : `, ${clock(event.start)}`}${event.repeating ? `, repeats ${event.rule}` : ''}`,
     }, content);
     this.dragToDay(chip, (days) => this.moveEvent(event, { day: shiftKey(event.day, days), start: event.start, end: event.end }), () => this.showPopover(event, chip));
+    this.menuOn(chip, () => this.eventMenu(event, chip));
     return chip;
   }
 

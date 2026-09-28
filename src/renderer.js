@@ -19,7 +19,8 @@ import { FileView } from './views/file-view.js';
 import { fileUrl } from './file-types.js';
 import { StickyLayer } from './sticky-layer.js';
 import { makePanel } from './panel.js';
-import { showColorMenu } from './item-colors.js';
+import { swatchRow } from './item-colors.js';
+import { showMenu, closeMenu } from './context-menu.js';
 import { setProp, setFileColor } from '../shared/frontmatter.js';
 import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
@@ -510,6 +511,10 @@ function showCalendar(date) {
       openLink: (target) => openLink(target),
       loadTasks: loadDueTasks,
       toggleTask: toggleTaskDone,
+      deleteTask: async (task) => {
+        const text = (await readTaskList(task.list)) || '';
+        await writeTaskList(task.list, replaceTask(text, task, null));
+      },
       addTask: async ({ title, due, startDate, time, endTime, primary, secondary }) => {
         const text = (await readTaskList(DEFAULT_LIST)) || '';
         const task = { title, done: false, due, startDate, time, endTime, starred: false, repeat: null, doneOn: null, details: [], subtasks: [], primary, secondary };
@@ -735,12 +740,101 @@ function showLogbook() {
 
 // ---------- Folder & page colours ----------
 
+// The right-click / double-click menu for a page, file or folder.
 function colorMenu(event, node, kind) {
-  showColorMenu(event, {
-    title: kind === 'folder' ? node.name : noteName(node.path),
-    current: node.color,
-    onPick: (color) => setItemColor(node.path, kind, color),
+  const isFolder = kind === 'folder';
+  const isNote = !isFolder && kindOf(node.path) === 'note';
+  const name = isFolder ? node.name : noteName(node.path);
+  const items = isFolder
+    ? [
+      { label: 'Open', onSelect: () => openFolder(node.path) },
+      { label: 'New note here…', onSelect: () => newNote(node.path) },
+      { label: 'New folder inside…', onSelect: () => newFolder(node.path) },
+      'separator',
+      { label: 'Rename…', onSelect: () => renameItem(node, kind) },
+      { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
+      'separator',
+      { label: 'Delete folder…', danger: true, hint: 'to the Trash', onSelect: () => deleteItem(node, kind) },
+    ]
+    : [
+      { label: 'Open', onSelect: () => openFile(node.path) },
+      isNote ? null : { label: 'Open in its own app', onSelect: () => window.opal.openExternal(node.path) },
+      'separator',
+      { label: 'Rename…', onSelect: () => renameItem(node, kind) },
+      { label: 'Show in Finder', onSelect: () => window.opal.revealInFinder(node.path) },
+      'separator',
+      { label: isNote ? 'Delete note…' : 'Delete file…', danger: true, hint: 'to the Trash', onSelect: () => deleteItem(node, kind) },
+    ];
+  showMenu(event, {
+    title: name,
+    items,
+    extra: h('div', { class: 'ctx-colours' },
+      h('span', { class: 'mono-label' }, 'Colour'),
+      swatchRow(node.color, (color) => {
+        closeMenu();
+        setItemColor(node.path, kind, color);
+      })),
   });
+}
+
+// Is the open note this item (or inside this folder)?
+function openNoteIsIn(path, kind) {
+  if (!current) return false;
+  return kind === 'folder' ? current.filePath.startsWith(`${path}/`) : current.filePath === path;
+}
+
+async function renameItem(node, kind) {
+  const isFolder = kind === 'folder';
+  const oldName = isFolder ? node.name : noteName(node.path);
+  const next = await askName(`Rename “${oldName}”`, 'New name, then Enter', oldName);
+  if (!next || next === oldName) return;
+  try {
+    if (!isFolder && openNoteIsIn(node.path, kind)) {
+      await renameOpenNote(node.path, next);
+      return;
+    }
+    // Save what's open first; if it lives in the folder, reopen it at its new path.
+    const reopen = isFolder && openNoteIsIn(node.path, kind) ? current.filePath : null;
+    if (reopen) await current.editor.flush();
+    const newPath = isFolder ? await window.opal.renameFolder(node.path, next) : await window.opal.renameFile(node.path, next);
+    if (reopen) {
+      current.editor.destroy();
+      current = null;
+      await reloadTree();
+      await navigate(() => showNote(`${newPath}${reopen.slice(node.path.length)}`));
+      return;
+    }
+    await reloadTree();
+    if (isFolder && screen.kind === 'home' && (screen.folderPath === node.path || screen.folderPath.startsWith(`${node.path}/`))) {
+      openFolder(`${newPath}${screen.folderPath.slice(node.path.length)}`);
+    } else {
+      refreshFiles();
+    }
+  } catch (err) {
+    alert(`Couldn't rename “${oldName}”.\n\n${err.message}`);
+  }
+}
+
+async function deleteItem(node, kind) {
+  const isFolder = kind === 'folder';
+  const name = isFolder ? node.name : noteName(node.path);
+  const count = isFolder ? flattenFiles(node.children || []).length : 0;
+  const what = isFolder ? `the folder “${name}”${count ? ` and the ${count} file${count === 1 ? '' : 's'} in it` : ''}` : `“${name}”`;
+  if (!window.confirm(`Move ${what} to the Trash?\n\nYou can get it back from the Mac's Trash.`)) return;
+  try {
+    // Step out of it first if it's open (its last typing is saved on the way).
+    if (openNoteIsIn(node.path, kind)) await openFolder(parentOf(isFolder ? node.path : node.path));
+    if (isFolder) await window.opal.trashFolder(node.path);
+    else await window.opal.trashFile(node.path);
+    await reloadTree();
+    if (screen.kind === 'home' && isFolder && (screen.folderPath === node.path || screen.folderPath.startsWith(`${node.path}/`))) {
+      openFolder(parentOf(node.path));
+    } else {
+      refreshFiles();
+    }
+  } catch (err) {
+    alert(`Couldn't delete “${name}”.\n\n${err.message}`);
+  }
 }
 
 // Which note stores a folder's or file's colour.
@@ -866,9 +960,8 @@ function folderLabel(folderPath) {
   return folderPath ? folderPath.split('/').pop() : vault.name;
 }
 
-async function newNote() {
+async function newNote(folder = currentFolder()) {
   if (!vault) return;
-  const folder = currentFolder();
   const name = await askName(`New note in ${folderLabel(folder)}`);
   if (!name) return;
   try {
@@ -879,9 +972,8 @@ async function newNote() {
   }
 }
 
-async function newFolder() {
+async function newFolder(parent = currentFolder()) {
   if (!vault) return;
-  const parent = currentFolder();
   const name = await askName(`New folder in ${folderLabel(parent)}`);
   if (!name) return;
   try {

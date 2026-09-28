@@ -81,6 +81,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
           cell = noteCard(file, preview, onOpenFile);
         }
         cell.addEventListener('contextmenu', (event) => onColorMenu(event, file, 'file'));
+        cell.addEventListener('dblclick', (event) => onColorMenu(event, file, 'file'));
         return cell;
       })));
   } else {
@@ -119,6 +120,7 @@ function folderTile(folder, onOpenFolder, wantPreview, onColorMenu) {
     class: 'folder-tile',
     onclick: () => onOpenFolder(folder.path),
     oncontextmenu: (event) => onColorMenu(event, folder, 'folder'),
+    ondblclick: (event) => onColorMenu(event, folder, 'folder'),
   },
     h('span', { class: 'folder-sheet sheet-a', 'aria-hidden': 'true' }, next ? sheetPreview(next, wantPreview) : null),
     h('span', { class: 'folder-sheet sheet-b', 'aria-hidden': 'true' }, newest ? sheetPreview(newest, wantPreview) : null),

@@ -336,6 +336,56 @@ async function renameNote(relPath, newName) {
   return newRel;
 }
 
+// Renames any vault file, keeping its extension (notes: see renameNote).
+async function renameFile(relPath, newName) {
+  if (isNoteFile(relPath)) return renameNote(relPath, newName);
+  const full = resolveVaultFile(relPath);
+  const ext = path.extname(full);
+  const base = safeFileName(String(newName).replace(new RegExp(`${ext.replace('.', '\\.')}$`, 'i'), ''));
+  const folder = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+  const newRel = joinRel(folder, `${base}${ext}`);
+  const newFull = resolveVaultFile(newRel);
+  if (newFull.toLowerCase() !== full.toLowerCase() && fs.existsSync(newFull)) throw new Error(`There's already a file called “${base}${ext}” there.`);
+  await fs.promises.rename(full, newFull);
+  scheduleRefresh();
+  return newRel;
+}
+
+// Moves any vault file to the Mac's Trash (recoverable from there).
+async function trashFile(relPath) {
+  await shell.trashItem(resolveVaultFile(relPath));
+  scheduleRefresh();
+}
+
+// Folders: rename, move to the Trash, show in Finder. Never the vault itself.
+function resolveSubfolder(relFolder) {
+  if (!relFolder) throw new Error("That's the vault itself.");
+  const full = resolveFolderPath(relFolder);
+  if (!fs.existsSync(full) || !fs.statSync(full).isDirectory()) throw new Error('That folder no longer exists.');
+  return full;
+}
+
+async function renameFolder(relFolder, newName) {
+  const full = resolveSubfolder(relFolder);
+  const name = safeFileName(String(newName));
+  const parent = relFolder.includes('/') ? relFolder.slice(0, relFolder.lastIndexOf('/')) : '';
+  const newRel = joinRel(parent, name);
+  const newFull = resolveFolderPath(newRel);
+  if (newFull.toLowerCase() !== full.toLowerCase() && fs.existsSync(newFull)) throw new Error(`There's already a folder called “${name}” there.`);
+  await fs.promises.rename(full, newFull);
+  scheduleRefresh();
+  return newRel;
+}
+
+async function trashFolder(relFolder) {
+  await shell.trashItem(resolveSubfolder(relFolder));
+  scheduleRefresh();
+}
+
+function revealFolder(relFolder) {
+  shell.showItemInFolder(relFolder ? resolveSubfolder(relFolder) : resolveFolderPath(''));
+}
+
 // Moves a note to the Mac's Trash (recoverable from there).
 async function trashNote(relPath) {
   await shell.trashItem(resolveNotePath(relPath));
@@ -709,6 +759,11 @@ ipcMain.handle('file:reveal', (_event, relPath) => revealInFinder(relPath));
 ipcMain.handle('color:set', (_event, relPath, kind, color) => setColor(relPath, kind, color));
 ipcMain.handle('note:rename', (_event, relPath, newName) => renameNote(relPath, newName));
 ipcMain.handle('note:trash', (_event, relPath) => trashNote(relPath));
+ipcMain.handle('file:rename', (_event, relPath, newName) => renameFile(relPath, newName));
+ipcMain.handle('file:trash', (_event, relPath) => trashFile(relPath));
+ipcMain.handle('folder:rename', (_event, relFolder, newName) => renameFolder(relFolder, newName));
+ipcMain.handle('folder:trash', (_event, relFolder) => trashFolder(relFolder));
+ipcMain.handle('folder:reveal', (_event, relFolder) => revealFolder(relFolder));
 ipcMain.handle('file:read-bytes', (_event, relPath) => readFileBytes(relPath));
 ipcMain.handle('folder:create', (_event, name, parent) => createFolder(name, parent));
 ipcMain.handle('palette:get', () => getPalette());
