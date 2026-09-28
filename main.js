@@ -160,6 +160,56 @@ async function writeNote(relPath, content) {
   await fs.promises.rename(temp, full);
 }
 
+// ---------- [[Links]] ----------
+
+function listNotePaths(nodes, out = []) {
+  for (const node of nodes) {
+    if (node.type === 'file') out.push(node.path);
+    else listNotePaths(node.children, out);
+  }
+  return out;
+}
+
+// Compare names the way macOS does: ignore case and accent encoding differences.
+function normalizeName(name) {
+  return name.replace(/\.md$/i, '').normalize('NFC').toLowerCase();
+}
+
+// Characters macOS or other apps don't allow in file names become '-'.
+function safeFileName(name) {
+  return name.replace(/[\\/:*?"<>|]/g, '-').replace(/^\.+/, '').trim() || 'Untitled';
+}
+
+// Finds the note a [[link]] points to, or creates it in the vault root.
+// Returns the note's vault-relative path.
+async function resolveLink(rawTarget) {
+  if (!vaultPath) throw new Error('No vault is open.');
+  // [[Note|shown text]] and [[Note#Heading]] both point at "Note".
+  const target = String(rawTarget).split('|')[0].split('#')[0].trim();
+  if (!target) throw new Error('That link is empty.');
+  const wanted = normalizeName(target);
+  const notes = listNotePaths(await scanFolder(''));
+
+  // 1. Exact path from the vault root, e.g. [[Projects/Plan]].
+  const byPath = notes.find((p) => normalizeName(p) === wanted);
+  if (byPath) return byPath;
+
+  // 2. Note name anywhere in the vault; prefer the one closest to the root.
+  const byName = notes
+    .filter((p) => normalizeName(path.posix.basename(p)) === wanted)
+    .sort((a, b) => a.split('/').length - b.split('/').length)[0];
+  if (byName) return byName;
+
+  // 3. Not found: create an empty note in the vault root ('wx' never overwrites).
+  const relPath = `${safeFileName(target)}.md`;
+  try {
+    await fs.promises.writeFile(resolveNotePath(relPath), '', { flag: 'wx' });
+  } catch (err) {
+    if (err.code !== 'EEXIST') throw err;
+  }
+  return relPath;
+}
+
 // Asks the window to save any unsaved typing, and waits until it has.
 let flushCounter = 0;
 
@@ -188,6 +238,7 @@ ipcMain.handle('vault:choose', () => switchVault());
 ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));
 ipcMain.handle('file:read', (_event, relPath) => readNote(relPath));
 ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, content));
+ipcMain.handle('link:resolve', (_event, target) => resolveLink(target));
 
 // ---------- Window and menu ----------
 

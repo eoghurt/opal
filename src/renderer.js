@@ -84,10 +84,20 @@ function openFile(filePath) {
         content,
         save: (text) => window.opal.writeFile(filePath, text),
         onStatus: setStatus,
+        onOpenLink: openLink,
       }),
     };
     sidebar.setActive(filePath);
   });
+}
+
+// Follows a [[link]]: main finds the note (or creates it), then we open it.
+async function openLink(target) {
+  try {
+    await openFile(await window.opal.resolveLink(target));
+  } catch (err) {
+    alert(`Could not open [[${target}]].\n\n${err.message}`);
+  }
 }
 
 function renderHeader(vault) {
@@ -105,13 +115,14 @@ function renderHeader(vault) {
   header.append(name, button);
 }
 
-async function refreshFiles() {
-  sidebar.setTree(await window.opal.listFiles());
+function refreshFiles() {
+  // Queued so the listing is always fresher than any note just opened or created.
+  return enqueue(async () => {
+    sidebar.setTree(await window.opal.listFiles());
 
-  // If the open note was moved or deleted outside Opal and nothing is waiting
-  // to be saved, close it. (With unsaved typing we keep it open and let the
-  // save recreate the file, so nothing is lost.)
-  enqueue(async () => {
+    // If the open note was moved or deleted outside Opal and nothing is waiting
+    // to be saved, close it. (With unsaved typing we keep it open and let the
+    // save recreate the file, so nothing is lost.)
     if (current && !current.editor.isDirty && !sidebar.hasFile(current.filePath)) {
       const gone = current.filePath;
       current.editor.destroy();

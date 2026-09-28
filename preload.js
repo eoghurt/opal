@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('opal', {
   listFiles: () => ipcRenderer.invoke('vault:list'),
   readFile: (relPath) => ipcRenderer.invoke('file:read', relPath),
   writeFile: (relPath, content) => ipcRenderer.invoke('file:write', relPath, content),
+  resolveLink: (target) => ipcRenderer.invoke('link:resolve', target),
 
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),
   onFilesChanged: (callback) => ipcRenderer.on('vault:files-changed', () => callback()),
