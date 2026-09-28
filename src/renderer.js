@@ -334,7 +334,8 @@ function refreshFiles() {
     }
 
     if (screen.kind === 'home') {
-      showHome(screen.folderPath);
+      const gone = screen.folderPath && !findFolder(tree, screen.folderPath, vault.name);
+      showHome(screen.folderPath, gone ? `The folder “${screen.folderPath}” was moved or deleted outside Opal.` : undefined);
     } else if (screen.kind === 'note' && current) {
       // If the open note was moved or deleted outside Opal and nothing is waiting
       // to be saved, close it. (With unsaved typing we keep it open and let the

@@ -1384,3 +1384,12 @@ button.pdf-tool:hover { background: var(--c2); }
 .doc-page td p, .doc-page th p { margin: 0; }
 .doc-page img { max-height: 60vh; object-fit: contain; }
 .photo-caption { line-height: 1.15; padding-bottom: 4px; flex-shrink: 0; }
+
+/* Long names in the Recent bar get cut with "…" */
+.recent-item { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 40px; }
+.pdf-stage:focus { outline: none; }
+
+/* Small windows: drop the right-hand folder panel so the note keeps room to breathe */
+@media (max-width: 1320px) {
+  .note-right { display: none; }
+}

@@ -65,6 +65,7 @@ export class PdfViewer extends Viewer {
     this.stage.addEventListener('scroll', () => this.schedule(), { passive: true });
     this.rail.addEventListener('scroll', () => this.schedule(), { passive: true });
     this.applyZoom();
+    this.stage.focus({ preventScroll: true });
     this.loadRealSizes();
   }
 
@@ -110,7 +111,8 @@ export class PdfViewer extends Viewer {
     );
 
     this.rail = h('nav', { class: 'pdf-rail', 'aria-label': 'Page overview' });
-    this.stage = h('div', { class: 'pdf-stage' });
+    // Focusable, so arrow keys, Page Up/Down and Space scroll the pages.
+    this.stage = h('div', { class: 'pdf-stage', tabindex: '0', 'aria-label': 'Pages' });
     this.shell = h('div', { class: 'pdf-shell' }, toolbar, h('div', { class: 'pdf-body' }, this.rail, this.stage));
     this.root.replaceChildren(this.shell);
     this.setRailOpen(railPreference(), { remember: false });

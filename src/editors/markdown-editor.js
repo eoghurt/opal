@@ -1,7 +1,7 @@
 // Markdown editor built on CodeMirror 6, with autosave.
 
 import { EditorView, basicSetup } from 'codemirror';
-import { Annotation, EditorState } from '@codemirror/state';
+import { Annotation, EditorState, Transaction } from '@codemirror/state';
 import { Decoration, MatchDecorator, ViewPlugin } from '@codemirror/view';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
@@ -66,6 +66,18 @@ const theme = EditorView.theme({
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(22, 20, 15, 0.14) !important' },
   '.cm-wikilink': { backgroundColor: 'var(--c2)', borderBottom: '1.5px solid #16140F', padding: '0 2px' },
   '&.cmd-held .cm-wikilink': { cursor: 'pointer' },
+  // Find & replace bar (Cmd+F)
+  '.cm-panels': { backgroundColor: 'var(--paper)', color: '#16140F', fontFamily: MONO, fontSize: '11px' },
+  '.cm-panels.cm-panels-bottom': { borderTop: '1.5px solid #16140F' },
+  '.cm-panels.cm-panels-top': { borderBottom: '1.5px solid #16140F' },
+  '.cm-search': { padding: '8px 12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' },
+  '.cm-search input.cm-textfield': { fontFamily: DISPLAY, fontSize: '14px', padding: '4px 8px', border: '1.5px solid #16140F', borderRadius: '2px', backgroundColor: '#FFFFFF' },
+  '.cm-search .cm-button': { backgroundImage: 'none', backgroundColor: '#FFFFFF', border: '1.5px solid #16140F', borderRadius: '2px', padding: '3px 8px', fontFamily: MONO, fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  '.cm-search .cm-button:hover': { backgroundColor: 'var(--c2)' },
+  '.cm-search label': { display: 'inline-flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  '.cm-search button[name=close]': { fontSize: '18px', marginLeft: 'auto' },
+  '.cm-searchMatch': { backgroundColor: 'rgba(255, 210, 63, 0.45)', outline: '1px solid rgba(22, 20, 15, 0.4)' },
+  '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--c2)' },
 });
 
 export class MarkdownEditor {
@@ -155,7 +167,8 @@ export class MarkdownEditor {
     const toPos = (offset) => state.toText(current.slice(0, offset)).length;
     this.view.dispatch({
       changes: { from: toPos(start), to: toPos(endCur), insert: diskText.slice(start, endDisk) },
-      annotations: fromDisk.of(true),
+      // Not undoable: Cmd+Z must never undo someone else's edit.
+      annotations: [fromDisk.of(true), Transaction.addToHistory.of(false)],
     });
     return true;
   }

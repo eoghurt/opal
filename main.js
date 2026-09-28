@@ -273,21 +273,27 @@ async function writeNote(relPath, content) {
   await fs.promises.mkdir(path.dirname(full), { recursive: true });
   await fs.promises.writeFile(temp, content, 'utf8');
   await fs.promises.rename(temp, full);
-  ownWrites.set(full, Date.now());
+  const { mtimeMs, size } = await fs.promises.stat(full);
+  ownWrites.set(full, { mtimeMs, size });
 }
 
-// Notes Opal itself just saved. The folder watcher ignores these, so an
-// autosave doesn't make the whole vault get rescanned.
+// Notes Opal itself just saved, with the exact modified time and size they
+// had afterwards. The folder watcher ignores a change only if the file is
+// still exactly that — so an autosave doesn't rescan the vault, but an edit
+// from another app is always noticed, however soon after a save it happens.
 const ownWrites = new Map();
 
 function isOwnWrite(fullPath) {
-  const at = ownWrites.get(fullPath);
-  if (!at) return false;
-  if (Date.now() - at > 2000) {
-    ownWrites.delete(fullPath);
-    return false;
+  const written = ownWrites.get(fullPath);
+  if (!written) return false;
+  try {
+    const now = fs.statSync(fullPath);
+    if (now.mtimeMs === written.mtimeMs && now.size === written.size) return true;
+  } catch {
+    // Gone or unreadable: definitely not just our save.
   }
-  return true;
+  ownWrites.delete(fullPath);
+  return false;
 }
 
 // ---------- [[Links]] ----------
