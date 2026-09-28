@@ -111,15 +111,22 @@ async function scanDir(relFolder) {
   const folderName = relFolder ? path.posix.basename(relFolder) : path.basename(vaultPath);
   const folderNote = files.find((f) => f.name.toLowerCase() === `${folderName.toLowerCase()}.md`);
   const map = folderNote ? folderNote.fileColors || {} : {};
+  const order = folderNote ? folderNote.order || [] : [];
   for (const file of files) {
     if (!isNoteFile(file.name)) file.color = frontmatter.validColor(map[file.name]);
     // A folder note that only holds Opal's settings stays behind the scenes.
     file.quiet = file === folderNote && Boolean(file.settingsOnly);
     delete file.fileColors;
     delete file.settingsOnly;
+    delete file.order;
   }
 
-  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  // Your own order first (from dragging), then by name.
+  const rank = (n) => {
+    const i = order.indexOf(n.name);
+    return i === -1 ? Infinity : i;
+  };
+  const byName = (a, b) => (rank(a) - rank(b)) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   return { nodes: [...folders.sort(byName), ...files.sort(byName)], color: folderNote ? folderNote.color : null };
 }
 
@@ -132,7 +139,7 @@ async function noteProps(full, mtimeMs) {
   let head = '';
   const handle = await fs.promises.open(full, 'r');
   try {
-    const buffer = Buffer.alloc(4096);
+    const buffer = Buffer.alloc(16384); // room for a long opal-order list
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     head = buffer.toString('utf8', 0, bytesRead);
   } finally {
@@ -141,6 +148,7 @@ async function noteProps(full, mtimeMs) {
   const props = {
     color: frontmatter.validColor(frontmatter.getProp(head, 'opal-color')),
     fileColors: frontmatter.fileColors(head),
+    order: frontmatter.itemOrder(head),
     // Nothing but Opal's own settings (colours, stickies) in it?
     settingsOnly: head.length < 4096 && !stripStickies(frontmatter.stripFrontmatter(head)).trim(),
   };
@@ -181,6 +189,40 @@ async function setColor(relPath, kind, color) {
   await writeNote(notePath, change(text));
   scheduleRefresh(); // Opal's own save isn't picked up by the watcher
   return notePath;
+}
+
+// ---------- Rearranging ----------
+
+// Saves a folder's own order for its items (names, in order) in its folder note.
+async function setOrder(relFolder, names) {
+  if (!Array.isArray(names) || names.some((n) => typeof n !== 'string')) throw new Error('Invalid order.');
+  resolveFolderPath(relFolder);
+  const name = relFolder ? path.posix.basename(relFolder) : path.basename(vaultPath);
+  const notePath = joinRel(relFolder, `${name}.md`);
+  let text = '';
+  try {
+    text = await readNote(notePath);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  await writeNote(notePath, frontmatter.setItemOrder(text, names.slice(0, 500)));
+  scheduleRefresh();
+}
+
+// Moves a page, file or folder into another folder. Never a folder into itself.
+async function moveItem(relPath, kind, destFolder) {
+  const full = kind === 'folder' ? resolveSubfolder(relPath) : resolveVaultFile(relPath);
+  const destFull = resolveFolderPath(destFolder || '');
+  if (kind === 'folder' && (destFolder === relPath || (destFolder || '').startsWith(`${relPath}/`))) {
+    throw new Error("A folder can't go inside itself.");
+  }
+  const name = path.basename(full);
+  const newRel = joinRel(destFolder || '', name);
+  if (path.dirname(full) === destFull) return relPath; // already there
+  if (fs.existsSync(path.join(destFull, name))) throw new Error(`There's already something called “${name}” in that folder.`);
+  await fs.promises.rename(full, path.join(destFull, name));
+  scheduleRefresh();
+  return newRel;
 }
 
 // A short plain-text preview of a note, for cards: skips front matter and
@@ -764,6 +806,8 @@ ipcMain.handle('file:trash', (_event, relPath) => trashFile(relPath));
 ipcMain.handle('folder:rename', (_event, relFolder, newName) => renameFolder(relFolder, newName));
 ipcMain.handle('folder:trash', (_event, relFolder) => trashFolder(relFolder));
 ipcMain.handle('folder:reveal', (_event, relFolder) => revealFolder(relFolder));
+ipcMain.handle('order:set', (_event, relFolder, names) => setOrder(relFolder, names));
+ipcMain.handle('item:move', (_event, relPath, kind, destFolder) => moveItem(relPath, kind, destFolder));
 ipcMain.handle('file:read-bytes', (_event, relPath) => readFileBytes(relPath));
 ipcMain.handle('folder:create', (_event, name, parent) => createFolder(name, parent));
 ipcMain.handle('palette:get', () => getPalette());

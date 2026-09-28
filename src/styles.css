@@ -2653,3 +2653,15 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .ctx-sep { margin: 4px 2px; border: 0; border-top: var(--hair); }
 .ctx-extra { padding: 6px 8px 4px; border-top: var(--hair); margin-top: 4px; }
 .ctx-colours { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---------- Dragging to move and reorder ---------- */
+
+.is-dragged { opacity: 0.4; }
+.side-row.drop-before { box-shadow: inset 0 3px 0 var(--ink); }
+.side-row.drop-after { box-shadow: inset 0 -3px 0 var(--ink); }
+.side-row.drop-into, .side-vault-name.drop-into { background: var(--c2); outline: 2px dashed var(--ink); outline-offset: -2px; }
+.home .drop-before { box-shadow: -4px 0 0 var(--ink); }
+.home .drop-after { box-shadow: 4px 0 0 var(--ink); }
+.home .folder-tile.drop-into .folder-body { background: var(--c2) !important; outline: 2px dashed var(--ink); outline-offset: 3px; }
+.home .folder-tile.drop-into .sheet-a { transform: rotate(-12deg) translateY(-12px); }
+.home .folder-tile.drop-into .sheet-b { transform: rotate(10deg) translateY(-14px); }

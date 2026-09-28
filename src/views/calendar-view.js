@@ -61,6 +61,24 @@ export class CalendarView {
     this.clockTimer = setInterval(() => this.placeNowLine(), 60 * 1000);
     this.root = h('div', { class: 'cal' });
     container.replaceChildren(this.root);
+    // Two-finger swipe left/right (or Shift+scroll) steps to the next or
+    // previous day, week or month — one step per swipe.
+    let swipe = 0;
+    let resting = null;
+    this.root.addEventListener('wheel', (event) => {
+      const dx = event.deltaX || (event.shiftKey ? event.deltaY : 0);
+      if (Math.abs(dx) <= Math.abs(event.shiftKey ? 0 : event.deltaY)) return;
+      if (event.target.closest('.cal-pop, .ctx-menu')) return;
+      event.preventDefault();
+      clearTimeout(resting);
+      resting = setTimeout(() => { swipe = 0; this.swiped = false; }, 180);
+      if (this.swiped) return; // wait for this swipe to finish
+      swipe += dx;
+      if (Math.abs(swipe) > 80) {
+        this.swiped = true;
+        this.step(swipe > 0 ? 1 : -1);
+      }
+    }, { passive: false });
     this.render();
     this.load();
   }
@@ -107,6 +125,13 @@ export class CalendarView {
   reload() {
     if (this.dragging) return; // finish the drag first
     return this.load();
+  }
+
+  // Next (1) or previous (-1) day, week or month.
+  step(direction) {
+    const d = this.date;
+    if (this.mode === 'month') this.go(new Date(d.getFullYear(), d.getMonth() + direction, 1));
+    else this.go(addDays(d, direction * (this.mode === 'day' ? 1 : 7)));
   }
 
   go(date, mode = this.mode) {

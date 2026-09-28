@@ -101,10 +101,26 @@ function setFileColor(text, fileName, color) {
   return setProp(text, 'opal-file-colors', Object.keys(map).length ? JSON.stringify(map) : null);
 }
 
+// A folder's own order for its items (set by dragging in Opal), kept in its
+// folder note as `opal-order: ["Maths","Essay plan.md",…]`. Names not in the
+// list come after, in the usual order.
+function itemOrder(text) {
+  try {
+    const value = JSON.parse(getProp(text, 'opal-order') || '[]');
+    return Array.isArray(value) ? value.filter((n) => typeof n === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function setItemOrder(text, names) {
+  return setProp(text, 'opal-order', names && names.length ? JSON.stringify(names) : null);
+}
+
 function validColor(name) {
   return Object.prototype.hasOwnProperty.call(ITEM_COLORS, name) ? name : null;
 }
 
 module.exports = {
-  ITEM_COLORS, DEFAULT_COLOR, getProp, setProp, frontmatterRange, stripFrontmatter, fileColors, setFileColor, validColor,
+  ITEM_COLORS, DEFAULT_COLOR, getProp, setProp, frontmatterRange, stripFrontmatter, fileColors, setFileColor, itemOrder, setItemOrder, validColor,
 };

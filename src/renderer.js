@@ -60,6 +60,7 @@ const sidebar = new Sidebar(sidebarPanel, {
   onOpenFolder: (p) => openFolder(p),
   onSwitchVault: () => window.opal.chooseVault(),
   onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
+  onRearrange: (item, target, zone) => rearrange(item, target, zone),
 });
 
 const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
@@ -248,6 +249,7 @@ function showHome(folderPath, notice) {
     onNewFolder: () => newFolder(),
     onAddSticky: () => homeStickies && homeStickies.layer.add(viewEl.scrollTop),
     onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
+    onRearrange: (item, target, zone) => rearrange(item, target, zone),
   });
   homeStickies = folderHomeStickies(folderPath, folder, home);
 }
@@ -781,6 +783,45 @@ function colorMenu(event, node, kind) {
 function openNoteIsIn(path, kind) {
   if (!current) return false;
   return kind === 'folder' ? current.filePath.startsWith(`${path}/`) : current.filePath === path;
+}
+
+// Dragging: move `item` into a folder ('into'), or next to `target`
+// ('before' / 'after'), saving that folder's own order.
+async function rearrange(item, target, zone) {
+  const kind = item.type === 'folder' ? 'folder' : 'file';
+  const destFolder = zone === 'into' ? target.path : parentOf(target.path);
+  try {
+    if (parentOf(item.path) !== destFolder) {
+      // The open note (or one inside a moved folder) is saved first and reopened after.
+      const reopen = openNoteIsIn(item.path, kind) ? current.filePath : null;
+      if (reopen) await current.editor.flush();
+      const newPath = await window.opal.moveItem(item.path, kind, destFolder);
+      if (reopen) {
+        current.editor.destroy();
+        current = null;
+        await reloadTree();
+        await navigate(() => showNote(`${newPath}${reopen.slice(item.path.length)}`));
+      } else if (kind === 'folder' && screen.kind === 'home' && (screen.folderPath === item.path || screen.folderPath.startsWith(`${item.path}/`))) {
+        await reloadTree();
+        openFolder(`${newPath}${screen.folderPath.slice(item.path.length)}`);
+      }
+    }
+    if (zone !== 'into') {
+      await reloadTree();
+      const folder = findFolder(tree, destFolder, vault.name);
+      if (folder) {
+        const names = folder.children.filter((n) => !n.quiet).map((n) => n.name).filter((n) => n !== item.name);
+        const at = names.indexOf(target.name);
+        names.splice(at === -1 ? names.length : at + (zone === 'after' ? 1 : 0), 0, item.name);
+        await window.opal.setOrder(destFolder, names);
+      }
+    }
+    await reloadTree();
+    refreshFiles();
+  } catch (err) {
+    alert(`Couldn't move “${item.name.replace(/\.md$/i, '')}”.\n\n${err.message}`);
+    refreshFiles();
+  }
 }
 
 async function renameItem(node, kind) {

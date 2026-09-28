@@ -13,7 +13,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -65,7 +65,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
 
   if (subfolders.length) {
     sections.push(h('section', { class: 'home-folders', 'aria-label': `Folders in ${folder.name}` },
-      subfolders.map((sub) => folderTile(sub, onOpenFolder, wantPreview, onColorMenu))));
+      subfolders.map((sub) => arrangeable(folderTile(sub, onOpenFolder, wantPreview, onColorMenu), sub, onRearrange))));
   }
 
   if (files.length) {
@@ -82,7 +82,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
         }
         cell.addEventListener('contextmenu', (event) => onColorMenu(event, file, 'file'));
         cell.addEventListener('dblclick', (event) => onColorMenu(event, file, 'file'));
-        return cell;
+        return arrangeable(cell, file, onRearrange);
       })));
   } else {
     sections.push(h('section', { class: 'home-empty' },
@@ -112,6 +112,59 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
 
 // The sheets peeking out of a folder show its two most recently edited files
 // (front sheet = newest). Empty folders show blank paper.
+// Drag cards and folders: drop on a folder to move into it, or on either side
+// of an item to put it there (the order is saved in the folder's note).
+let dragging = null;
+
+function arrangeable(el, node, onRearrange) {
+  if (!onRearrange) return el;
+  el.draggable = true;
+  const clear = () => document.querySelectorAll('.home .drop-before, .home .drop-after, .home .drop-into')
+    .forEach((x) => x.classList.remove('drop-before', 'drop-after', 'drop-into'));
+  const zoneFor = (event) => {
+    if (!dragging || dragging.path === node.path) return null;
+    if (dragging.type === 'folder' && node.path.startsWith(`${dragging.path}/`)) return null;
+    const box = el.getBoundingClientRect();
+    const x = (event.clientX - box.left) / box.width;
+    if (node.type === 'folder') return x < 0.2 ? 'before' : x > 0.8 ? 'after' : 'into';
+    if (dragging.type === 'folder') return null; // folders stay with folders
+    return x < 0.5 ? 'before' : 'after';
+  };
+  el.addEventListener('dragstart', (event) => {
+    dragging = node;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', node.path);
+    el.classList.add('is-dragged');
+  });
+  el.addEventListener('dragend', () => {
+    dragging = null;
+    el.classList.remove('is-dragged');
+    clear();
+  });
+  el.addEventListener('dragover', (event) => {
+    const zone = zoneFor(event);
+    if (!zone) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (el.classList.contains(`drop-${zone}`)) return;
+    clear();
+    el.classList.add(`drop-${zone}`);
+  });
+  el.addEventListener('dragleave', (event) => {
+    if (!el.contains(event.relatedTarget)) el.classList.remove('drop-before', 'drop-after', 'drop-into');
+  });
+  el.addEventListener('drop', (event) => {
+    const zone = zoneFor(event);
+    const item = dragging;
+    clear();
+    if (!zone || !item) return;
+    event.preventDefault();
+    dragging = null;
+    onRearrange(item, node, zone);
+  });
+  return el;
+}
+
 function folderTile(folder, onOpenFolder, wantPreview, onColorMenu) {
   const color = colorOf(folder);
   const latest = latestModified(folder);

@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('opal', {
   renameFolder: (relFolder, newName) => call('folder:rename', relFolder, newName),
   trashFolder: (relFolder) => call('folder:trash', relFolder),
   revealFolder: (relFolder) => call('folder:reveal', relFolder),
+  setOrder: (relFolder, names) => call('order:set', relFolder, names),
+  moveItem: (relPath, kind, destFolder) => call('item:move', relPath, kind, destFolder),
   trashNote: (relPath) => call('note:trash', relPath),
   getPalette: () => call('palette:get'),
   setPalette: (name) => call('palette:set', name),
