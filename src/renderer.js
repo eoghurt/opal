@@ -18,6 +18,7 @@ import { NoteView } from './views/note-view.js';
 import { FileView } from './views/file-view.js';
 import { fileUrl } from './file-types.js';
 import { StickyLayer } from './sticky-layer.js';
+import { makePanel } from './panel.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
 import { CALENDAR_FOLDER, dayPath, keyToDate } from './calendar/events.js';
@@ -41,7 +42,8 @@ let screen = { kind: 'welcome' }; // plus folderPath / filePath
 // The open note: { filePath, editor, noteView } or null.
 let current = null;
 
-const sidebar = new Sidebar(document.getElementById('sidebar'), {
+const sidebarPanel = makePanel(document.getElementById('sidebar'), { id: 'sidebar', side: 'left', label: 'Sidebar', width: 240, min: 180, max: 480 });
+const sidebar = new Sidebar(sidebarPanel, {
   onOpenFile: (p) => openFile(p),
   onOpenFolder: (p) => openFolder(p),
   onSwitchVault: () => window.opal.chooseVault(),
@@ -628,6 +630,7 @@ window.opal.onNewNoteRequest(newNote);
 window.opal.onNewFolderRequest(newFolder);
 window.opal.onGoHome(() => vault && openFolder(''));
 window.opal.onShowPalettes(showPalettes);
+window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggle());
 window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => showLogbook());
 window.opal.onVaultChanged(loadVault);

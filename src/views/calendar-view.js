@@ -4,6 +4,7 @@
 // Events are read from and written to the day notes (see calendar/events.js).
 
 import { h, askName } from '../ui.js';
+import { makePanel } from '../panel.js';
 import { slotFor } from '../palettes.js';
 import {
   SNAP, dayKey, keyToDate, addDays, startOfWeek, clock,
@@ -108,8 +109,10 @@ export class CalendarView {
         h('button', { class: 'home-action is-primary cal-add', onclick: () => this.createAt(keys[0], this.defaultStart(keys[0])) }, '+ Event')),
     );
 
-    const body = h('div', { class: 'cal-body' }, this.renderRail(keys), this.renderGrid(keys));
+    const rail = this.renderRail(keys);
+    const body = h('div', { class: 'cal-body' }, rail, this.renderGrid(keys));
     this.root.replaceChildren(head, body);
+    makePanel(rail, { id: 'cal-rail', side: 'left', label: 'Month', width: 260, min: 220, max: 420 });
 
     if (scroll !== null && this.scrolled) this.scrollEl.scrollTop = scroll;
     else this.scrollToMorning(keys);

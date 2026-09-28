@@ -490,6 +490,7 @@ function buildMenu() {
       label: 'View',
       submenu: [
         { label: 'Vault Home', accelerator: 'CmdOrCtrl+Shift+H', click: () => { if (win) win.webContents.send('ui:go-home'); } },
+        { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+\\', click: () => { if (win) win.webContents.send('ui:toggle-sidebar'); } },
         { label: 'Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
         { label: 'Logbook', accelerator: 'CmdOrCtrl+Shift+L', click: () => { if (win) win.webContents.send('ui:show-logbook'); } },

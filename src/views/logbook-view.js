@@ -3,6 +3,7 @@
 // see exactly what happened; everything in that list opens.
 
 import { h } from '../ui.js';
+import { makePanel } from '../panel.js';
 import { noteName } from '../format.js';
 import { clock, dayKey, keyToDate, startOfWeek, addDays } from '../calendar/events.js';
 import { periodRange, shiftPeriod, daysIn, summarise, dayScore, loadEvents } from '../logbook/activity.js';
@@ -126,8 +127,10 @@ export class LogbookView {
           this.timeBars())),
       h('p', { class: 'serif-i lb-footnote' }, 'Edits count the last time each file changed — your Mac doesn’t keep a record of every edit.'));
 
-    const body = h('div', { class: 'lb-body' }, main, this.dayDetail());
+    const detail = this.dayDetail();
+    const body = h('div', { class: 'lb-body' }, main, detail);
     this.root.replaceChildren(head, tiles, body);
+    makePanel(detail, { id: 'lb-detail', side: 'right', label: 'Day', width: 300, min: 220, max: 460 });
     this.root.append(this.tooltip);
   }
 

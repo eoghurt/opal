@@ -3,6 +3,7 @@
 // links from this note). The editor itself comes from the editor registry.
 
 import { h } from '../ui.js';
+import { makePanel } from '../panel.js';
 import { slotFor } from '../palettes.js';
 import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../format.js';
 import { findFile, findFolder, countNotes } from '../tree.js';
@@ -25,6 +26,8 @@ export class NoteView {
     this.center = center; // stickies sit on top of this
 
     container.replaceChildren(h('div', { class: 'note-view' }, this.left, center, this.right));
+    this.leftBody = makePanel(this.left, { id: 'note-left', side: 'left', label: 'Details', width: 250 });
+    this.rightBody = makePanel(this.right, { id: 'note-right', side: 'right', label: 'Folder', width: 250 });
   }
 
   setTree(tree) {
@@ -83,7 +86,7 @@ export class NoteView {
     const palettes = h('div', { class: 'side-block' },
       h('button', { class: 'serif-link', onclick: this.handlers.onPalettes }, 'Change palette →'));
 
-    this.left.replaceChildren(details, outline, palettes);
+    this.leftBody.replaceChildren(details, outline, palettes);
   }
 
   renderRight() {
@@ -114,7 +117,7 @@ export class NoteView {
         ? h('div', { class: 'link-chips' }, links.map((target) => h('button', { class: 'link-chip', onclick: () => this.handlers.onOpenLink(target) }, target)))
         : h('span', { class: 'hand side-hint' }, 'type [[a name]] to link'));
 
-    this.right.replaceChildren(
+    this.rightBody.replaceChildren(
       home,
       h('div', { class: 'side-label mono-label' }, h('span', null, `Also in ${name}`), h('span', null, pad2(siblings.length))),
       list,

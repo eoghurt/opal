@@ -1438,9 +1438,10 @@ button.pdf-tool:hover { background: var(--c2); }
 .sticky-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 
 .sticky {
+  --sticky-scale: 1;
   position: absolute;
-  min-height: 132px;
-  padding: 6px 10px 12px;
+  min-height: calc(132px * var(--sticky-scale));
+  padding: calc(6px * var(--sticky-scale)) calc(10px * var(--sticky-scale)) calc(12px * var(--sticky-scale));
   display: flex;
   flex-direction: column;
   pointer-events: auto;
@@ -1484,8 +1485,8 @@ button.pdf-tool:hover { background: var(--c2); }
 
 .sticky-text {
   flex-grow: 1;
-  min-height: 90px;
-  font-size: 22px;
+  min-height: calc(90px * var(--sticky-scale));
+  font-size: calc(22px * var(--sticky-scale));
   line-height: 1.15;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1858,3 +1859,91 @@ button.lb-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .cm-format-btn.is-highlight { background: var(--c2); color: var(--ink); margin: 0 2px; }
 .cm-format-btn.is-mono { font-family: var(--mono); font-size: 11px; font-weight: 400; }
 .cm-format-sep { width: 1px; height: 18px; margin: 0 3px; background: rgba(247, 244, 238, 0.3); }
+
+.sticky-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  opacity: 0;
+  background: linear-gradient(135deg, transparent 50%, rgba(22, 20, 15, 0.45) 50%, rgba(22, 20, 15, 0.45) 58%, transparent 58%, transparent 70%, rgba(22, 20, 15, 0.45) 70%, rgba(22, 20, 15, 0.45) 78%, transparent 78%);
+  transition: opacity 0.12s;
+}
+
+.sticky:hover .sticky-resize, .sticky:focus-within .sticky-resize { opacity: 1; }
+.sticky.is-tiny .sticky-tape { width: 36px; left: calc(50% - 18px); height: 12px; top: -7px; }
+.sticky.is-tiny .sticky-bar { height: 16px; }
+.sticky.is-tiny .sticky-grip { width: 24px; }
+.sticky.is-tiny .sticky-button { width: 16px; height: 16px; font-size: 12px; }
+
+/* ---------- Resizable, closable panels ---------- */
+.panel { position: relative; }
+.note-left.panel, .note-right.panel { position: sticky; overflow: visible; }
+.panel-body { flex-grow: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+#sidebar .panel-body { overflow: hidden; }
+.cal-rail.panel { overflow: visible; }
+.lb-detail.panel { padding: 0; }
+.lb-detail .panel-body { padding: 14px 18px; gap: 6px; }
+.panel.is-closed { display: none !important; }
+
+.panel-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  z-index: 8;
+  cursor: col-resize;
+}
+
+.panel-handle.is-left { right: -5px; }
+.panel-handle.is-right { left: -5px; }
+.panel-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 3px; background: transparent; transition: background 0.12s; }
+.panel-handle:hover::after, .panel-handle:focus-visible::after, .is-resizing .panel-handle::after { background: var(--c2); }
+.panel-handle:focus-visible { outline: none; }
+body.is-resizing { cursor: col-resize; user-select: none; }
+
+.panel-close {
+  position: absolute;
+  top: 50%;
+  z-index: 9;
+  width: 22px;
+  height: 22px;
+  margin-top: -11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--rule);
+  border-radius: 11px;
+  background: var(--paper);
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.panel-close.is-left { right: -12px; }
+.panel-close.is-right { left: -12px; }
+.panel:hover > .panel-close, .panel-close:focus-visible { opacity: 1; }
+.panel-close:hover { background: var(--c2); }
+
+.panel-tab {
+  width: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.panel-tab[hidden] { display: none; }
+.panel-tab.is-left { border-right: var(--rule); }
+.panel-tab.is-right { border-left: var(--rule); }
+.panel-tab span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+.panel-tab:hover { background: var(--c2); }
+.note-view > .panel-tab { position: sticky; top: 0; height: calc(100vh - 44px - 30px); }

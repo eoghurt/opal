@@ -3,6 +3,7 @@
 // taking up the rest.
 
 import { h } from '../ui.js';
+import { makePanel } from '../panel.js';
 import { slotFor } from '../palettes.js';
 import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../format.js';
 import { findFile, findFolder } from '../tree.js';
@@ -23,6 +24,7 @@ export class FileView {
     container.replaceChildren(h('div', { class: 'note-view is-file' },
       this.left,
       h('div', { class: 'note-center file-center' }, this.chips, this.viewerHost)));
+    this.leftBody = makePanel(this.left, { id: 'file-left', side: 'left', label: 'Details', width: 280 });
   }
 
   setTree(tree) {
@@ -74,7 +76,7 @@ export class FileView {
         }, h('span', { class: 'outline-num' }, pad2(i + 1)), noteName(file.path));
       }));
 
-    this.left.replaceChildren(
+    this.leftBody.replaceChildren(
       details,
       actions,
       h('div', { class: 'side-label mono-label' }, h('span', null, `Also in ${this.folderName()}`), h('span', null, pad2(siblings.length))),

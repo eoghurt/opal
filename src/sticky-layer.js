@@ -39,6 +39,7 @@ export class StickyLayer {
       y: Math.round(Math.max(20, visibleTop + 90 + Math.random() * 60)),
       color: 1 + Math.floor(Math.random() * 5),
       tilt: Math.round((Math.random() * 6 - 3) * 10) / 10,
+      size: 1,
       text: '',
     };
     this.list.push(sticky);
@@ -101,17 +102,69 @@ export class StickyLayer {
       },
     }, '×');
 
+    const resize = h('button', {
+      class: 'sticky-resize',
+      'aria-label': 'Resize sticky (drag, or arrow keys)',
+      title: 'Drag to resize',
+    });
+
     const el = h('div', {
       class: 'sticky',
       'data-id': sticky.id,
-      style: `left: ${sticky.x * 100}%; top: ${sticky.y}px; width: ${WIDTH}px; background: var(--c${sticky.color}); --tilt: ${sticky.tilt}deg`,
+      style: `left: ${sticky.x * 100}%; top: ${sticky.y}px; background: var(--c${sticky.color}); --tilt: ${sticky.tilt}deg`,
     },
     h('span', { class: 'tape sticky-tape', 'aria-hidden': 'true' }),
     h('div', { class: 'sticky-bar' }, grip, h('span', { class: 'grow' }), color, remove),
-    text);
+    text,
+    resize);
+    this.applySize(el, sticky.size || 1);
 
     this.makeDraggable(el, grip, sticky);
+    this.makeResizable(el, resize, sticky);
     return el;
+  }
+
+  // Size 1 = normal; everything (width, height, writing) scales together.
+  applySize(el, size) {
+    el.style.width = `${Math.round(WIDTH * size)}px`;
+    el.style.setProperty('--sticky-scale', String(size));
+    el.classList.toggle('is-tiny', size < 0.6);
+  }
+
+  makeResizable(el, handle, sticky) {
+    const setSize = (size) => {
+      sticky.size = Math.round(Math.min(2, Math.max(0.25, size)) * 100) / 100;
+      this.applySize(el, sticky.size);
+    };
+    handle.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handle.setPointerCapture(event.pointerId);
+      this.busy = true;
+      el.classList.add('is-dragging');
+      const startX = event.clientX;
+      const startSize = sticky.size || 1;
+      const move = (e) => setSize(startSize * ((WIDTH * startSize + (e.clientX - startX)) / (WIDTH * startSize)));
+      const up = () => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', up);
+        handle.removeEventListener('pointercancel', up);
+        el.classList.remove('is-dragging');
+        this.busy = false;
+        this.commit();
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+      handle.addEventListener('pointercancel', up);
+    });
+    handle.addEventListener('keydown', (event) => {
+      const step = { ArrowUp: 0.1, ArrowRight: 0.1, ArrowDown: -0.1, ArrowLeft: -0.1 }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setSize((sticky.size || 1) + step);
+      this.commit();
+    });
   }
 
   makeDraggable(el, grip, sticky) {

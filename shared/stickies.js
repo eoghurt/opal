@@ -6,7 +6,8 @@
 //   -->
 //
 // One sticky per line. x is a fraction of the page's width, y is pixels from
-// the top, color is a palette slot (1–5). Used by both the window and main.js.
+// the top, color is a palette slot (1–5), size is 0.25–2 (1 = normal).
+// Used by both the window and main.js.
 
 const BLOCK = /(?:\r?\n)*<!-- opal:stickies\r?\n([\s\S]*?)-->[ \t]*(?:\r?\n)?/;
 
@@ -28,6 +29,7 @@ function tidy(sticky) {
     y: clamp(Math.round(Number(sticky.y) || 0), 0, 200000),
     color: color >= 1 && color <= 5 ? color : 2,
     tilt: clamp(Math.round((Number(sticky.tilt) || 0) * 10) / 10, -6, 6),
+    size: clamp(Math.round((Number(sticky.size) || 1) * 100) / 100, 0.25, 2),
     text: String(sticky.text == null ? '' : sticky.text).slice(0, 2000),
   };
 }
