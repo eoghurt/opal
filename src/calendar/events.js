@@ -4,6 +4,8 @@
 //   - 09:00–10:30 Maths test [[Exam timetable]] #c3
 //   - all day Excursion #c2
 //
+// 🔔 10m / 🔔 1h / 🔔 1d asks for a reminder that long before (🔔 0m = at the
+// start; all-day events count from 9:00).
 // #color/<name> sets the event's fill and #accent/<name> its accent stripe,
 // from the 20 EVENT_COLORS below (older #c1 … #c5 tags pick a palette colour).
 // Anything else in the note is left alone.
@@ -44,6 +46,9 @@ const COLOR_TAG = /(^|\s)#c([1-5])\b/;
 const PRIMARY_TAG = /(^|\s)#color\/([a-z]+)\b/;
 const SECONDARY_TAG = /(^|\s)#accent\/([a-z]+)\b/;
 const ALL_COLOR_TAGS = /(^|\s)#(?:c[1-5]|color\/[a-z]+|accent\/[a-z]+)\b/g;
+const REMIND_TAG = /(^|\s)🔔\s*(\d+)\s*([mhd])(?=\s|$)/;
+const REMIND_ALL = /(^|\s)🔔\s*\d+\s*[mhd](?=\s|$)/g;
+export const ALL_DAY_REMIND_AT = 9 * 60;
 const LINK = /\[\[([^[\]\n|#]+)(?:#[^[\]\n|]*)?(?:\|([^[\]\n]+))?\]\]/g;
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -82,7 +87,7 @@ export function clock(minutes) {
 const JOINING_WORDS = /\b(with|to|at|for|and|of|about|from|on|in|by|the|a|an|see|re|vs)$/i;
 
 function displayTitle(text) {
-  const clean = text.replace(ALL_COLOR_TAGS, '$1').trim();
+  const clean = text.replace(ALL_COLOR_TAGS, '$1').replace(REMIND_ALL, '$1').trim();
   const before = clean.replace(/(\s*\[\[[^[\]\n]+\]\])+\s*$/, '').trim();
   // "Maths test [[Exam timetable]]" → "Maths test"; but "Lunch with [[Sam]]" keeps Sam.
   const splitOff = before && before !== clean && !JOINING_WORDS.test(before.replace(/[\s–—:-]+$/, ''));
@@ -104,6 +109,7 @@ export function parseEvents(text, key) {
     const primary = PRIMARY_TAG.exec(body);
     const secondary = SECONDARY_TAG.exec(body);
     const link = new RegExp(LINK.source).exec(body);
+    const remind = REMIND_TAG.exec(body);
     const allDay = Boolean(match[6]);
     let start = allDay ? 0 : Number(match[2]) * 60 + Number(match[3]);
     let end = allDay ? 24 * 60 : Number(match[4]) * 60 + Number(match[5]);
@@ -117,7 +123,8 @@ export function parseEvents(text, key) {
       allDay,
       start,
       end,
-      text: body.replace(ALL_COLOR_TAGS, '$1').replace(/\s+/g, ' ').trim(), // what's written, minus colour tags
+      text: body.replace(ALL_COLOR_TAGS, '$1').replace(REMIND_ALL, '$1').replace(/\s+/g, ' ').trim(), // what's written, minus tags
+      remind: remind ? Number(remind[2]) * { m: 1, h: 60, d: 1440 }[remind[3]] : null, // minutes before
       title: displayTitle(body) || 'Untitled',
       color: color ? Number(color[2]) : null,
       primary: primary && EVENT_COLORS[primary[2]] ? primary[2] : null,
@@ -128,9 +135,17 @@ export function parseEvents(text, key) {
   return events;
 }
 
-export function formatEvent({ allDay, start, end, text, color, primary, secondary }) {
+// 10 → "10m", 60 → "1h", 1440 → "1d"
+export function remindLabel(minutes) {
+  if (minutes && minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes && minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
+export function formatEvent({ allDay, start, end, text, color, primary, secondary, remind }) {
   const when = allDay ? 'all day' : `${clock(start)}–${clock(end)}`;
   const tags = [
+    remind != null ? `🔔 ${remindLabel(remind)}` : null,
     primary ? `#color/${primary}` : color ? `#c${color}` : null,
     secondary ? `#accent/${secondary}` : null,
   ].filter(Boolean).join(' ');

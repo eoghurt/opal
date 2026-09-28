@@ -1,7 +1,7 @@
 // Main process: the only part of Opal that touches the disk.
 // The window (renderer) asks for things through IPC; see preload.js.
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -553,6 +553,33 @@ function flushWindow({ closeEditor = false } = {}) {
 
 // ---------- IPC: what the window is allowed to ask for ----------
 
+// ---------- Reminders ----------
+// The window works out when reminders are due; this just shows them as Mac
+// notifications. Clicking one brings Opal forward on that day or on Tasks.
+
+const shownNotifications = new Set(); // kept so clicks still arrive later
+
+function showNotification(payload) {
+  if (!Notification.isSupported() || !payload || typeof payload !== 'object') return false;
+  const text = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
+  const open = payload.open === 'tasks' ? { kind: 'tasks' }
+    : /^\d{4}-\d{2}-\d{2}$/.test(payload.day || '') ? { kind: 'calendar', day: payload.day } : null;
+  const note = new Notification({ title: text(payload.title, 120) || 'Opal', body: text(payload.body, 240) });
+  shownNotifications.add(note);
+  note.on('click', () => {
+    shownNotifications.delete(note);
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    if (open) win.webContents.send('ui:open-reminder', open);
+  });
+  note.on('close', () => shownNotifications.delete(note));
+  note.show();
+  return true;
+}
+
+ipcMain.handle('notify:show', (_event, payload) => showNotification(payload));
 ipcMain.handle('vault:get', () => vaultInfo());
 ipcMain.handle('vault:choose', () => switchVault());
 ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));

@@ -1,10 +1,21 @@
 // Repeat rules shared by calendar events and tasks. They're written the way
 // Obsidian's Tasks plugin writes them, so they read naturally in any editor:
 //
-//   🔁 every day · every weekday · every week · every 2 weeks · every month · every year
+//   🔁 every day · every 3 days · every weekday · every week
+//   🔁 every 2 weeks on Monday, Wednesday · every month · every 6 months · every year
 
+// The quick choices offered in menus (anything else is "Custom…").
 export const RULES = ['every day', 'every weekday', 'every week', 'every 2 weeks', 'every month', 'every year'];
-export const RULE_TEXT = new RegExp(`(${RULES.map((r) => r.replace(/ /g, '\\s+')).join('|')})`, 'i');
+
+export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export const UNITS = ['day', 'week', 'month', 'year'];
+
+const DAY_NAME = '(?:mon|tues|wednes|thurs|fri|satur|sun)day';
+// One capture group: the whole rule.
+export const RULE_TEXT = new RegExp(
+  `(every\\s+(?:weekday|(?:\\d+\\s+)?(?:day|week|month|year)s?(?:\\s+on\\s+${DAY_NAME}(?:\\s*(?:,|and)\\s*${DAY_NAME})*)?))`,
+  'i',
+);
 
 const pad = (n) => String(n).padStart(2, '0');
 const toKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -13,64 +24,113 @@ const toDate = (key) => {
   return new Date(y, m - 1, d);
 };
 const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / 86400000);
+const mondayOf = (key) => {
+  const d = toDate(key);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return toKey(d);
+};
+
+// "every 2 weeks on Monday, Wednesday" → { every: 2, unit: 'week', days: [1, 3] }
+// "every weekday" → { every: 1, unit: 'week', days: [1..5], weekday: true }
+export function parseRule(text) {
+  if (!text) return null;
+  const clean = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (clean === 'every weekday') return { every: 1, unit: 'week', days: [1, 2, 3, 4, 5], weekday: true };
+  const match = /^every (?:(\d+) )?(day|week|month|year)s?(?: on (.+))?$/.exec(clean);
+  if (!match) return null;
+  const every = Math.max(1, Math.min(99, Number(match[1] || 1)));
+  const unit = match[2];
+  const days = unit === 'week' && match[3]
+    ? [...new Set((match[3].match(new RegExp(DAY_NAME, 'g')) || []).map((d) => WEEKDAYS.findIndex((w) => w.toLowerCase() === d)))].sort()
+    : [];
+  return { every, unit, days };
+}
+
+export function formatRule({ every, unit, days = [], weekday }) {
+  if (weekday) return 'every weekday';
+  let text = every > 1 ? `every ${every} ${unit}s` : `every ${unit}`;
+  if (unit === 'week' && days.length) {
+    const ordered = [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)); // Monday first
+    text += ` on ${ordered.map((d) => WEEKDAYS[d]).join(', ')}`;
+  }
+  return text;
+}
 
 // "every  Week" → "every week"; anything unknown → null.
 export function normaliseRule(text) {
-  if (!text) return null;
-  const clean = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  return RULES.includes(clean) ? clean : null;
+  const rule = parseRule(text);
+  return rule ? formatRule(rule) : null;
 }
 
 // Does a series that starts on `from` land on `key`?
-export function occursOn(rule, from, key) {
+export function occursOn(ruleText, from, key) {
   if (key < from) return false;
+  const rule = parseRule(ruleText);
+  if (!rule) return false;
   const a = toDate(from);
   const b = toDate(key);
-  switch (rule) {
-    case 'every day': return true;
-    case 'every weekday': return b.getDay() !== 0 && b.getDay() !== 6;
-    case 'every week': return daysBetween(from, key) % 7 === 0;
-    case 'every 2 weeks': return daysBetween(from, key) % 14 === 0;
+  switch (rule.unit) {
+    case 'day': return daysBetween(from, key) % rule.every === 0;
+    case 'week': {
+      const days = rule.days.length ? rule.days : [a.getDay()];
+      if (!days.includes(b.getDay())) return false;
+      return (daysBetween(mondayOf(from), mondayOf(key)) / 7) % rule.every === 0;
+    }
     // Like Google Calendar: a series on the 31st skips shorter months.
-    case 'every month': return a.getDate() === b.getDate();
-    case 'every year': return a.getDate() === b.getDate() && a.getMonth() === b.getMonth();
+    case 'month': {
+      const months = (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth();
+      return a.getDate() === b.getDate() && months % rule.every === 0;
+    }
+    case 'year':
+      return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && (b.getFullYear() - a.getFullYear()) % rule.every === 0;
     default: return false;
   }
 }
 
 // The next date after `key` (used when a repeating task is ticked off).
-export function nextDate(rule, key) {
+export function nextDate(ruleText, key) {
+  const rule = parseRule(ruleText);
+  if (!rule) return key;
   const d = toDate(key);
   const clampTo = (year, month, day) => new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
-  switch (rule) {
-    case 'every day': d.setDate(d.getDate() + 1); break;
-    case 'every weekday':
-      do d.setDate(d.getDate() + 1); while (d.getDay() === 0 || d.getDay() === 6);
-      break;
-    case 'every week': d.setDate(d.getDate() + 7); break;
-    case 'every 2 weeks': d.setDate(d.getDate() + 14); break;
-    case 'every month': return toKey(clampTo(d.getFullYear(), d.getMonth() + 1, d.getDate()));
-    case 'every year': return toKey(clampTo(d.getFullYear() + 1, d.getMonth(), d.getDate()));
-    default: return key;
+  if (rule.unit === 'month') return toKey(clampTo(d.getFullYear(), d.getMonth() + rule.every, d.getDate()));
+  if (rule.unit === 'year') return toKey(clampTo(d.getFullYear() + rule.every, d.getMonth(), d.getDate()));
+  if (rule.unit === 'day') return shiftKey(key, rule.every);
+  // Weeks: the next matching weekday, counting weeks from this one.
+  for (let i = 1; i <= 7 * rule.every + 7; i++) {
+    const candidate = shiftKey(key, i);
+    if (occursOn(ruleText, key, candidate)) return candidate;
   }
-  return toKey(d);
+  return shiftKey(key, 7 * rule.every);
 }
 
-// "Every week on Monday", "Every month on the 28th" — for menus and labels.
-export function describeRule(rule, from) {
+const SHORT_DAY = (d) => WEEKDAYS[d].slice(0, 3);
+
+// "Every week on Monday", "Every 2 weeks on Mon, Wed" — for menus and labels.
+export function describeRule(ruleText, from) {
+  const rule = parseRule(ruleText);
   if (!rule) return 'Does not repeat';
+  if (rule.weekday) return 'Every weekday (Mon–Fri)';
   const date = from ? toDate(from) : null;
-  const weekday = date ? date.toLocaleDateString(undefined, { weekday: 'long' }) : '';
-  const nth = date ? ordinal(date.getDate()) : '';
-  switch (rule) {
-    case 'every day': return 'Every day';
-    case 'every weekday': return 'Every weekday (Mon–Fri)';
-    case 'every week': return date ? `Every week on ${weekday}` : 'Every week';
-    case 'every 2 weeks': return date ? `Every 2 weeks on ${weekday}` : 'Every 2 weeks';
-    case 'every month': return date ? `Every month on the ${nth}` : 'Every month';
-    case 'every year': return date ? `Every year on ${date.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}` : 'Every year';
-    default: return rule;
+  const lead = rule.every > 1 ? `Every ${rule.every} ${rule.unit}s` : `Every ${rule.unit}`;
+  switch (rule.unit) {
+    case 'week':
+      if (rule.days.length > 1) return `${lead} on ${[...rule.days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(SHORT_DAY).join(', ')}`;
+      if (rule.days.length === 1) return `${lead} on ${WEEKDAYS[rule.days[0]]}`;
+      return date ? `${lead} on ${WEEKDAYS[date.getDay()]}` : lead;
+    case 'month': return date ? `${lead} on the ${ordinal(date.getDate())}` : lead;
+    case 'year': return date ? `${lead} on ${date.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}` : lead;
+    default: return lead;
   }
+}
+
+// Short form for small labels: "week", "2 weeks · Mon, Wed", "weekday".
+export function shortRule(ruleText) {
+  const rule = parseRule(ruleText);
+  if (!rule) return '';
+  if (rule.weekday) return 'weekdays';
+  const lead = rule.every > 1 ? `${rule.every} ${rule.unit}s` : rule.unit;
+  return rule.days.length ? `${lead} · ${[...rule.days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(SHORT_DAY).join(', ')}` : lead;
 }
 
 function ordinal(n) {

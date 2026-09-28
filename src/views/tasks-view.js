@@ -9,7 +9,8 @@ import {
   parseTasks, replaceTask, addTask, toggleTask, moveTask, takeTask, placeTask,
   dueLabel, isOverdue, todayKey, DEFAULT_LIST,
 } from '../tasks/tasks.js';
-import { RULES, describeRule } from '../calendar/repeat.js';
+import { shortRule } from '../calendar/repeat.js';
+import { repeatPicker } from '../repeat-picker.js';
 
 const PREFS_KEY = 'opal.tasks';
 
@@ -285,7 +286,7 @@ export class TasksView {
       task.details.length ? h('span', { class: 'task-details' }, task.details.join(' ')) : null,
       h('span', { class: 'task-meta' },
         task.due ? h('span', { class: `task-due${isOverdue(task) ? ' is-overdue' : ''}` }, isOverdue(task) ? `overdue · ${dueLabel(task.due, task.time)}` : dueLabel(task.due, task.time)) : null,
-        task.repeat ? h('span', { class: 'task-subcount' }, `↻ ${describeRule(task.repeat).replace(/^Every /, '').replace(/ \(.*\)$/, '')}`) : null,
+        task.repeat ? h('span', { class: 'task-subcount' }, `↻ ${shortRule(task.repeat)}`) : null,
         task.subtasks.length ? h('span', { class: 'task-subcount' }, `☐ ${subDone}/${task.subtasks.length}`) : null,
         showList ? h('span', { class: 'task-list-name' }, task.list) : null)),
       h('button', {
@@ -384,12 +385,13 @@ export class TasksView {
     const time = h('input', { type: 'time', class: 'task-edit-date', value: task.time || '', 'aria-label': 'Time', disabled: !task.due });
     time.addEventListener('change', () => save({ time: time.value || null }));
 
-    const repeat = h('select', { class: 'task-edit-date task-edit-select', 'aria-label': 'Repeat' },
-      h('option', { value: '' }, 'Does not repeat'),
-      RULES.map((rule) => h('option', { value: rule }, describeRule(rule, task.due))));
-    repeat.value = task.repeat || '';
     // A repeating task needs a date to count from: today, if it has none.
-    repeat.addEventListener('change', () => save({ repeat: repeat.value || null, due: task.due || (repeat.value ? todayKey() : null) }));
+    const repeat = repeatPicker({
+      rule: task.repeat,
+      from: task.due || todayKey(),
+      className: 'task-edit-date task-edit-select',
+      onChange: (rule) => save({ repeat: rule, due: task.due || (rule ? todayKey() : null) }),
+    });
     const listMenu = h('select', { class: 'task-edit-date task-edit-select', 'aria-label': 'List' },
       Object.keys(this.lists).map((name) => h('option', { value: name }, name)));
     listMenu.value = task.list;

@@ -12,7 +12,13 @@ import {
   parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS, isDark,
   parseSeries, formatSeries, occurrences, appendSeries,
 } from '../calendar/events.js';
-import { RULES, describeRule, shiftKey } from '../calendar/repeat.js';
+import { describeRule, shiftKey } from '../calendar/repeat.js';
+import { repeatPicker } from '../repeat-picker.js';
+
+// Reminder choices (minutes before the start; all-day events start at 9:00).
+const REMIND_TIMED = [[null, 'No reminder'], [0, 'At the start'], [5, '5 minutes before'], [10, '10 minutes before'], [15, '15 minutes before'], [30, '30 minutes before'], [60, '1 hour before'], [1440, '1 day before']];
+const REMIND_ALL_DAY = [[null, 'No reminder'], [0, 'On the day, 9:00'], [1440, 'Day before, 9:00']];
+const TASK_LENGTH = 30; // minutes a timed task takes up in the grid
 
 const HOUR = 52; // pixels per hour
 const MINUTE = HOUR / 60;
@@ -34,12 +40,13 @@ export class CalendarView {
   // readDay(key) → text or null. writeDay(key, text) → promise.
   // noteDays() → Set of day keys that have a note. openDayNote(key), openLink(target).
   // readRepeats() → text of Calendar/Repeating.md ('' if none). writeRepeats(text).
-  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, openTasks }) {
+  // updateTask(task, patch) changes a task's date/time (dragging it in the grid).
+  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, openTasks }) {
     this.container = container;
     this.date = date || new Date();
     this.mode = mode || 'day';
     this.io = {
-      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, openTasks,
+      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, updateTask, openTasks,
       readRepeats: readRepeats || (async () => ''),
       writeRepeats,
       onChange: onChange || (() => {}),
@@ -231,8 +238,8 @@ export class CalendarView {
         cell.addEventListener('click', (event) => {
           if (event.target === cell) this.createAllDay(key);
         });
-        // Tasks due this day (from the Tasks lists).
-        for (const t of this.tasks.filter((task) => task.due === key)) {
+        // Tasks due this day without a time (timed ones sit in the grid).
+        for (const t of this.tasks.filter((task) => task.due === key && !task.time)) {
           cell.append(h('button', {
             class: `cal-chip cal-task${t.done ? ' is-done' : ''}`,
             onclick: (event) => this.showTaskPopover(t, event.currentTarget),
@@ -263,9 +270,39 @@ export class CalendarView {
       const minutes = snap((event.offsetY / MINUTE) - 15);
       this.createAt(key, Math.max(0, Math.min(minutes, 23 * 60)));
     });
-    const events = layoutColumns((this.days[key]?.events || []).map((e) => ({ ...e })));
-    for (const event of events) column.append(this.eventEl(event));
+    const timedTasks = this.tasks.filter((t) => t.due === key && t.time).map((t) => {
+      const [hh, mm] = t.time.split(':').map(Number);
+      const start = Math.min(hh * 60 + mm, 24 * 60 - TASK_LENGTH);
+      return { isTask: true, task: t, day: key, start, end: start + TASK_LENGTH, title: t.title };
+    });
+    const items = layoutColumns([...(this.days[key]?.events || []).map((e) => ({ ...e })), ...timedTasks]);
+    for (const item of items) column.append(item.isTask ? this.taskBlockEl(item) : this.eventEl(item));
     return column;
+  }
+
+  // A timed task in the day grid: tick box + title. Click for details, drag to
+  // change its time or day (written back to its list as 📅 / ⏰).
+  taskBlockEl(item) {
+    const { task } = item;
+    const width = 100 / item.cols;
+    const el = h('div', {
+      class: `cal-event cal-task-block is-short${task.done ? ' is-done' : ''}`,
+      role: 'button',
+      tabindex: '0',
+      'aria-label': `Task: ${task.title}, ${task.time}${task.done ? ', done' : ''}`,
+      style: `top: ${item.start * MINUTE}px; height: ${TASK_LENGTH * MINUTE - 2}px; left: calc(${item.col * width}% + 2px); width: calc(${width}% - 5px);`,
+    },
+    h('span', { class: 'cal-task-box', 'aria-hidden': 'true' }, task.done ? '✓' : ''),
+    h('span', { class: 'cal-event-time' }, task.time),
+    h('span', { class: 'cal-event-title' }, task.title));
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.showTaskPopover(task, el);
+      }
+    });
+    this.makeDraggable(el, item);
+    return el;
   }
 
   eventEl(event) {
@@ -304,12 +341,12 @@ export class CalendarView {
     const cells = keys.map((key) => {
       const date = keyToDate(key);
       const events = (this.days[key]?.events || []).slice().sort((a, b) => (b.allDay - a.allDay) || a.start - b.start);
-      const tasks = this.tasks.filter((t) => t.due === key);
+      const tasks = this.tasks.filter((t) => t.due === key).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       const items = [
         ...tasks.map((t) => h('button', {
           class: `cal-chip cal-task${t.done ? ' is-done' : ''}`,
           onclick: (event) => this.showTaskPopover(t, event.currentTarget),
-        }, h('span', { class: 'cal-task-box', 'aria-hidden': 'true' }, t.done ? '✓' : ''), h('span', null, t.title))),
+        }, h('span', { class: 'cal-task-box', 'aria-hidden': 'true' }, t.done ? '✓' : ''), h('span', null, `${t.time ? `${t.time} ` : ''}${t.title}`))),
         ...events.map((e) => (e.allDay
           ? this.chipEl(e, h('span', null, `${e.repeating ? '↻ ' : ''}${e.title}`))
           : this.chipEl(e, [
@@ -476,7 +513,7 @@ export class CalendarView {
             el.style.transform = `translateX(${target.left - home.left}px)`;
           }
         }
-        el.querySelector('.cal-event-time').textContent = `${clock(next.start)}–${clock(next.end)}`;
+        el.querySelector('.cal-event-time').textContent = event.isTask ? clock(next.start) : `${clock(next.start)}–${clock(next.end)}`;
       };
 
       const up = () => {
@@ -486,11 +523,13 @@ export class CalendarView {
         this.dragging = false;
         el.classList.remove('is-dragging');
         if (!moved) {
-          this.showPopover(event, el);
+          if (event.isTask) this.showTaskPopover(event.task, el);
+          else this.showPopover(event, el);
           return;
         }
         if (next.day === event.day && next.start === event.start && next.end === event.end) return;
-        this.moveEvent(event, next);
+        if (event.isTask) this.change(() => this.io.updateTask(event.task, { due: next.day, time: clock(next.start) }));
+        else this.moveEvent(event, next);
       };
 
       el.addEventListener('pointermove', move);
@@ -530,11 +569,18 @@ export class CalendarView {
 
     // Repeat: a menu of rules, plus an optional last day for a series.
     const from = event.repeating ? event.from : event.day;
-    const repeatMenu = h('select', { class: 'cal-pop-select', 'aria-label': 'Repeat' },
-      h('option', { value: '' }, 'Does not repeat'),
-      RULES.map((rule) => h('option', { value: rule }, describeRule(rule, from))));
-    repeatMenu.value = event.repeating ? event.rule : '';
-    repeatMenu.addEventListener('change', () => this.setRepeat(event, repeatMenu.value || null));
+    const repeatMenu = repeatPicker({
+      rule: event.repeating ? event.rule : null,
+      from,
+      className: 'cal-pop-select',
+      onChange: (rule) => this.setRepeat(event, rule),
+    });
+    const remindChoices = event.allDay ? REMIND_ALL_DAY : REMIND_TIMED;
+    const remindMenu = h('select', { class: 'cal-pop-select', 'aria-label': 'Reminder' },
+      remindChoices.map(([value, label]) => h('option', { value: value == null ? '' : String(value) }, label)),
+      event.remind != null && !remindChoices.some(([v]) => v === event.remind) ? h('option', { value: String(event.remind) }, `${event.remind} minutes before`) : null);
+    remindMenu.value = event.remind == null ? '' : String(event.remind);
+    remindMenu.addEventListener('change', () => this.updateEvent(event, { remind: remindMenu.value === '' ? null : Number(remindMenu.value) }));
     const until = event.repeating ? h('input', { type: 'date', class: 'cal-pop-select', value: event.until || '', min: event.from, 'aria-label': 'Repeat until' }) : null;
     if (until) until.addEventListener('change', () => this.updateEvent(event, { until: until.value || null }));
 
@@ -543,9 +589,10 @@ export class CalendarView {
       h('span', { class: 'display cal-pop-title' }, event.title),
       swatches,
       h('div', { class: 'cal-pop-repeat' },
-        h('label', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Repeat'), repeatMenu),
+        h('div', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Repeat'), repeatMenu),
+        h('label', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Remind'), remindMenu),
         until ? h('label', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Until'), until) : null,
-        event.repeating ? h('span', { class: 'hand cal-pop-hint' }, 'name & colour changes apply to every repeat') : null),
+        event.repeating ? h('span', { class: 'hand cal-pop-hint' }, 'name, colour & reminder apply to every repeat') : null),
       h('div', { class: 'cal-pop-actions' },
         event.link ? h('button', { class: 'cal-pop-btn is-primary', onclick: () => this.io.openLink(event.link) }, `Open “${event.link}”`) : null,
         h('button', { class: 'cal-pop-btn', onclick: () => this.rename(event) }, 'Rename'),

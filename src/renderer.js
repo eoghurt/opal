@@ -25,7 +25,7 @@ import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
 import { TasksView } from './views/tasks-view.js';
-import { TASKS_FOLDER, parseTasks, toggleTask } from './tasks/tasks.js';
+import { TASKS_FOLDER, parseTasks, toggleTask, replaceTask } from './tasks/tasks.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate } from './calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
@@ -33,6 +33,7 @@ import { applyPalette } from './palettes.js';
 import { askName, h, scribbleArrow } from './ui.js';
 import { findFile, findFolder, recentFiles, flattenFiles } from './tree.js';
 import { noteName, parentOf } from './format.js';
+import { Reminders } from './reminders.js';
 
 const viewEl = document.getElementById('view');
 
@@ -127,6 +128,25 @@ async function reloadTree() {
   tree = await window.opal.listFiles();
   sidebar.setTree(tree);
   chrome.setRecent(recentFiles(tree, 6));
+  reminders.refresh();
+}
+
+// ---------- Reminders ----------
+
+const reminders = new Reminders({
+  readFile: (path) => window.opal.readFile(path),
+  listFiles: () => (vault ? flattenFiles(tree) : []),
+  notify: (payload) => window.opal.notify(payload).catch(() => {}),
+});
+
+function openReminder(open) {
+  if (!vault || !open) return;
+  if (open.kind === 'tasks') {
+    showTasks();
+  } else if (open.kind === 'calendar') {
+    calendarState = { ...calendarState, mode: 'day' };
+    showCalendar(keyToDate(open.day));
+  }
 }
 
 // ---------- Screens ----------
@@ -409,6 +429,7 @@ function showCalendar(date) {
         await window.opal.createFolder(CALENDAR_FOLDER, '');
         const path = await window.opal.createNote(key, CALENDAR_FOLDER);
         await window.opal.writeFile(path, text);
+        reminders.refresh();
       },
       noteDays: () => {
         const folder = findFolder(tree, CALENDAR_FOLDER, vault.name);
@@ -425,6 +446,7 @@ function showCalendar(date) {
         openFile(path);
       },
       readRepeats: async () => {
+        if (!findFile(tree, REPEATS_PATH)) return '';
         try {
           return await window.opal.readFile(REPEATS_PATH);
         } catch {
@@ -435,10 +457,15 @@ function showCalendar(date) {
         await window.opal.createFolder(CALENDAR_FOLDER, '');
         const path = await window.opal.createNote(REPEATS_NAME, CALENDAR_FOLDER);
         await window.opal.writeFile(path, text);
+        reminders.refresh();
       },
       openLink: (target) => openLink(target),
       loadTasks: loadDueTasks,
       toggleTask: toggleTaskDone,
+      updateTask: async (task, patch) => {
+        const text = (await readTaskList(task.list)) || '';
+        await writeTaskList(task.list, replaceTask(text, task, { ...task, ...patch }));
+      },
       openTasks: () => showTasks(),
       onChange: (state) => { calendarState = state; },
     });
@@ -471,6 +498,7 @@ async function writeTaskList(name, text) {
   const path = await window.opal.createNote(name, TASKS_FOLDER);
   await window.opal.writeFile(path, text);
   if (!known) await reloadTree();
+  else reminders.refresh();
 }
 
 // Every task with a due date, from every list (for the calendar).
@@ -699,6 +727,7 @@ async function pickUpOutsideEdits() {
 
 // Opal's own saves don't trigger a vault rescan, so keep the dates fresh here.
 function noteSaved(filePath) {
+  reminders.refresh(); // a 🔔 or ⏰ may have been typed
   const node = findFile(tree, filePath);
   if (node) {
     node.modified = Date.now();
@@ -773,6 +802,7 @@ window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggl
 window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => showLogbook());
 window.opal.onShowTasks(() => showTasks());
+window.opal.onOpenReminder(openReminder);
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
 

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('opal', {
   trashNote: (relPath) => call('note:trash', relPath),
   getPalette: () => call('palette:get'),
   setPalette: (name) => call('palette:set', name),
+  notify: (payload) => call('notify:show', payload),
 
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),
   onFilesChanged: (callback) => ipcRenderer.on('vault:files-changed', () => callback()),
@@ -39,6 +40,7 @@ contextBridge.exposeInMainWorld('opal', {
   onShowCalendar: (callback) => ipcRenderer.on('ui:show-calendar', () => callback()),
   onShowLogbook: (callback) => ipcRenderer.on('ui:show-logbook', () => callback()),
   onShowTasks: (callback) => ipcRenderer.on('ui:show-tasks', () => callback()),
+  onOpenReminder: (callback) => ipcRenderer.on('ui:open-reminder', (_event, open) => callback(open)),
 
   // Main asks the window to save before quitting or switching vaults.
   // `callback` returns a promise; main is told whether saving succeeded.
