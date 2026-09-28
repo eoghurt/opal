@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('opal', {
   createFolder: (name, parent) => call('folder:create', name, parent),
   getPreviews: (paths) => call('note:previews', paths),
   openExternal: (relPath) => call('file:open-external', relPath),
+  findLink: (target) => call('link:find', target),
+  openWebLink: (url) => call('link:web', url),
   revealInFinder: (relPath) => call('file:reveal', relPath),
   readBytes: (relPath) => call('file:read-bytes', relPath),
   setColor: (relPath, kind, color) => call('color:set', relPath, kind, color),

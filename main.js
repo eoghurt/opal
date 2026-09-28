@@ -441,7 +441,8 @@ function safeFileName(name) {
 
 // Finds the note a [[link]] points to, or creates it in the vault root.
 // Returns the note's vault-relative path.
-async function resolveLink(rawTarget) {
+// With create = false, a missing note gives null instead of being made.
+async function resolveLink(rawTarget, create = true) {
   if (!vaultPath) throw new Error('No vault is open.');
   // [[Note|shown text]] and [[Note#Heading]] both point at "Note".
   const target = String(rawTarget).split('|')[0].split('#')[0].trim();
@@ -459,6 +460,8 @@ async function resolveLink(rawTarget) {
     .sort((a, b) => a.split('/').length - b.split('/').length)[0];
   if (byName) return byName;
 
+  if (!create) return null;
+
   // 3. Not found: create it in the vault root — but only notes. A missing
   //    [[photo.png]] can't be made up, so say so instead.
   const ext = path.extname(target).toLowerCase();
@@ -466,6 +469,20 @@ async function resolveLink(rawTarget) {
     throw new Error(`There's no file called “${target}” in this vault.`);
   }
   return createNote(target);
+}
+
+// Web and email links from notes open in the Mac's own browser / mail app.
+// Only http(s) and mailto are allowed, so a note can't launch anything else.
+async function openWebLink(url) {
+  let parsed;
+  try {
+    parsed = new URL(String(url));
+  } catch {
+    throw new Error("That isn't a web address.");
+  }
+  if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) throw new Error('Opal only opens web (http/https) and email links.');
+  await shell.openExternal(parsed.href);
+  return true;
 }
 
 // Turns a vault-relative folder path from the window into a full path ('' = vault root).
@@ -683,6 +700,8 @@ ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));
 ipcMain.handle('file:read', (_event, relPath) => readNote(relPath));
 ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, content));
 ipcMain.handle('link:resolve', (_event, target) => resolveLink(target));
+ipcMain.handle('link:find', (_event, target) => resolveLink(target, false));
+ipcMain.handle('link:web', (_event, url) => openWebLink(url));
 ipcMain.handle('note:create', (_event, name, folder) => createNote(name, folder));
 ipcMain.handle('note:previews', (_event, paths) => notePreviews(paths));
 ipcMain.handle('file:open-external', (_event, relPath) => openInDefaultApp(relPath));

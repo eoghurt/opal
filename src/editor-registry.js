@@ -25,21 +25,23 @@
 
 import { MarkdownEditor } from './editors/markdown-editor.js';
 import { ImageViewer, AudioViewer, VideoViewer } from './viewers/simple-viewers.js';
-import { PdfViewer } from './viewers/pdf-viewer.js';
-import { DocxViewer, SheetViewer, SlidesViewer } from './viewers/office-viewers.js';
 import { kindOf } from './file-types.js';
 
+// The big readers (PDF, Word, Excel, PowerPoint) load the first time they're
+// needed, so Opal starts quickly and only pays for what you open.
 const EDITORS_BY_KIND = {
-  note: MarkdownEditor,
-  pdf: PdfViewer,
-  image: ImageViewer,
-  audio: AudioViewer,
-  video: VideoViewer,
-  document: DocxViewer,
-  spreadsheet: SheetViewer,
-  presentation: SlidesViewer,
+  note: () => MarkdownEditor,
+  image: () => ImageViewer,
+  audio: () => AudioViewer,
+  video: () => VideoViewer,
+  pdf: () => import('./viewers/pdf-viewer.js').then((m) => m.PdfViewer),
+  document: () => import('./viewers/office-viewers.js').then((m) => m.DocxViewer),
+  spreadsheet: () => import('./viewers/office-viewers.js').then((m) => m.SheetViewer),
+  presentation: () => import('./viewers/office-viewers.js').then((m) => m.SlidesViewer),
 };
 
-export function editorForFile(filePath) {
-  return EDITORS_BY_KIND[kindOf(filePath)] || null;
+// → the editor/viewer class for a file, or null if Opal can't open it.
+export async function editorForFile(filePath) {
+  const load = EDITORS_BY_KIND[kindOf(filePath)];
+  return load ? load() : null;
 }

@@ -281,7 +281,7 @@ function folderHomeStickies(folderPath, folder, home) {
 async function showNote(filePath) {
   homeStickies = null;
   leaveCalendar();
-  const EditorType = editorForFile(filePath);
+  const EditorType = await editorForFile(filePath);
   if (!EditorType) {
     showHome(parentOf(filePath), `Opal can't open this kind of file yet: ${filePath}`);
     return;
@@ -326,13 +326,16 @@ async function showNote(filePath) {
     },
     onStatus: (status) => chrome.setStatus(status),
     onOpenLink: (target) => openLink(target),
+    onOpenHref: (href) => openHref(href, filePath),
+    linkTargets: () => linkTargets(),
+    findLink: (target) => window.opal.findLink(target),
     onChange: () => {
       clearTimeout(changeTimer);
       changeTimer = setTimeout(() => {
         if (!current || current.editor !== editor) return;
         noteView.setText(editor.getText());
         current.stickies.refresh();
-      }, 300);
+      }, 150);
     },
   });
   // Stickies on a note are saved into the note itself, like typing.
@@ -743,12 +746,86 @@ async function setItemColor(path, kind, color) {
 }
 
 // Follows a [[link]]: main finds the note (or creates it), then we open it.
+// [[Note]], [[Note|text]] or [[Note#Heading]]: opens the note (made if it
+// doesn't exist yet) and jumps to the heading, if there is one.
 async function openLink(target) {
+  const name = String(target).split('|')[0];
+  const hash = name.indexOf('#');
+  const heading = hash >= 0 ? name.slice(hash + 1).trim() : '';
+  if (hash === 0 && heading) {
+    // [[#Heading]] points inside this note.
+    if (current && current.editor.goToHeading) current.editor.goToHeading(heading);
+    return;
+  }
   try {
     await openFile(await window.opal.resolveLink(target));
+    if (heading && current && current.editor.goToHeading) current.editor.goToHeading(heading);
   } catch (err) {
     alert(`Could not open [[${target}]].\n\n${err.message}`);
   }
+}
+
+// Joins and tidies a vault path: "School/English/../Maths/x.md" → "School/Maths/x.md".
+function joinVaultPath(folder, relative) {
+  const parts = [];
+  for (const part of `${folder ? `${folder}/` : ''}${relative}`.split('/')) {
+    if (!part || part === '.') continue;
+    if (part === '..') parts.pop();
+    else parts.push(part);
+  }
+  return parts.join('/');
+}
+
+// [text](address): web and email links open in the browser / mail app; paths
+// open files in the vault (relative to the note first, then the vault root).
+async function openHref(href, fromPath) {
+  const address = String(href || '').trim().replace(/^<|>$/g, '');
+  if (/^(https?:|mailto:)/i.test(address)) {
+    try {
+      await window.opal.openWebLink(address);
+    } catch (err) {
+      alert(`Could not open ${address}.\n\n${err.message}`);
+    }
+    return;
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(address)) {
+    alert(`Opal only opens web links and links to files in this vault.\n\n${address}`);
+    return;
+  }
+  const hash = address.indexOf('#');
+  let pathPart = hash >= 0 ? address.slice(0, hash) : address;
+  const heading = hash >= 0 ? address.slice(hash + 1).replace(/-/g, ' ') : '';
+  try {
+    pathPart = decodeURIComponent(pathPart);
+  } catch {
+    // Not %-encoded; use it as written.
+  }
+  if (!pathPart) {
+    if (heading && current && current.editor.goToHeading) current.editor.goToHeading(heading);
+    return;
+  }
+  const folder = parentOf(fromPath || '');
+  const tries = [joinVaultPath(folder, pathPart), joinVaultPath('', pathPart)];
+  if (!/\.[a-z0-9]+$/i.test(pathPart)) tries.push(...tries.map((p) => `${p}.md`));
+  let found = tries.find((p) => findFile(tree, p));
+  if (!found) found = await window.opal.findLink(pathPart.split('/').pop());
+  if (!found) {
+    alert(`There's no file “${pathPart}” in this vault.`);
+    return;
+  }
+  await openFile(found);
+  if (heading && current && current.editor.goToHeading) current.editor.goToHeading(heading);
+}
+
+// Names offered when typing [[ — notes by name (with their folder), then files.
+function linkTargets() {
+  return flattenFiles(tree)
+    .filter((f) => !f.quiet)
+    .map((f) => {
+      const isNote = /\.md$/i.test(f.name);
+      const folder = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : '';
+      return { name: isNote ? f.name.slice(0, -3) : f.name, folder, isNote };
+    });
 }
 
 // The folder new things go into: the folder on screen, or the open note's folder.

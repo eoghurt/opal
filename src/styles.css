@@ -2537,3 +2537,18 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .inbox-empty { margin: 0; padding: 12px 14px; font-size: 17px; color: var(--ink-3); }
 .inbox-more { width: 100%; padding: 9px 14px; text-align: left; border-top: var(--hair); }
 .inbox-more:hover { background: var(--paper); }
+
+/* ---------- Links in notes ---------- */
+
+.cm-mdlink { color: #1F5FBF; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; cursor: pointer; }
+.cm-mdlink:hover { color: #0D3F8F; background: rgba(31, 95, 191, 0.08); }
+.cm-wikilink { cursor: pointer; }
+.cm-link-arrow { color: var(--ink-3); }
+.cm-embed { display: inline-block; max-width: 100%; margin: 6px 0; vertical-align: top; }
+.cm-embed img { display: block; max-width: 100%; max-height: 520px; border: var(--rule); box-shadow: 4px 4px 0 rgba(22, 20, 15, 0.2); }
+.cm-embed.is-missing { font-family: var(--mono); font-size: 11px; padding: 4px 8px; border: 1px dashed var(--ink-3); color: var(--ink-3); }
+.cm-content ::selection { background: rgba(61, 120, 217, 0.26); }
+.cm-editor .cm-tooltip-autocomplete { border: var(--rule); border-radius: 2px; background: var(--white); box-shadow: 4px 4px 0 var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+.cm-editor .cm-tooltip-autocomplete > ul > li { padding: 4px 10px !important; font-size: 13.5px; }
+.cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--c2); color: var(--ink); }
+.cm-editor .cm-completionDetail { margin-left: 10px; font-family: var(--mono); font-size: 10.5px; font-style: normal; color: var(--ink-3); }

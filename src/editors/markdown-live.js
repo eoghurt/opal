@@ -13,9 +13,10 @@ const highlightMark = Decoration.mark({ class: 'cm-highlight' });
 const underlineMark = Decoration.mark({ class: 'cm-underline' });
 const faintMark = Decoration.mark({ class: 'cm-faint-mark' });
 
-// Does any selection range touch [from, to]?
+// Is the text cursor on [from, to]? Symbols only reappear where you're typing —
+// not while a range of text is selected (so the text doesn't jump as you drag).
 function touches(state, from, to) {
-  return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+  return state.selection.ranges.some((r) => r.empty && r.from <= to && r.to >= from);
 }
 
 const INLINE = new Set(['Emphasis', 'StrongEmphasis', 'Strikethrough', 'InlineCode']);

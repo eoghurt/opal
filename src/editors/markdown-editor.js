@@ -1,6 +1,11 @@
 // Markdown editor built on CodeMirror 6, with autosave.
 
-import { EditorView, basicSetup } from 'codemirror';
+import { EditorView } from 'codemirror';
+import { highlightSpecialChars, highlightActiveLine, dropCursor, keymap as viewKeymap } from '@codemirror/view';
+import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands';
+import { indentOnInput, bracketMatching, defaultHighlightStyle } from '@codemirror/language';
+import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from '@codemirror/autocomplete';
+import { searchKeymap } from '@codemirror/search';
 import { Annotation, EditorState, StateField, Transaction } from '@codemirror/state';
 import { Decoration, MatchDecorator, ViewPlugin } from '@codemirror/view';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
@@ -11,6 +16,7 @@ import { livePreview, formatBar, formatKeymap } from './markdown-live.js';
 import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
 import { frontmatterRange } from '../../shared/frontmatter.js';
 import { tableBlocks, insertTable } from '../tables/table-widget.js';
+import { linkPreview, wikilinkCompletions } from './markdown-links.js';
 import { keymap } from '@codemirror/view';
 
 // Marks changes that came from the file on disk, not from typing.
@@ -29,7 +35,7 @@ const wikilinkMatcher = new MatchDecorator({
   decoration: (match) =>
     Decoration.mark({
       class: 'cm-wikilink',
-      attributes: { 'data-target': match[1], title: 'Cmd-click to open' },
+      attributes: { 'data-target': match[1], title: 'Click to open' },
     }),
 });
 
@@ -92,7 +98,8 @@ const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '15.5px', backgroundColor: 'transparent' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif', lineHeight: '1.65' },
-  '.cm-content': { maxWidth: '680px', padding: '12px 44px 40vh', caretColor: '#16140F' },
+  // The text fills the note's width, growing and shrinking as side panels open and close.
+  '.cm-content': { maxWidth: 'none', padding: '12px 44px 40vh', caretColor: '#16140F' },
   '.cm-cursor': { borderLeftColor: '#16140F', borderLeftWidth: '2px' },
   '.cm-gutters': { display: 'none' },
   '.cm-activeLine': { backgroundColor: 'transparent' },
@@ -119,7 +126,10 @@ const theme = EditorView.theme({
 export class MarkdownEditor {
   static editsText = true;
 
-  constructor({ parent, content, save, onStatus, onOpenLink, onChange }) {
+  // onOpenHref(address) opens a [text](address) link; linkTargets() lists notes
+  // and files for [[ suggestions; findLink(name) finds a file without creating it.
+  constructor({ parent, content, save, onStatus, onOpenLink, onOpenHref, onChange, linkTargets, findLink }) {
+    this.linkTargets = linkTargets || (() => []);
     this.save = save;
     this.onStatus = onStatus;
     this.onChange = onChange || (() => {});
@@ -139,7 +149,19 @@ export class MarkdownEditor {
       extensions: [
         Prec.high(formatKeymap),
         Prec.high(keymap.of([{ key: 'Mod-Alt-t', run: (view) => { insertTable(view, 3, 3); return true; } }])),
-        basicSetup,
+        // CodeMirror's usual setup, minus the parts that don't suit writing:
+        // no line numbers or folding, and the Mac's own text selection (it
+        // highlights only the text) instead of CodeMirror's drawn blocks.
+        highlightSpecialChars(),
+        highlightActiveLine(),
+        history(),
+        dropCursor(),
+        indentOnInput(),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        bracketMatching(),
+        closeBrackets(),
+        autocompletion({ override: [wikilinkCompletions(() => this.linkTargets())], icons: false }),
+        viewKeymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...completionKeymap, indentWithTab]),
         windowsLines ? EditorState.lineSeparator.of('\r\n') : [],
         markdown({ base: markdownLanguage }),
         livePreview,
@@ -148,16 +170,21 @@ export class MarkdownEditor {
         EditorView.lineWrapping,
         theme,
         wikilinks,
+        linkPreview(findLink || (async () => null)),
         hiddenStickies,
         tableBlocks,
         EditorView.domEventHandlers({
-          // Cmd-click a [[link]] to open it; a plain click just places the cursor.
+          // Click a link to open it. While you're editing a link (its brackets
+          // are showing) a click just moves the cursor; Cmd-click always opens.
           mousedown: (event) => {
-            if (!event.metaKey || event.button !== 0) return false;
-            const link = event.target.closest('.cm-wikilink');
+            if (event.button !== 0 || event.shiftKey || event.altKey || event.ctrlKey) return false;
+            const link = event.target.closest('.cm-wikilink, .cm-mdlink');
             if (!link) return false;
+            const editing = link.classList.contains('cm-wikilink') && link.textContent.startsWith('[[');
+            if (editing && !event.metaKey) return false;
             event.preventDefault();
-            onOpenLink(link.dataset.target);
+            if (link.classList.contains('cm-wikilink')) onOpenLink(link.dataset.target);
+            else if (onOpenHref) onOpenHref(link.dataset.href);
             return true;
           },
           // Show a pointer over links while Cmd is held.
@@ -229,6 +256,20 @@ export class MarkdownEditor {
   // Saves stickies into the note like any other edit (autosaved, undoable).
   setStickies(list) {
     this.replaceText(writeStickies(this.getText(), list));
+  }
+
+  // Jumps to a heading by its text (for [[Note#Heading]] links). True if found.
+  goToHeading(heading) {
+    const wanted = heading.trim().toLowerCase();
+    const doc = this.view.state.doc;
+    for (let i = 1; i <= doc.lines; i++) {
+      const m = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(doc.line(i).text);
+      if (m && m[1].toLowerCase() === wanted) {
+        this.goToLine(i);
+        return true;
+      }
+    }
+    return false;
   }
 
   // A new rows × cols table below the cursor's line (see tables/).
