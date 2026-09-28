@@ -2102,3 +2102,112 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .cal-task.is-done { text-decoration: line-through; color: var(--ink-3); }
 .cal-task-box { width: 13px; height: 13px; flex-shrink: 0; border: 1.5px solid var(--ink); border-radius: 7px; font-size: 8px; display: flex; align-items: center; justify-content: center; }
 .cal-task.is-done .cal-task-box { background: var(--ink); color: var(--paper); }
+
+/* ---------- Choice box (askChoice) ---------- */
+
+.ask-choices { display: flex; gap: 6px; flex-wrap: wrap; }
+.ask-choice {
+  padding: 7px 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ask-choice:hover { background: var(--paper); }
+.ask-choice.is-primary { background: var(--ink); color: var(--paper); }
+.ask-choice:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---------- Calendar: month view ---------- */
+
+.cal-month { overflow: hidden; }
+.cal-mhead { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: var(--rule); background: var(--paper); }
+.cal-mhead .mono-label { padding: 6px 8px; font-size: 9.5px; color: var(--ink-3); }
+.cal-mhead .mono-label + .mono-label { border-left: var(--hair); }
+.cal-mscroll { flex-grow: 1; min-height: 0; overflow-y: auto; }
+.cal-mgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-height: 100%; }
+.cal-mcell {
+  min-width: 0;
+  padding: 4px 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: var(--hair);
+  border-left: var(--hair);
+  cursor: copy;
+}
+.cal-mcell:nth-child(7n + 1) { border-left: 0; }
+.cal-mcell.is-outside { background: rgba(22, 20, 15, 0.04); }
+.cal-mcell.is-outside .cal-mnum { color: #A39D90; }
+.cal-mcell.is-drop, .cal-allday-cell.is-drop, .cal-day.is-drop { background: var(--c2); outline: 2px dashed var(--ink); outline-offset: -3px; }
+.cal-mnum {
+  align-self: flex-start;
+  min-width: 24px;
+  padding: 1px 5px;
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  border-radius: 2px;
+}
+.cal-mnum:hover { background: rgba(22, 20, 15, 0.08); }
+.cal-mcell.is-today .cal-mnum { background: var(--c1); outline: 1.5px solid var(--ink); }
+.cal-mcell .cal-chip { font-size: 11.5px; padding: 1px 6px; flex-shrink: 0; }
+.cal-chip.is-timed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 500;
+  padding-left: 3px;
+}
+.cal-chip.is-timed:hover { background: rgba(22, 20, 15, 0.07); }
+.cal-mdot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 4px; border: 1px solid var(--ink); }
+.cal-mtime { font-family: var(--mono); font-size: 9.5px; flex-shrink: 0; }
+.cal-mtitle { overflow: hidden; text-overflow: ellipsis; }
+.cal-mmore { align-self: flex-start; font-family: var(--mono); font-size: 10px; padding: 1px 6px; color: var(--ink-2); }
+.cal-mmore:hover { text-decoration: underline; }
+.cal-chip.is-dragging { position: relative; z-index: 30; cursor: grabbing; box-shadow: 4px 4px 0 var(--ink); }
+.cal-allday-cell .cal-chip { touch-action: none; }
+.cal-mcell .cal-chip { touch-action: none; }
+
+/* ---------- Calendar: repeats ---------- */
+
+.cal-repeat-mark { font-weight: 400; }
+.cal-repeat-rule { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.cal-repeats .cal-agenda-item { align-items: flex-start; }
+.cal-repeats .cal-agenda-dot { margin-top: 3px; }
+.cal-pop-repeat { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; border-top: var(--hair); }
+.cal-pop-row { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+.cal-pop-row .mono-label { width: 52px; flex-shrink: 0; }
+.cal-pop-select {
+  flex-grow: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 3px 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  background: var(--white);
+}
+.cal-pop-hint { font-size: 15px; color: var(--ink-3); }
+
+/* ---------- Tasks: moving and repeats ---------- */
+
+.task-open .task-main { touch-action: none; }
+.task-open > [data-raw].is-moving { opacity: 0.35; }
+.task-ghost {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  background: var(--white);
+  border: var(--rule);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+.task-drop-line { height: 0; border-top: 3px solid var(--ink); margin: -1.5px 8px; position: relative; z-index: 2; }
+.task-drop-line::before { content: ''; position: absolute; left: -6px; top: -6.5px; width: 8px; height: 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--white); }
+.task-edit-select { font-family: inherit; flex-grow: 1; min-width: 0; }
+.task-edit-row > .mono-label { width: 52px; flex-shrink: 0; }
+.cal-mcell.is-today .cal-mnum, .cal-mcell.is-outside.is-today .cal-mnum { color: var(--ink); }
+.cal-task > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

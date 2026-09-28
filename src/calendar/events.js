@@ -7,8 +7,18 @@
 // #color/<name> sets the event's fill and #accent/<name> its accent stripe,
 // from the 20 EVENT_COLORS below (older #c1 … #c5 tags pick a palette colour).
 // Anything else in the note is left alone.
+//
+// Repeating events live together in Calendar/Repeating.md, one per line:
+//
+//   - 07:30–08:30 Gym #color/sage 🔁 every week from 2026-09-28 until 2026-12-20 except 2026-10-05
+//
+// "from" is the first day, "until" (optional) the last, "except" lists days skipped.
+
+import { RULE_TEXT, normaliseRule, occursOn } from './repeat.js';
 
 export const CALENDAR_FOLDER = 'Calendar';
+export const REPEATS_NAME = 'Repeating';
+export const REPEATS_PATH = `${CALENDAR_FOLDER}/${REPEATS_NAME}.md`;
 
 // The 20 colours an event's fill (primary) and stripe (secondary) can use.
 export const EVENT_COLORS = {
@@ -168,6 +178,60 @@ export function insertEvent(text, newLine, dateLabel) {
     at++;
   }
   lines.splice(at, 0, newLine);
+  return lines.join(nl);
+}
+
+// ---------- Repeating events ----------
+
+const DATE = /\d{4}-\d{2}-\d{2}/;
+
+// Every repeating series in Calendar/Repeating.md.
+export function parseSeries(text) {
+  const series = [];
+  text.split(/\r?\n/).forEach((line, index) => {
+    const at = line.indexOf('🔁');
+    if (at === -1) return;
+    const event = parseEvents(line.slice(0, at), '')[0];
+    const clause = line.slice(at + 2);
+    const rule = normaliseRule((RULE_TEXT.exec(clause) || [])[1]);
+    const from = (new RegExp(`from\\s+(${DATE.source})`).exec(clause) || [])[1];
+    if (!event || !rule || !from) return;
+    const until = (new RegExp(`until\\s+(${DATE.source})`).exec(clause) || [])[1] || null;
+    const exceptText = (/except\s+([\d\s,-]+)/.exec(clause) || [])[1] || '';
+    series.push({
+      ...event,
+      line: index,
+      raw: line,
+      rule,
+      from,
+      until,
+      except: exceptText.match(new RegExp(DATE.source, 'g')) || [],
+      repeating: true,
+    });
+  });
+  return series;
+}
+
+export function formatSeries(s) {
+  let line = `${formatEvent(s)} 🔁 ${s.rule} from ${s.from}`;
+  if (s.until) line += ` until ${s.until}`;
+  const except = [...new Set(s.except || [])].filter((k) => k >= s.from && (!s.until || k <= s.until)).sort();
+  if (except.length) line += ` except ${except.join(', ')}`;
+  return line;
+}
+
+// The repeats that land on one day, as events for that day.
+export function occurrences(series, key) {
+  return series
+    .filter((s) => occursOn(s.rule, s.from, key) && (!s.until || key <= s.until) && !s.except.includes(key))
+    .map((s) => ({ ...s, day: key }));
+}
+
+export function appendSeries(text, line) {
+  if (!text.trim()) return `# Repeating events\n\nEvents listed here show in Opal's calendar on every day they repeat.\n\n${line}\n`;
+  const { lines, nl } = splitLines(text);
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  lines.push(line, '');
   return lines.join(nl);
 }
 

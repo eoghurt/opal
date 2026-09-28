@@ -38,14 +38,22 @@ their own Mac app with one click. File types live in file-types.json.
 - **Tasks** — Google Tasks-style lists in `Tasks/*.md` (Obsidian Tasks format),
   shown in the calendar and counted in the logbook.
 
+## v0.6 — Planning (done)
+- **Month view** — whole-month grid; drag events between days; click a date for its day.
+- **Repeating events** — every day / weekday / week / 2 weeks / month / year, with an
+  end date and skipped days, kept in `Calendar/Repeating.md`. Moving one asks
+  "just this one or every repeat?".
+- **Repeating tasks** — `🔁 every week` (Obsidian Tasks style); ticking one adds the next.
+- **Moving tasks** — drag to reorder or into another list, Option+↑/↓, or the List menu.
+
 ## Later, in no particular order
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
 - **Downloadable palettes** — get more palettes as small files in the vault.
 - **Spreadsheet and slide notes** — new file types via `src/editor-registry.js`.
 - **Search, columns view, canvas view.**
-- **Calendar extras** — month view, repeating events, reminders; timed tasks in the day grid.
-- **Tasks extras** — drag to reorder, repeating tasks, move tasks between lists.
+- **Calendar extras** — reminders (notifications); timed tasks in the day grid; custom repeats (e.g. Mon + Wed).
+- **Tasks extras** — drag subtasks, reorder lists, repeat "when done".
 - **Richer file viewing** — old .doc/.ppt/.xls files, HEIC photos, chart
   and SmartArt drawing in slides, speaker notes.
 - **Edit conflicts** — when a note is typed in Opal and changed elsewhere at

@@ -2,7 +2,7 @@
 // from things Opal already knows: each file's created and last-changed dates,
 // and the events in the calendar's day notes. Nothing extra is stored.
 
-import { dayKey, addDays, startOfWeek, parseEvents, keyToDate } from '../calendar/events.js';
+import { dayKey, addDays, startOfWeek, parseEvents, keyToDate, parseSeries, occurrences, REPEATS_PATH } from '../calendar/events.js';
 import { kindOf } from '../file-types.js';
 import { parseTasks } from '../tasks/tasks.js';
 
@@ -119,5 +119,20 @@ export async function loadEvents(files, range, readFile) {
       out[key] = [];
     }
   }));
+  // Repeating events count on each day they land on.
+  if (files.some((f) => f.path.toLowerCase() === REPEATS_PATH.toLowerCase())) {
+    let series = [];
+    try {
+      series = parseSeries(await readFile(REPEATS_PATH));
+    } catch {
+      // No repeats this time.
+    }
+    if (series.length) {
+      for (const key of daysIn(range)) {
+        const found = occurrences(series, key);
+        if (found.length) out[key] = [...(out[key] || []), ...found];
+      }
+    }
+  }
   return out;
 }

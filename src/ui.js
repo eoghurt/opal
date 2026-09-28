@@ -72,3 +72,42 @@ export function askName(label, placeholder = 'Name, then Enter', initial = '') {
     input.select();
   });
 }
+
+// Asks the user to pick one of a few buttons, in the same box as askName.
+// choices: [{ label, value }]. Resolves to the value, or null if cancelled.
+export function askChoice(label, choices) {
+  if (cancelOpenAsk) cancelOpenAsk();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      cancelOpenAsk = null;
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onOutside, true);
+      box.remove();
+      resolve(value);
+    };
+    const buttons = choices.map((c, i) => h('button', {
+      class: `ask-choice${i === 0 ? ' is-primary' : ''}`,
+      onclick: () => finish(c.value),
+    }, c.label));
+    const box = h('div', { class: 'ask', role: 'dialog', 'aria-label': label },
+      h('div', { class: 'mono-label' }, label),
+      h('div', { class: 'ask-choices' }, buttons, h('button', { class: 'ask-choice', onclick: () => finish(null) }, 'Cancel')));
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        finish(null);
+      }
+    };
+    const onOutside = (event) => {
+      if (!box.contains(event.target)) finish(null);
+    };
+    cancelOpenAsk = () => finish(null);
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onOutside, true);
+    document.body.append(box);
+    buttons[0].focus();
+  });
+}

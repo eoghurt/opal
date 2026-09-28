@@ -1,10 +1,15 @@
 // Tasks: Google Tasks-style lists shown side by side. Tick to complete, click
-// a task to edit its notes, due date, star and subtasks. Every change is
-// written straight back to the list's note (see tasks/tasks.js).
+// a task to edit its notes, due date, repeat, star and subtasks; drag tasks
+// (or Option+↑/↓) to reorder them or move them to another list. Every change
+// is written straight back to the list's note (see tasks/tasks.js).
 
 import { h, askName } from '../ui.js';
 import { makePanel } from '../panel.js';
-import { parseTasks, replaceTask, addTask, dueLabel, isOverdue, todayKey, DEFAULT_LIST } from '../tasks/tasks.js';
+import {
+  parseTasks, replaceTask, addTask, toggleTask, moveTask, takeTask, placeTask,
+  dueLabel, isOverdue, todayKey, DEFAULT_LIST,
+} from '../tasks/tasks.js';
+import { RULES, describeRule } from '../calendar/repeat.js';
 
 const PREFS_KEY = 'opal.tasks';
 
@@ -24,7 +29,7 @@ function savePrefs(prefs) {
   }
 }
 
-const blankTask = (title) => ({ title, done: false, due: null, time: null, starred: false, doneOn: null, details: [], subtasks: [] });
+const blankTask = (title) => ({ title, done: false, due: null, time: null, starred: false, repeat: null, doneOn: null, details: [], subtasks: [] });
 
 export class TasksView {
   // io: listNames(), readList(name) → text|null, writeList(name, text),
@@ -57,21 +62,39 @@ export class TasksView {
   }
 
   reload() {
+    if (this.dragging) return;
     if (this.root.contains(document.activeElement) && document.activeElement.matches('input, textarea')) return; // don't interrupt typing
     return this.load();
   }
 
   // ---------- Writing ----------
 
-  change(list, makeText) {
+  run(job) {
     this.writing = this.writing
-      .then(async () => {
-        const current = (await this.io.readList(list)) || '';
-        await this.io.writeList(list, makeText(current));
-      })
+      .then(job)
       .catch((err) => alert(`Couldn't save that task.\n\n${err.message}`))
       .then(() => this.load());
     return this.writing;
+  }
+
+  change(list, makeText) {
+    return this.run(async () => {
+      const current = (await this.io.readList(list)) || '';
+      await this.io.writeList(list, makeText(current));
+    });
+  }
+
+  // Moves a task to `where` ({ raw, after? } = next to that task; null = top)
+  // in list `dest`. Between lists it's added to the new one before it's taken
+  // out of the old one, so a failure never loses it.
+  moveTo(task, dest, where) {
+    if (this.isEditing(task)) this.editing = null;
+    if (dest === task.list) return this.change(task.list, (text) => moveTask(text, task, where));
+    return this.run(async () => {
+      const { block } = takeTask((await this.io.readList(task.list)) || '', task);
+      await this.io.writeList(dest, placeTask((await this.io.readList(dest)) || '', block, where, dest));
+      await this.io.writeList(task.list, takeTask((await this.io.readList(task.list)) || '', task).text);
+    });
   }
 
   updateTask(task, patch, keepEditing = false) {
@@ -81,8 +104,7 @@ export class TasksView {
   }
 
   toggle(task) {
-    const done = !task.done;
-    return this.updateTask(task, { done, doneOn: done ? todayKey() : null });
+    return this.change(task.list, (text) => toggleTask(text, task));
   }
 
   async addTo(list) {
@@ -175,6 +197,11 @@ export class TasksView {
         }
       }
     }
+    if (this.refocusTask) {
+      const main = [...this.root.querySelectorAll('.task-open .task-main')].find((m) => m.querySelector('.task-title').textContent === this.refocusTask);
+      this.refocusTask = null;
+      if (main) main.focus();
+    }
     makePanel(rail, { id: 'tasks-rail', side: 'left', label: 'Lists', width: 230, min: 180, max: 380 });
   }
 
@@ -191,14 +218,14 @@ export class TasksView {
       h('button', { class: 'task-col-btn', onclick: () => this.renameList(name), title: 'Rename list' }, 'Rename'),
       h('button', { class: 'task-col-btn', onclick: () => this.deleteList(name), title: 'Move this list’s note to the Trash' }, 'Delete'));
 
-    return h('section', { class: 'task-col', 'aria-label': name },
+    return h('section', { class: 'task-col', 'aria-label': name, 'data-list': starredView ? null : name },
       h('div', { class: 'task-col-head' },
         h('span', { class: 'display task-col-title' }, name),
         h('span', { class: 'mono-label' }, `${open.length}`),
         menu),
       starredView ? null : h('button', { class: 'task-add', onclick: () => this.addTo(name) }, h('span', { class: 'task-add-plus' }, '+'), 'Add a task'),
-      h('div', { class: 'task-items' },
-        open.length ? open.map((t) => this.taskEl(t, starredView))
+      h('div', { class: 'task-items task-open' },
+        open.length ? open.map((t, i) => this.taskEl(t, starredView, { prev: open[i - 1], next: open[i + 1] }))
           : h('p', { class: 'hand side-hint task-none' }, starredView ? 'star tasks to see them here' : 'all clear!')),
       done.length ? h('div', { class: 'task-done' },
         h('button', {
@@ -219,8 +246,10 @@ export class TasksView {
     return e.raw ? e.raw === task.raw : e.title === task.title && e.due === task.due;
   }
 
-  taskEl(task, showList) {
+  taskEl(task, showList, neighbours = null) {
     const editing = this.isEditing(task);
+    // Reordering only makes sense in "My order", and not in the Starred mix.
+    const movable = Boolean(neighbours) && !showList && this.sort === 'mine';
     const subDone = task.subtasks.filter((s) => s.done).length;
     const row = h('div', { class: `task${task.done ? ' is-done' : ''}${editing ? ' is-editing' : ''}` },
       h('button', {
@@ -232,16 +261,31 @@ export class TasksView {
       }, task.done ? '✓' : ''),
       h('button', {
         class: 'task-main',
-        onclick: () => {
+        title: movable ? 'Click to edit · drag to move (or Option+↑/↓)' : null,
+        onclick: (event) => {
+          if (event.currentTarget.dataset.dragged) {
+            delete event.currentTarget.dataset.dragged;
+            return;
+          }
           this.editing = editing ? null : { list: task.list, raw: task.raw };
           this.render();
           if (!editing) this.focusEditor();
         },
+        onkeydown: (event) => {
+          if (!movable || !event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+          event.preventDefault();
+          const other = event.key === 'ArrowUp' ? neighbours.prev : neighbours.next;
+          if (!other) return;
+          this.refocusTask = task.title;
+          this.moveTo(task, task.list, { raw: other.raw, after: event.key === 'ArrowDown' });
+        },
+        onpointerdown: movable ? (event) => this.startDrag(event, task, row) : null,
       },
       h('span', { class: 'task-title' }, task.title || 'Untitled'),
       task.details.length ? h('span', { class: 'task-details' }, task.details.join(' ')) : null,
       h('span', { class: 'task-meta' },
         task.due ? h('span', { class: `task-due${isOverdue(task) ? ' is-overdue' : ''}` }, isOverdue(task) ? `overdue · ${dueLabel(task.due, task.time)}` : dueLabel(task.due, task.time)) : null,
+        task.repeat ? h('span', { class: 'task-subcount' }, `↻ ${describeRule(task.repeat).replace(/^Every /, '').replace(/ \(.*\)$/, '')}`) : null,
         task.subtasks.length ? h('span', { class: 'task-subcount' }, `☐ ${subDone}/${task.subtasks.length}`) : null,
         showList ? h('span', { class: 'task-list-name' }, task.list) : null)),
       h('button', {
@@ -250,7 +294,82 @@ export class TasksView {
         'aria-pressed': String(task.starred),
         onclick: () => this.updateTask(task, { starred: !task.starred }),
       }, task.starred ? '★' : '☆'));
-    return editing ? h('div', { class: 'task-wrap' }, row, this.editor(task)) : row;
+    const el = editing ? h('div', { class: 'task-wrap' }, row, this.editor(task)) : row;
+    if (!task.done) el.dataset.raw = task.raw;
+    return el;
+  }
+
+  // ---------- Dragging ----------
+
+  startDrag(down, task, row) {
+    if (down.button !== 0) return;
+    const handle = down.currentTarget;
+    handle.setPointerCapture(down.pointerId);
+    const source = row.closest('[data-raw]') || row;
+    let ghost = null;
+    let line = null;
+    let drop = null;
+
+    const place = (e) => {
+      const col = document.elementsFromPoint(e.clientX, e.clientY).map((n) => n.closest && n.closest('.task-col[data-list]')).find(Boolean);
+      if (line) line.remove();
+      drop = null;
+      if (!col) return;
+      const items = col.querySelector('.task-open');
+      const rows = [...items.querySelectorAll(':scope > [data-raw]')].filter((r) => r !== source);
+      const before = rows.find((r) => {
+        const box = r.getBoundingClientRect();
+        return e.clientY < box.top + box.height / 2;
+      });
+      line = h('div', { class: 'task-drop-line', 'aria-hidden': 'true' });
+      if (before) items.insertBefore(line, before);
+      else items.append(line);
+      const last = rows[rows.length - 1];
+      drop = {
+        list: col.dataset.list,
+        where: before ? { raw: before.dataset.raw } : last ? { raw: last.dataset.raw, after: true } : null,
+      };
+    };
+
+    const move = (e) => {
+      const dx = e.clientX - down.clientX;
+      const dy = e.clientY - down.clientY;
+      if (!ghost) {
+        if (Math.hypot(dx, dy) < 5) return;
+        const box = source.getBoundingClientRect();
+        ghost = source.cloneNode(true);
+        ghost.classList.add('task-ghost');
+        ghost.style.cssText = `left: ${box.left}px; top: ${box.top}px; width: ${box.width}px;`;
+        document.body.append(ghost);
+        source.classList.add('is-moving');
+        this.dragging = true;
+      }
+      ghost.style.transform = `translate(${dx}px, ${dy}px) rotate(-1.2deg)`;
+      place(e);
+    };
+
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      if (!ghost) return;
+      handle.dataset.dragged = '1'; // the click that follows isn't an "edit"
+      setTimeout(() => delete handle.dataset.dragged, 0);
+      ghost.remove();
+      if (line) line.remove();
+      source.classList.remove('is-moving');
+      this.dragging = false;
+      if (!drop) return;
+      const unchanged = drop.list === task.list && drop.where
+        && ((!drop.where.after && source.nextElementSibling && source.nextElementSibling.dataset.raw === drop.where.raw)
+          || (drop.where.after && source.previousElementSibling && source.previousElementSibling.dataset.raw === drop.where.raw));
+      if (unchanged) return;
+      this.moveTo(task, drop.list, drop.where);
+    };
+
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
   }
 
   editor(task) {
@@ -264,6 +383,17 @@ export class TasksView {
     date.addEventListener('change', () => save({ due: date.value || null, time: date.value ? task.time : null }));
     const time = h('input', { type: 'time', class: 'task-edit-date', value: task.time || '', 'aria-label': 'Time', disabled: !task.due });
     time.addEventListener('change', () => save({ time: time.value || null }));
+
+    const repeat = h('select', { class: 'task-edit-date task-edit-select', 'aria-label': 'Repeat' },
+      h('option', { value: '' }, 'Does not repeat'),
+      RULES.map((rule) => h('option', { value: rule }, describeRule(rule, task.due))));
+    repeat.value = task.repeat || '';
+    // A repeating task needs a date to count from: today, if it has none.
+    repeat.addEventListener('change', () => save({ repeat: repeat.value || null, due: task.due || (repeat.value ? todayKey() : null) }));
+    const listMenu = h('select', { class: 'task-edit-date task-edit-select', 'aria-label': 'List' },
+      Object.keys(this.lists).map((name) => h('option', { value: name }, name)));
+    listMenu.value = task.list;
+    listMenu.addEventListener('change', () => this.moveTo(task, listMenu.value, null));
 
     const subtasks = h('div', { class: 'task-subs' },
       task.subtasks.map((sub, i) => {
@@ -295,6 +425,12 @@ export class TasksView {
         date,
         time,
         task.due ? h('button', { class: 'task-col-btn', onclick: () => save({ due: null, time: null }) }, 'Clear') : null),
+      h('div', { class: 'task-edit-row' },
+        h('span', { class: 'mono-label' }, 'Repeat'),
+        repeat),
+      h('div', { class: 'task-edit-row' },
+        h('span', { class: 'mono-label' }, 'List'),
+        listMenu),
       h('span', { class: 'mono-label' }, 'Subtasks'),
       subtasks,
       addSub,

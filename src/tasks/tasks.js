@@ -6,8 +6,11 @@
 //       - [ ] Check the drawer first   ← subtask (indented checkbox)
 //   - [x] Return library books ✅ 2026-09-27
 //
-// 📅 due date, ⏰ time, ⭐ starred, ✅ date it was done. Anything else in the
-// note (headings, text) is left alone.
+// 📅 due date, ⏰ time, ⭐ starred, ✅ date it was done, 🔁 repeat (e.g.
+// "🔁 every week" — ticking it off adds the next one, as Obsidian Tasks does).
+// Anything else in the note (headings, text) is left alone.
+
+import { RULE_TEXT, normaliseRule, nextDate } from '../calendar/repeat.js';
 
 export const TASKS_FOLDER = 'Tasks';
 export const DEFAULT_LIST = 'My Tasks';
@@ -17,6 +20,7 @@ const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})/;
 const TIME = /\s*⏰\s*(\d{1,2}:\d{2})/;
 const DONE_ON = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
 const STAR = /\s*⭐️?/;
+const REPEAT = new RegExp(`\\s*🔁\\s*${RULE_TEXT.source}`, 'i');
 
 const indentOf = (line) => /^\s*/.exec(line)[0].replace(/\t/g, '    ').length;
 
@@ -24,12 +28,14 @@ function parseLine(body) {
   const due = DUE.exec(body);
   const time = TIME.exec(body);
   const doneOn = DONE_ON.exec(body);
+  const repeat = REPEAT.exec(body);
   return {
+    repeat: repeat ? normaliseRule(repeat[1]) : null,
     due: due ? due[1] : null,
     time: time ? time[1].padStart(5, '0') : null,
     doneOn: doneOn ? doneOn[1] : null,
     starred: STAR.test(body),
-    title: body.replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
+    title: body.replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
   };
 }
 
@@ -71,6 +77,7 @@ export function parseTasks(text, list) {
 
 function formatHead(task, indent = '') {
   const parts = [`${indent}- [${task.done ? 'x' : ' '}] ${task.title.trim()}`];
+  if (task.repeat) parts.push(`🔁 ${task.repeat}`);
   if (task.due) parts.push(`📅 ${task.due}`);
   if (task.due && task.time) parts.push(`⏰ ${task.time}`);
   if (task.starred) parts.push('⭐');
@@ -82,7 +89,7 @@ export function formatTask(task) {
   return [
     formatHead(task),
     ...task.details.filter((d) => d.trim()).map((d) => `    ${d.trim()}`),
-    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, starred: false }, '    ')),
+    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, starred: false, repeat: null }, '    ')),
   ];
 }
 
@@ -112,6 +119,60 @@ export function replaceTask(text, task, next) {
   const end = blockEnd(lines, start);
   lines.splice(start, end - start, ...(next ? formatTask(next) : []));
   return lines.join(nl);
+}
+
+// Ticks a task off (or back on). A repeating task gets its next copy, due
+// on the next date, added just above the finished one.
+export function toggleTask(text, task, today = todayKey()) {
+  if (task.done || !task.repeat) {
+    const done = !task.done;
+    return replaceTask(text, task, { ...task, done, doneOn: done ? today : null });
+  }
+  const { lines, nl } = split(text);
+  const start = locate(lines, task);
+  const end = blockEnd(lines, start);
+  const next = {
+    ...task,
+    due: nextDate(task.repeat, task.due || today),
+    subtasks: task.subtasks.map((s) => ({ ...s, done: false, doneOn: null })),
+  };
+  const finished = { ...task, done: true, doneOn: today, repeat: null };
+  lines.splice(start, end - start, ...formatTask(next), ...formatTask(finished));
+  return lines.join(nl);
+}
+
+// Takes a task out of its list: returns the list without it and its lines.
+export function takeTask(text, task) {
+  const { lines, nl } = split(text);
+  const start = locate(lines, task);
+  const end = blockEnd(lines, start);
+  const block = lines.splice(start, end - start);
+  return { text: lines.join(nl), block };
+}
+
+// Puts a task's lines back in a list: before (or after) another task, found
+// by its first line, or at the top when there's no such task.
+export function placeTask(text, block, where, listName) {
+  const { lines, nl } = split(text);
+  const target = where ? lines.findIndex((l) => l === where.raw && TASK_LINE.test(l) && indentOf(l) <= 1) : -1;
+  if (target === -1) {
+    const task = { title: '', details: [], subtasks: [] };
+    // Reuse addTask's rules for where "the top" is, then swap in the real lines.
+    const marker = '\u0000opal-move\u0000';
+    return addTask(text, { ...task, title: marker }, listName)
+      .split(/\r?\n/)
+      .flatMap((l) => (l.includes(marker) ? block : [l]))
+      .join(nl);
+  }
+  const at = where.after ? blockEnd(lines, target) : target;
+  lines.splice(at, 0, ...block);
+  return lines.join(nl);
+}
+
+// Moves a task within one list.
+export function moveTask(text, task, where) {
+  const taken = takeTask(text, task);
+  return placeTask(taken.text, taken.block, where, task.list);
 }
 
 // Adds a new task at the top of the list (after the title), like Google Tasks.

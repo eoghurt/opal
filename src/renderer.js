@@ -25,8 +25,8 @@ import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
 import { TasksView } from './views/tasks-view.js';
-import { TASKS_FOLDER, parseTasks, replaceTask, todayKey } from './tasks/tasks.js';
-import { CALENDAR_FOLDER, dayPath, keyToDate } from './calendar/events.js';
+import { TASKS_FOLDER, parseTasks, toggleTask } from './tasks/tasks.js';
+import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate } from './calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
 import { applyPalette } from './palettes.js';
@@ -424,6 +424,18 @@ function showCalendar(date) {
         const path = await window.opal.createNote(key, CALENDAR_FOLDER);
         openFile(path);
       },
+      readRepeats: async () => {
+        try {
+          return await window.opal.readFile(REPEATS_PATH);
+        } catch {
+          return '';
+        }
+      },
+      writeRepeats: async (text) => {
+        await window.opal.createFolder(CALENDAR_FOLDER, '');
+        const path = await window.opal.createNote(REPEATS_NAME, CALENDAR_FOLDER);
+        await window.opal.writeFile(path, text);
+      },
       openLink: (target) => openLink(target),
       loadTasks: loadDueTasks,
       toggleTask: toggleTaskDone,
@@ -472,8 +484,7 @@ async function loadDueTasks() {
 
 async function toggleTaskDone(task) {
   const text = (await readTaskList(task.list)) || '';
-  const done = !task.done;
-  await writeTaskList(task.list, replaceTask(text, task, { ...task, done, doneOn: done ? todayKey() : null }));
+  await writeTaskList(task.list, toggleTask(text, task));
 }
 
 function showTasks() {
