@@ -19,12 +19,13 @@ import { FileView } from './views/file-view.js';
 import { fileUrl } from './file-types.js';
 import { StickyLayer } from './sticky-layer.js';
 import { CalendarView } from './views/calendar-view.js';
-import { CALENDAR_FOLDER, dayPath } from './calendar/events.js';
+import { LogbookView } from './views/logbook-view.js';
+import { CALENDAR_FOLDER, dayPath, keyToDate } from './calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
 import { applyPalette } from './palettes.js';
 import { askName, h, scribbleArrow } from './ui.js';
-import { findFile, findFolder, recentFiles } from './tree.js';
+import { findFile, findFolder, recentFiles, flattenFiles } from './tree.js';
 import { noteName, parentOf } from './format.js';
 
 const viewEl = document.getElementById('view');
@@ -51,6 +52,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onPalettes: () => showPalettes(),
   onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
+  onLogbook: () => showLogbook(),
 });
 
 // ---------- Everything happens one step at a time ----------
@@ -78,9 +80,16 @@ let homeStickies = null;
 let calendar = null;
 let calendarState = { date: new Date(), mode: 'day' };
 
+// The logbook on screen (and where it was last left).
+let logbook = null;
+let logbookState = { kind: 'month', date: new Date() };
+
+// Called whenever another screen takes over.
 function leaveCalendar() {
   if (calendar) calendar.destroy();
   calendar = null;
+  if (logbook) logbook.destroy();
+  logbook = null;
 }
 
 async function flushHomeStickies() {
@@ -406,6 +415,33 @@ function showCalendar(date) {
   });
 }
 
+// ---------- Logbook ----------
+
+function showLogbook() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'logbook' };
+    setTitle('Logbook');
+    sidebar.setActive(null, null);
+    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Logbook' }]);
+    viewEl.scrollTop = 0;
+    logbook = new LogbookView(viewEl, {
+      kind: logbookState.kind,
+      date: logbookState.date,
+      getFiles: () => flattenFiles(tree),
+      readFile: (path) => window.opal.readFile(path),
+      openFile: (path) => openFile(path),
+      openCalendarDay: (key) => {
+        calendarState = { ...calendarState, mode: 'day' };
+        showCalendar(keyToDate(key));
+      },
+      onChange: (state) => { logbookState = state; },
+    });
+  });
+}
+
 // Follows a [[link]]: main finds the note (or creates it), then we open it.
 async function openLink(target) {
   try {
@@ -470,6 +506,8 @@ function refreshFiles() {
 
     if (screen.kind === 'calendar' && calendar) {
       calendar.reload();
+    } else if (screen.kind === 'logbook' && logbook) {
+      logbook.reload();
     } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
       await flushHomeStickies();
@@ -591,6 +629,7 @@ window.opal.onNewFolderRequest(newFolder);
 window.opal.onGoHome(() => vault && openFolder(''));
 window.opal.onShowPalettes(showPalettes);
 window.opal.onShowCalendar(() => showCalendar());
+window.opal.onShowLogbook(() => showLogbook());
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
 

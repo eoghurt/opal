@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('opal', {
   onGoHome: (callback) => ipcRenderer.on('ui:go-home', () => callback()),
   onShowPalettes: (callback) => ipcRenderer.on('ui:show-palettes', () => callback()),
   onShowCalendar: (callback) => ipcRenderer.on('ui:show-calendar', () => callback()),
+  onShowLogbook: (callback) => ipcRenderer.on('ui:show-logbook', () => callback()),
 
   // Main asks the window to save before quitting or switching vaults.
   // `callback` returns a promise; main is told whether saving succeeded.

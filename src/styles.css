@@ -1707,3 +1707,114 @@ button.pdf-tool:hover { background: var(--c2); }
 .cal-pop-btn.is-primary { background: var(--ink); color: var(--paper); }
 .cal-pop-btn.is-danger:hover { background: #D7263D; color: var(--white); }
 .cal-event-link { font-family: var(--mono); font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Logbook ---------- */
+.logbook { position: relative; min-height: 100%; display: flex; flex-direction: column; }
+
+.lb-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: var(--rule); background: var(--paper); }
+.lb-tile { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 4px; border-right: var(--rule); }
+.lb-tile:last-child { border-right: 0; }
+.lb-number { font-size: 52px; line-height: 1; letter-spacing: -0.04em; }
+.lb-change { font-family: var(--mono); font-size: 11px; }
+.lb-hint { font-size: 14px; color: var(--ink-3); }
+
+.lb-body { flex-grow: 1; display: flex; }
+.lb-main { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
+.lb-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lb-row .lb-panel + .lb-panel { border-left: var(--rule); }
+.lb-panel { padding: 14px 20px 18px; border-bottom: var(--rule); background: var(--paper-2); display: flex; flex-direction: column; gap: 12px; }
+.lb-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lb-h2 { margin: 0; font-size: 24px; }
+.lb-footnote { margin: 0; padding: 10px 20px 24px; font-size: 15px; color: var(--ink-3); }
+
+.lb-legend { display: flex; align-items: center; gap: 3px; }
+.lb-legend .lb-cell { width: 12px; height: 12px; }
+.lb-legend .mono-label { margin: 0 4px; }
+
+.lb-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  border: 1px solid rgba(22, 20, 15, 0.12);
+  background: var(--white);
+}
+
+.lb-cell.lvl-1 { background: rgba(22, 20, 15, 0.16); border-color: transparent; }
+.lb-cell.lvl-2 { background: rgba(22, 20, 15, 0.36); border-color: transparent; }
+.lb-cell.lvl-3 { background: rgba(22, 20, 15, 0.6); border-color: transparent; }
+.lb-cell.lvl-4 { background: rgba(22, 20, 15, 0.9); border-color: transparent; }
+.lb-cell.is-blank { background: transparent; border-color: transparent; }
+button.lb-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
+.lb-cell.is-selected { outline: 2px solid var(--c1); outline-offset: 1px; box-shadow: 0 0 0 1px var(--ink); }
+
+.lb-year { display: flex; flex-direction: column; gap: 4px; }
+.lb-months { display: grid; margin-left: 26px; gap: 3px; }
+.lb-months .mono-label { font-size: 9px; }
+.lb-year-grid { display: flex; gap: 6px; }
+.lb-weekdays { width: 20px; display: grid; grid-template-rows: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.lb-weekdays .mono-label { font-size: 8.5px; display: flex; align-items: center; }
+.lb-weeks { flex-grow: 1; display: grid; gap: 3px; }
+.lb-week { display: grid; grid-template-rows: repeat(7, auto); gap: 3px; }
+
+.lb-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; max-width: 760px; }
+.lb-cal-wd { text-align: center; }
+.lb-cell.is-big { aspect-ratio: auto; height: 58px; display: flex; align-items: flex-start; justify-content: flex-end; padding: 5px 7px; }
+.lb-daynum { font-family: var(--mono); font-size: 11px; }
+.lb-cell.lvl-3 .lb-daynum, .lb-cell.lvl-4 .lb-daynum { color: var(--paper); }
+
+.lb-bars { display: flex; flex-direction: column; gap: 8px; }
+.lb-bar-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 32px; align-items: center; gap: 10px; font-size: 13px; }
+.lb-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-bar-track { height: 16px; }
+.lb-bar-fill { display: block; height: 100%; min-width: 3px; background: var(--c3); border: 1.5px solid var(--ink); border-radius: 0 3px 3px 0; }
+.lb-bar-value { font-family: var(--mono); font-size: 11px; text-align: right; }
+
+.lb-cols { display: grid; gap: 3px; height: 190px; align-items: stretch; }
+.lb-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lb-col-area { flex-grow: 1; position: relative; display: flex; flex-direction: column; justify-content: flex-end; }
+.lb-col-fill { display: block; min-height: 0; background: var(--ink); border-radius: 3px 3px 0 0; }
+.lb-col:hover .lb-col-fill, .lb-col.is-selected .lb-col-fill { background: var(--c1); outline: 1.5px solid var(--ink); }
+.lb-col-peak { position: absolute; left: 50%; transform: translate(-50%, -100%); font-family: var(--mono); font-size: 10.5px; padding-bottom: 2px; }
+.lb-col-peak { bottom: auto; }
+.lb-col-label { font-family: var(--mono); font-size: 9.5px; text-align: center; color: var(--ink-3); }
+
+.lb-detail {
+  width: 300px;
+  flex-shrink: 0;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: var(--rule);
+  background: var(--paper);
+}
+
+.lb-detail-title { font-size: 34px; line-height: 1; }
+.lb-groups { display: flex; flex-direction: column; gap: 12px; margin: 10px 0; }
+.lb-group { display: flex; flex-direction: column; gap: 2px; }
+.lb-group .mono-label { padding-bottom: 4px; border-bottom: var(--hair); margin-bottom: 2px; }
+.lb-item { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 8px; padding: 5px 0; text-align: left; font-size: 13px; }
+.lb-item:hover .lb-item-label { text-decoration: underline; }
+.lb-item-mark { font-family: var(--mono); font-size: 11px; grid-row: span 2; }
+.lb-item-label { overflow-wrap: anywhere; }
+.lb-item-meta { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-3); }
+
+.lb-tip {
+  position: absolute;
+  z-index: 30;
+  padding: 5px 9px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+@media (max-width: 1320px) {
+  .lb-detail { width: 240px; }
+  .lb-row { grid-template-columns: minmax(0, 1fr); }
+  .lb-row .lb-panel + .lb-panel { border-left: 0; }
+}
+.lb-cell.is-future { opacity: 0.35; border-style: dashed; }
