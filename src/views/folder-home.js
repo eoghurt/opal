@@ -5,7 +5,7 @@
 import { h, scribbleArrow } from '../ui.js';
 import { slotFor } from '../palettes.js';
 import { noteName, relativeDay, shortDate, pad2 } from '../format.js';
-import { countNotes, latestModified } from '../tree.js';
+import { countNotes, latestModified, recentFiles } from '../tree.js';
 import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-types.js';
 
 // Four card looks, picked per note so the page feels hand-assembled but stays
@@ -53,12 +53,17 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   const sections = [head];
   if (notice) sections.unshift(h('div', { class: 'home-notice' }, notice));
 
+  const previewSlots = new Map(); // note path → elements waiting for its preview text
+  const wantPreview = (path, el) => {
+    if (!previewSlots.has(path)) previewSlots.set(path, []);
+    previewSlots.get(path).push(el);
+  };
+
   if (subfolders.length) {
     sections.push(h('section', { class: 'home-folders', 'aria-label': `Folders in ${folder.name}` },
-      subfolders.map((sub) => folderTile(sub, onOpenFolder))));
+      subfolders.map((sub) => folderTile(sub, onOpenFolder, wantPreview))));
   }
 
-  const previewSlots = new Map();
   if (files.length) {
     sections.push(h('section', { class: 'home-cards', 'aria-label': `Notes in ${folder.name}` },
       files.map((file) => {
@@ -66,7 +71,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
         if (kind === 'image') return photoCard(file, onOpenFile);
         if (kind !== 'note') return fileCard(file, kind, onOpenFile);
         const preview = h('span', { class: 'card-preview' });
-        previewSlots.set(file.path, preview);
+        wantPreview(file.path, preview);
         return noteCard(file, preview, onOpenFile);
       })));
   } else {
@@ -84,7 +89,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   if (folderNote && !wanted.includes(folderNote.path)) wanted.push(folderNote.path);
   if (wanted.length) {
     getPreviews(wanted).then((previews) => {
-      for (const [p, el] of previewSlots) el.textContent = previews[p] || '';
+      for (const [p, els] of previewSlots) els.forEach((el) => { el.textContent = previews[p] || ''; });
       if (folderNote) {
         const first = (previews[folderNote.path] || '').split(/(?<=[.!?])\s/)[0];
         description.textContent = first || `${folder.name} has a folder note — write a line in it.`;
@@ -93,18 +98,38 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   }
 }
 
-function folderTile(folder, onOpenFolder) {
+// The sheets peeking out of a folder show its two most recently edited files
+// (front sheet = newest). Empty folders show blank paper.
+function folderTile(folder, onOpenFolder, wantPreview) {
   const slot = slotFor(folder.path);
   const latest = latestModified(folder);
+  const [newest, next] = recentFiles(folder.children, 2);
   return h('button', { class: 'folder-tile', onclick: () => onOpenFolder(folder.path) },
-    h('span', { class: 'folder-sheet sheet-a', 'aria-hidden': 'true' }),
-    h('span', { class: 'folder-sheet sheet-b', 'aria-hidden': 'true' }),
+    h('span', { class: 'folder-sheet sheet-a', 'aria-hidden': 'true' }, next ? sheetPreview(next, wantPreview) : null),
+    h('span', { class: 'folder-sheet sheet-b', 'aria-hidden': 'true' }, newest ? sheetPreview(newest, wantPreview) : null),
     h('span', { class: 'folder-tab', style: `background: var(--c${slot})` }),
     h('span', { class: 'folder-body', style: `background: var(--c${slot})` },
       h('span', { class: 'display folder-name' }, folder.name),
       h('span', { class: 'folder-foot' },
         h('span', { class: 'serif-i' }, latest ? `edited ${relativeDay(latest)}` : 'empty'),
         h('span', { class: 'folder-count' }, pad2(countNotes(folder))))));
+}
+
+// A tiny version of a file for a folder sheet.
+function sheetPreview(file, wantPreview) {
+  const kind = kindOf(file.path);
+  const name = noteName(file.path).replace(/\.[^.]+$/, '');
+  if (kind === 'image') {
+    return h('img', { class: 'sheet-photo', src: fileUrl(file.path, file.modified), alt: '', loading: 'lazy', decoding: 'async' });
+  }
+  if (kind === 'note') {
+    const text = h('span', { class: 'sheet-text' });
+    wantPreview(file.path, text);
+    return h('span', { class: 'sheet-page' }, h('span', { class: 'sheet-title' }, name), text);
+  }
+  return h('span', { class: 'sheet-page' },
+    h('span', { class: 'sheet-kind' }, extensionOf(file.path).slice(1).toUpperCase()),
+    h('span', { class: 'sheet-title' }, name));
 }
 
 // Pictures look like a taped-in polaroid.

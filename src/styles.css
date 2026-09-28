@@ -1393,3 +1393,42 @@ button.pdf-tool:hover { background: var(--c2); }
 @media (max-width: 1320px) {
   .note-right { display: none; }
 }
+
+/* Folder sheets: tiny previews of the newest files inside */
+.folder-sheet { overflow: hidden; }
+.sheet-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 7px;
+  height: 100%;
+  text-align: left;
+}
+.sheet-title {
+  font-family: var(--display);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sheet-text {
+  font-size: 5.5px;
+  line-height: 1.35;
+  color: var(--ink-2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+}
+.sheet-kind {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 6.5px;
+  padding: 0 3px;
+  border: 1px solid var(--ink);
+  background: var(--c2);
+}
+.sheet-photo { display: block; width: 100%; height: 100%; object-fit: cover; }
