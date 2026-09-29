@@ -1,15 +1,19 @@
 // The table you edit inside a note. Type straight into cells (Tab moves on,
 // Tab in the last cell adds a row); drag across cells or Shift-click to
 // select several; drag the edges between columns or under rows to resize.
-// The toolbar above the table does the rest: rows, columns, merge/split,
-// fill and text colour, alignment, margins, borders and the header row.
+// The toolbar above the table (and a right-click menu on any cell) does the
+// rest, like Word: rows and columns, merge/split, shading and text colour,
+// alignment, table styles, borders and margins, and layout (header row, even
+// sizes, autofit, centring, sorting). Arrow keys move between cells.
 // Every change is written back into the note as HTML (see table-model.js).
 
 import { h } from '../ui.js';
+import { showMenu, closeMenu } from '../context-menu.js';
 import { EVENT_COLORS, isDark } from '../calendar/events.js';
 import {
   parseTable, serializeTable, tableStyle, cellStyle, cellAt, cellsIn, expandRect,
   insertRow, insertCol, deleteRows, deleteCols, merge, split, cleanCellHtml, MIN_COL, MIN_ROW,
+  TABLE_STYLES, designFill, designText, sortRows,
 } from './table-model.js';
 
 const COMMIT_DELAY = 400;
@@ -41,13 +45,14 @@ export class TableEditor {
     this.toolbar = h('div', { class: 'otable-bar', role: 'toolbar', 'aria-label': 'Table tools' });
     this.scroll = h('div', { class: 'otable-scroll' });
     this.handles = h('div', { class: 'otable-handles' });
-    this.root.append(this.toolbar, this.scroll);
+    this.root.append(this.scroll); // the toolbar goes in the note's ribbon (see ribbon.js)
     this.listen();
     this.load(source);
   }
 
   destroy() {
     this.flush();
+    this.announce(false);
     if (this.resizeObserver) this.resizeObserver.disconnect();
   }
 
@@ -57,6 +62,24 @@ export class TableEditor {
     this.anchor = null;
     this.focusSlot = null;
     this.render();
+  }
+
+  // Tells the ribbon this table is (or isn't) the one being edited, so it can
+  // show the table's tools in its Table row.
+  announce(active) {
+    if (active) {
+      TableEditor.active = this;
+      window.dispatchEvent(new CustomEvent('opal:table', { detail: this }));
+    } else if (TableEditor.active === this) {
+      TableEditor.active = null;
+      window.dispatchEvent(new CustomEvent('opal:table', { detail: null }));
+    }
+  }
+
+  // Is the focus in this table, or in one of its menus?
+  holdsFocus() {
+    const el = document.activeElement;
+    return Boolean(el && (this.root.contains(el) || (this.popover && this.popover.contains(el)) || this.toolbar.contains(el)));
   }
 
   // ---------- Saving ----------
@@ -160,6 +183,66 @@ export class TableEditor {
     }
   }
 
+  // The cell an arrow key should move to, or null if the cursor isn't at the
+  // edge of the text yet (then the key just moves within the cell).
+  neighbour(cell, key, el) {
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !sel.isCollapsed) return null;
+    const range = sel.getRangeAt(0);
+    const before = document.createRange();
+    before.selectNodeContents(el);
+    before.setEnd(range.startContainer, range.startOffset);
+    const atStart = before.toString().length === 0;
+    const atEnd = before.toString().length >= el.textContent.length;
+    let onFirstLine = atStart;
+    let onLastLine = atEnd;
+    const caret = range.getClientRects()[0];
+    if (caret) {
+      const box = el.getBoundingClientRect();
+      const line = parseFloat(getComputedStyle(el).lineHeight) || 20;
+      const padTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
+      const padBottom = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+      onFirstLine = onFirstLine || caret.top - (box.top + padTop) < line * 0.8;
+      onLastLine = onLastLine || (box.bottom - padBottom) - caret.bottom < line * 0.8;
+    }
+    const t = this.model;
+    let r = cell.r;
+    let c = cell.c;
+    if (key === 'ArrowUp' && onFirstLine) r = cell.r - 1;
+    else if (key === 'ArrowDown' && onLastLine) r = cell.r + cell.rs;
+    else if (key === 'ArrowLeft' && atStart) c = cell.c - 1;
+    else if (key === 'ArrowRight' && atEnd) c = cell.c + cell.cs;
+    else return null;
+    if (r < 0 || r >= t.rows || c < 0 || c >= t.cols) return null;
+    return cellAt(t, r, c);
+  }
+
+  // Text formatting from the ribbon while typing in a cell: bold, italic,
+  // underline, strikethrough and highlight (kept as <b> <i> <u> <s> <mark>).
+  format(kind) {
+    const el = document.activeElement;
+    const cell = this.cellOf(el);
+    if (!cell) return false;
+    if (kind === 'highlight') {
+      const sel = window.getSelection();
+      if (!sel.rangeCount || sel.isCollapsed) return true;
+      const range = sel.getRangeAt(0);
+      const inMark = range.commonAncestorContainer.parentElement?.closest('mark');
+      if (inMark && el.contains(inMark)) {
+        inMark.replaceWith(...inMark.childNodes);
+      } else {
+        const mark = document.createElement('mark');
+        mark.append(range.extractContents());
+        range.insertNode(mark);
+      }
+    } else {
+      document.execCommand({ bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strikeThrough' }[kind]);
+    }
+    cell.html = cleanCellHtml(el);
+    this.scheduleCommit();
+    return true;
+  }
+
   focusCell(r, c, atEnd = true) {
     const cell = cellAt(this.model, r, c);
     const el = cell && this.cellEls.get(cell.id);
@@ -193,13 +276,13 @@ export class TableEditor {
         this.paintSelection();
       }
       root.classList.add('is-active');
+      this.announce(true);
     });
     root.addEventListener('focusout', (event) => {
-      if (root.contains(event.relatedTarget)) return;
+      const to = event.relatedTarget;
+      if (to && (root.contains(to) || this.toolbar.contains(to) || (this.popover && this.popover.contains(to)))) return;
       this.flush();
-      setTimeout(() => {
-        if (!root.contains(document.activeElement) && !this.popover) root.classList.remove('is-active');
-      }, 0);
+      setTimeout(() => this.leaveIfDone(), 0);
     });
 
     // Drag across cells (or Shift-click) to select several.
@@ -283,11 +366,30 @@ export class TableEditor {
         // Clears every selected cell, like a spreadsheet.
         event.preventDefault();
         this.change(() => { for (const x of this.selectedCells()) x.html = ''; });
+      } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.shiftKey && !event.metaKey && !event.altKey && !event.ctrlKey) {
+        // At the edge of a cell's text, the arrow keys move to the next cell (like Word).
+        const target = this.neighbour(cell, event.key, event.target);
+        if (target) {
+          event.preventDefault();
+          this.flush();
+          this.anchor = { r: target.r, c: target.c };
+          this.focusSlot = null;
+          this.paintSelection();
+          this.focusCell(target.r, target.c, event.key === 'ArrowLeft' || event.key === 'ArrowUp');
+        }
       } else if (event.key === 'Escape') {
         this.anchor = null;
         this.paintSelection();
         event.target.blur();
       }
+    });
+
+    // Right-click a cell for the table's menu.
+    root.addEventListener('contextmenu', (event) => {
+      const cell = this.cellOf(event.target);
+      if (!cell) return;
+      this.flush();
+      this.cellMenu(event, cell);
     });
 
     // Pasting keeps just the text, so nothing odd comes along with it.
@@ -351,29 +453,22 @@ export class TableEditor {
 
     this.toolbar.replaceChildren(
       group(null,
-        btn('+▲', 'Insert row above', () => this.change(() => insertRow(t, this.rect().r1), this.rect().r1, this.rect().c1)),
-        btn('+▼', 'Insert row below', () => { const r = this.rect(); this.change(() => insertRow(t, r.r2 + 1), r.r2 + 1, r.c1); }),
-        btn('−row', 'Delete row', () => { const r = this.rect(); if (!deleteRows(t, r.r1, r.r2)) return this.deleteTable(); return this.change(() => {}, Math.min(r.r1, t.rows - 1), r.c1); })),
-      group(null,
-        btn('+◀', 'Insert column left', () => this.change(() => insertCol(t, this.rect().c1), this.rect().r1, this.rect().c1)),
-        btn('+▶', 'Insert column right', () => { const r = this.rect(); this.change(() => insertCol(t, r.c2 + 1), r.r1, r.c2 + 1); }),
-        btn('−col', 'Delete column', () => { const r = this.rect(); if (!deleteCols(t, r.c1, r.c2)) return this.deleteTable(); return this.change(() => {}, r.r1, Math.min(r.c1, t.cols - 1)); })),
+        btn('↑ Row', 'Insert row above', () => this.insertRows('above')),
+        btn('↓ Row', 'Insert row below', () => this.insertRows('below')),
+        btn('← Column', 'Insert column left', () => this.insertCols('left')),
+        btn('→ Column', 'Insert column right', () => this.insertCols('right')),
+        btn('Delete ▾', 'Delete rows, columns or the table', (e) => this.menuPopover(e.currentTarget, 'Delete', () => [
+          btn('Delete rows', 'Delete the selected rows', () => { this.closePopover(); this.deleteSelectedRows(); }, { cls: 'is-wide' }),
+          btn('Delete columns', 'Delete the selected columns', () => { this.closePopover(); this.deleteSelectedCols(); }, { cls: 'is-wide' }),
+          btn('Clear cells', 'Empty the selected cells', () => { this.closePopover(); this.change(() => { for (const x of this.selectedCells()) x.html = ''; }); }, { cls: 'is-wide' }),
+          btn('Delete table', 'Delete the whole table', () => { this.closePopover(); this.deleteTable(); }, { anyTime: true, cls: 'is-wide is-danger' }),
+        ]))),
       group(null,
         // One button: "Merge" with several cells selected, "Split" on a merged cell.
-        btn('Merge', 'Merge selected cells', () => {
-          const r = this.rect();
-          if (this.isMulti()) {
-            this.anchor = { r: r.r1, c: r.c1 };
-            this.focusSlot = null;
-            this.change(() => merge(t, r), r.r1, r.c1);
-          } else {
-            this.change(() => split(t, r));
-          }
-        }, { needs: 'merge-split', cls: 'otable-merge' })),
+        btn('Merge', 'Merge selected cells', () => this.mergeOrSplit(), { needs: 'merge-split', cls: 'otable-merge' })),
       group(null,
-        btn(h('span', { class: 'otable-fill-icon' }, 'Fill'), 'Cell colour', (e) => this.colorPopover(e.currentTarget, 'bg')),
-        btn(h('span', { class: 'otable-text-icon' }, 'A'), 'Text colour', (e) => this.colorPopover(e.currentTarget, 'color'))),
-      group(null,
+        btn(h('span', { class: 'otable-fill-icon' }, 'Shading'), 'Cell shading', (e) => this.colorPopover(e.currentTarget, 'bg')),
+        btn(h('span', { class: 'otable-text-icon' }, 'A'), 'Text colour', (e) => this.colorPopover(e.currentTarget, 'color')),
         btn('Align ▾', 'Cell alignment', (e) => this.menuPopover(e.currentTarget, 'Cell alignment', () => {
           const first = this.selectedCells()[0] || {};
           const grid = h('div', { class: 'otable-align-grid', role: 'group', 'aria-label': 'Cell alignment' });
@@ -394,6 +489,7 @@ export class TableEditor {
           return [h('span', { class: 'otable-label' }, 'Align in cell'), grid];
         }))),
       group(null,
+        btn('Styles ▾', 'Table styles', (e) => this.stylesPopover(e.currentTarget), { anyTime: true }),
         btn('Borders ▾', 'Borders & margins', (e) => this.menuPopover(e.currentTarget, 'Borders & margins', () => [
           h('label', { class: 'otable-menu-row' }, h('span', null, 'Borders'),
             select('Borders', BORDER_NAMES, t.border, (v) => this.change(() => { t.border = v; }))),
@@ -402,15 +498,169 @@ export class TableEditor {
           h('label', { class: 'otable-menu-row' }, h('span', null, 'Margins'),
             select('Cell margins', MARGINS, MARGINS.some(([v]) => v === t.pad) ? t.pad : 8, (v) => this.change(() => { t.pad = Number(v); }))),
         ]), { anyTime: true }),
-        btn('Table ▾', 'Table options', (e) => this.menuPopover(e.currentTarget, 'Table', () => [
+        btn('Layout ▾', 'Table layout', (e) => this.menuPopover(e.currentTarget, 'Layout', () => [
           h('label', { class: 'otable-check', title: 'Make the first row a header' },
             h('input', { type: 'checkbox', checked: t.header, onchange: (ev) => { this.closePopover(); this.change(() => { t.header = ev.target.checked; }); } }),
             'Header row'),
-          btn('Even columns', 'Make columns the same width', () => { this.closePopover(); this.change(() => { const w = this.measureCols(); const each = Math.round(w.reduce((a, b) => a + b, 0) / w.length); t.colW = w.map(() => each); }); }, { anyTime: true, cls: 'is-wide' }),
-          btn('Fit to page', 'Fit the table to the page width', () => { this.closePopover(); this.change(() => this.fitWidth()); }, { anyTime: true, cls: 'is-wide' }),
-          btn('Delete table', 'Delete the whole table', () => { this.closePopover(); this.deleteTable(); }, { anyTime: true, cls: 'is-wide is-danger' }),
+          h('label', { class: 'otable-check', title: 'Centre the table on the page' },
+            h('input', { type: 'checkbox', checked: t.talign === 'center', onchange: (ev) => { this.closePopover(); this.change(() => { t.talign = ev.target.checked ? 'center' : null; }); } }),
+            'Centre table'),
+          btn('Even columns', 'Make columns the same width', () => { this.closePopover(); this.evenColumns(); }, { anyTime: true, cls: 'is-wide' }),
+          btn('Even rows', 'Make rows the same height', () => { this.closePopover(); this.evenRows(); }, { anyTime: true, cls: 'is-wide' }),
+          btn('Autofit to contents', 'Columns as wide as their text', () => { this.closePopover(); this.change(() => { t.colW = t.colW.map(() => null); t.autofit = true; }); }, { anyTime: true, cls: 'is-wide' }),
+          btn('Fit to page', 'Fit the table to the page width', () => { this.closePopover(); this.change(() => { t.autofit = false; this.fitWidth(); }); }, { anyTime: true, cls: 'is-wide' }),
+          btn('Sort A → Z', 'Sort rows by this column', () => { this.closePopover(); this.sortBy(1); }, { cls: 'is-wide' }),
+          btn('Sort Z → A', 'Sort rows by this column, backwards', () => { this.closePopover(); this.sortBy(-1); }, { cls: 'is-wide' }),
         ]), { anyTime: true })),
     );
+  }
+
+  // ---------- Word-style actions (toolbar and right-click menu) ----------
+
+  // Inserts as many rows as are selected, above or below the selection.
+  insertRows(where) {
+    const r = this.rect();
+    if (!r) return;
+    const count = r.r2 - r.r1 + 1;
+    const at = where === 'above' ? r.r1 : r.r2 + 1;
+    this.change(() => { for (let i = 0; i < count; i++) insertRow(this.model, at); }, at, r.c1);
+  }
+
+  insertCols(where) {
+    const r = this.rect();
+    if (!r) return;
+    const count = r.c2 - r.c1 + 1;
+    const at = where === 'left' ? r.c1 : r.c2 + 1;
+    this.change(() => { for (let i = 0; i < count; i++) insertCol(this.model, at); }, r.r1, at);
+  }
+
+  deleteSelectedRows() {
+    const r = this.rect();
+    if (!r) return;
+    if (!deleteRows(this.model, r.r1, r.r2)) return this.deleteTable();
+    return this.change(() => {}, Math.min(r.r1, this.model.rows - 1), r.c1);
+  }
+
+  deleteSelectedCols() {
+    const r = this.rect();
+    if (!r) return;
+    if (!deleteCols(this.model, r.c1, r.c2)) return this.deleteTable();
+    return this.change(() => {}, r.r1, Math.min(r.c1, this.model.cols - 1));
+  }
+
+  mergeOrSplit() {
+    const r = this.rect();
+    if (!r) return;
+    if (this.isMulti()) {
+      this.anchor = { r: r.r1, c: r.c1 };
+      this.focusSlot = null;
+      this.change(() => merge(this.model, r), r.r1, r.c1);
+    } else {
+      this.change(() => split(this.model, r));
+    }
+  }
+
+  evenColumns() {
+    this.change(() => {
+      const w = this.measureCols();
+      const each = Math.round(w.reduce((a, b) => a + b, 0) / w.length);
+      this.model.colW = w.map(() => each);
+      this.model.autofit = false;
+    });
+  }
+
+  evenRows() {
+    const heights = [...this.tableEl.rows].map((tr) => Math.round(tr.getBoundingClientRect().height));
+    const tallest = Math.max(MIN_ROW, ...heights);
+    this.change(() => { this.model.rowH = this.model.rowH.map(() => tallest); });
+  }
+
+  sortBy(dir) {
+    const r = this.rect();
+    if (!r) return;
+    let sorted = true;
+    this.change(() => { sorted = sortRows(this.model, r.c1, dir); }, this.model.header ? 1 : 0, r.c1);
+    if (!sorted) alert('Rows with merged cells going down can’t be sorted. Split them first.');
+  }
+
+  // Word-style table designs, shown as small previews.
+  stylesPopover(anchor) {
+    const t = this.model;
+    this.menuPopover(anchor, 'Table styles', () => {
+      const gallery = h('div', { class: 'otable-styles' }, TABLE_STYLES.map((style) => {
+        const on = t.border === style.border && (t.hb || null) === style.hb && (t.hc || null) === style.hc && (t.band || null) === style.band;
+        const sample = { ...t, ...style, header: true, rows: 4, cols: 3 };
+        const mini = h('span', { class: `otable-style-mini is-${style.border}`, 'aria-hidden': 'true' },
+          [0, 1, 2, 3].map((r) => h('span', { class: 'otable-style-row', style: `background:${designFill(sample, { r }) || 'transparent'}` },
+            [0, 1, 2].map(() => h('span', { class: 'otable-style-cell', style: `background:${designText(sample, { r }) || (r === 0 ? 'var(--ink)' : 'rgb(var(--ink-rgb) / 0.25)')}` })))));
+        return h('button', {
+          type: 'button',
+          class: `otable-style${on ? ' is-on' : ''}`,
+          title: style.name,
+          'aria-label': style.name,
+          'aria-pressed': String(on),
+          onmousedown: (e) => e.preventDefault(),
+          onclick: () => {
+            this.closePopover();
+            this.change(() => Object.assign(t, { border: style.border, hb: style.hb, hc: style.hc, band: style.band, header: true }));
+          },
+        }, mini, h('span', { class: 'otable-style-name' }, style.name));
+      }));
+      return [h('span', { class: 'otable-label' }, 'Table styles'), gallery];
+    });
+  }
+
+  // Right-click (or Control-click) a cell: the table's actions, like Word.
+  cellMenu(event, cell) {
+    const inSelection = this.isMulti() && this.selectedCells().includes(cell);
+    if (!inSelection) {
+      this.anchor = { r: cell.r, c: cell.c };
+      this.focusSlot = null;
+      this.paintSelection();
+    }
+    const many = this.isMulti();
+    const merged = this.selectedCells().some((x) => x.rs > 1 || x.cs > 1);
+    const run = (fn) => () => { closeMenu(); fn(); };
+    const swatches = h('div', { class: 'ctx-colours' },
+      h('span', { class: 'mono-label' }, 'Shading'),
+      h('div', { class: 'otable-ctx-swatches' },
+        h('button', { type: 'button', class: 'otable-swatch is-none', title: 'No shading', 'aria-label': 'No shading', onclick: run(() => this.setColor('bg', null)) }),
+        FILL_COLORS.slice(0, 10).map(([name, hex]) => h('button', {
+          type: 'button', class: 'otable-swatch', title: name, 'aria-label': name, style: `background:${hex}`, onclick: run(() => this.setColor('bg', hex)),
+        }))));
+    showMenu(event, {
+      title: many ? `${this.selectedCells().length} cells` : 'Table',
+      items: [
+        { label: 'Insert row above', onSelect: () => this.insertRows('above') },
+        { label: 'Insert row below', onSelect: () => this.insertRows('below') },
+        { label: 'Insert column left', onSelect: () => this.insertCols('left') },
+        { label: 'Insert column right', onSelect: () => this.insertCols('right') },
+        'separator',
+        many ? { label: 'Merge cells', onSelect: () => this.mergeOrSplit() } : null,
+        !many && merged ? { label: 'Split cell', onSelect: () => this.mergeOrSplit() } : null,
+        { label: 'Even columns', onSelect: () => this.evenColumns() },
+        { label: 'Even rows', onSelect: () => this.evenRows() },
+        { label: 'Sort A → Z by this column', onSelect: () => this.sortBy(1) },
+        { label: 'Sort Z → A by this column', onSelect: () => this.sortBy(-1) },
+        'separator',
+        { label: many ? 'Clear cells' : 'Clear cell', onSelect: () => this.change(() => { for (const x of this.selectedCells()) x.html = ''; }) },
+        { label: 'Delete rows', danger: true, onSelect: () => this.deleteSelectedRows() },
+        { label: 'Delete columns', danger: true, onSelect: () => this.deleteSelectedCols() },
+        { label: 'Delete table…', danger: true, onSelect: () => this.deleteTable() },
+      ],
+      extra: swatches,
+    });
+  }
+
+  setColor(key, value) {
+    this.change(() => {
+      for (const x of this.selectedCells()) {
+        x[key] = value;
+        // Dark fills get light text automatically, unless a text colour was chosen.
+        if (key === 'bg' && !x.color && value && isDark(value)) x.color = '#FFFFFF';
+        if (key === 'bg' && x.color === '#FFFFFF' && (!value || !isDark(value))) x.color = null;
+      }
+    });
   }
 
   colorPopover(anchor, key) {
@@ -419,21 +669,14 @@ export class TableEditor {
     const current = this.selectedCells()[0]?.[key] || null;
     const pick = (value) => {
       this.closePopover();
-      this.change(() => {
-        for (const x of this.selectedCells()) {
-          x[key] = value;
-          // Dark fills get light text automatically, unless a text colour was chosen.
-          if (key === 'bg' && !x.color && value && isDark(value)) x.color = '#FFFFFF';
-          if (key === 'bg' && x.color === '#FFFFFF' && (!value || !isDark(value))) x.color = null;
-        }
-      });
+      this.setColor(key, value);
     };
     const pop = h('div', { class: 'otable-pop', role: 'dialog', 'aria-label': key === 'bg' ? 'Cell colour' : 'Text colour' },
       h('button', {
         type: 'button',
         class: `otable-swatch is-none${!current ? ' is-on' : ''}`,
-        title: key === 'bg' ? 'No fill' : 'Automatic',
-        'aria-label': key === 'bg' ? 'No fill' : 'Automatic',
+        title: key === 'bg' ? 'No shading' : 'Automatic',
+        'aria-label': key === 'bg' ? 'No shading' : 'Automatic',
         onmousedown: (e) => e.preventDefault(),
         onclick: () => pick(null),
       }),
@@ -461,11 +704,12 @@ export class TableEditor {
   }
 
   showPopover(pop, anchor) {
-    this.root.append(pop);
+    document.body.append(pop);
     const box = anchor.getBoundingClientRect();
-    const host = this.root.getBoundingClientRect();
-    pop.style.left = `${Math.max(0, box.left - host.left)}px`;
-    pop.style.top = `${box.bottom - host.top + 4}px`;
+    const width = pop.offsetWidth;
+    const height = pop.offsetHeight;
+    pop.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - width - 8))}px`;
+    pop.style.top = `${Math.max(8, Math.min(box.bottom + 4, window.innerHeight - height - 8))}px`;
     this.popover = pop;
     const away = (e) => {
       if (!pop.contains(e.target) && !anchor.contains(e.target)) this.closePopover();
@@ -475,10 +719,19 @@ export class TableEditor {
   }
 
   closePopover() {
+    const had = Boolean(this.popover);
     if (this.popover) this.popover.remove();
     if (this.popoverCleanup) this.popoverCleanup();
     this.popover = null;
     this.popoverCleanup = null;
+    if (had) setTimeout(() => this.leaveIfDone(), 0);
+  }
+
+  // Once the focus has really left the table (and its menus), stop editing it.
+  leaveIfDone() {
+    if (this.holdsFocus() || this.popover) return;
+    this.root.classList.remove('is-active');
+    this.announce(false);
   }
 
   deleteTable() {
@@ -536,35 +789,29 @@ export class TableEditor {
     if (!this.tableEl || !this.tableEl.isConnected) return;
     const t = this.model;
     const base = this.scroll.getBoundingClientRect();
-    const tableBox = this.tableEl.getBoundingClientRect();
     const x0 = this.scroll.scrollLeft - base.left;
     const y0 = this.scroll.scrollTop - base.top;
+    // One short handle per cell edge, so nothing runs across a merged cell.
     const handles = [];
-    for (let b = 1; b <= t.cols; b++) {
-      const cell = t.cells.find((x) => x.c + x.cs === b);
-      const el = cell && this.cellEls.get(cell.id);
+    for (const cell of t.cells) {
+      const el = this.cellEls.get(cell.id);
       if (!el) continue;
-      const x = el.getBoundingClientRect().right + x0;
-      const handle = h('div', {
+      const box = el.getBoundingClientRect();
+      const b = cell.c + cell.cs;
+      const colHandle = h('div', {
         class: 'otable-colh',
         title: 'Drag to change the column width',
-        style: `left:${x - 4}px; top:${tableBox.top + y0}px; height:${tableBox.height}px`,
+        style: `left:${box.right + x0 - 4}px; top:${box.top + y0}px; height:${box.height}px`,
       });
-      handle.addEventListener('mousedown', (e) => this.dragCol(e, b));
-      handles.push(handle);
-    }
-    for (let b = 1; b <= t.rows; b++) {
-      const cell = t.cells.find((x) => x.r + x.rs === b);
-      const el = cell && this.cellEls.get(cell.id);
-      if (!el) continue;
-      const y = el.getBoundingClientRect().bottom + y0;
-      const handle = h('div', {
+      colHandle.addEventListener('mousedown', (e) => this.dragCol(e, b));
+      handles.push(colHandle);
+      const rowHandle = h('div', {
         class: 'otable-rowh',
         title: 'Drag to change the row height',
-        style: `top:${y - 4}px; left:${tableBox.left + x0}px; width:${tableBox.width}px`,
+        style: `top:${box.bottom + y0 - 4}px; left:${box.left + x0}px; width:${box.width}px`,
       });
-      handle.addEventListener('mousedown', (e) => this.dragRow(e, b - 1));
-      handles.push(handle);
+      rowHandle.addEventListener('mousedown', (e) => this.dragRow(e, cell.r + cell.rs - 1));
+      handles.push(rowHandle);
     }
     this.handles.replaceChildren(...handles);
   }

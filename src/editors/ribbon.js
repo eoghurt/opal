@@ -1,7 +1,8 @@
 // The ribbon: a Word-style editing bar across the top of a note. Grouped
 // buttons for history, styles, text, paragraphs, inserting things and find.
 // Buttons light up for whatever the cursor is in. It only edits the markdown
-// text, the same as typing would.
+// text, the same as typing would. While the cursor is in a table, a Table row
+// appears with the table's own tools, and the text buttons format the cell.
 //
 //   const ribbon = new Ribbon({ onAddSticky, onInsertTable(anchor) });
 //   ribbon.connect(editorView);  ribbon.refresh();  ribbon.el
@@ -25,6 +26,9 @@ const TEXT_COLORS = [
   ['Pink', '#C8338A'],
   ['Grey', '#8A8578'],
 ];
+
+// Text buttons that also work on the text in a table cell.
+const CELL_FORMATS = new Set(['bold', 'italic', 'underline', 'strike', 'highlight']);
 
 const STYLES = [
   ['normal', 'Normal text'],
@@ -55,6 +59,14 @@ export class Ribbon {
         // mousedown so the editor keeps its selection.
         onmousedown: (e) => {
           e.preventDefault();
+          if (id && this.inTable() && this.table.format && CELL_FORMATS.has(id)) {
+            this.table.format(id);
+            return;
+          }
+          if (id === 'color' && this.inTable()) {
+            this.table.setColor('color', this.lastColor);
+            return;
+          }
           if (this.view) run(this.view, e.currentTarget);
         },
       }, label);
@@ -106,6 +118,33 @@ export class Ribbon {
         btn(null, 'Date', "Today's date", (v) => insertText(v, today()), 'is-word')),
       group('Find',
         btn(null, 'Find', 'Find & replace (⌘F)', (v) => openSearchPanel(v), 'is-word')));
+
+    // The Table row: the tools of whichever table the cursor is in.
+    this.tableTools = h('div', { class: 'rb-table-tools' });
+    this.tableRow = h('div', { class: 'rb-table', role: 'group', 'aria-label': 'Table' },
+      h('span', { class: 'rb-table-label' }, 'Table'), this.tableTools);
+    this.tableRow.hidden = true;
+    this.el.append(this.tableRow);
+    this.table = null;
+    const onTable = (event) => {
+      if (!this.el.isConnected) {
+        window.removeEventListener('opal:table', onTable);
+        return;
+      }
+      this.showTable(event.detail);
+    };
+    window.addEventListener('opal:table', onTable);
+  }
+
+  showTable(table) {
+    this.table = table;
+    this.tableRow.hidden = !table;
+    this.tableTools.replaceChildren(...(table ? [table.toolbar] : []));
+  }
+
+  // Is the cursor in a cell of the active table?
+  inTable() {
+    return Boolean(this.table && this.table.cellOf && this.table.cellOf(document.activeElement));
   }
 
   connect(view) {
@@ -144,7 +183,8 @@ export class Ribbon {
             this.lastColor = hex;
             this.colorBar.style.background = hex;
           }
-          if (this.view) setTextColor(this.view, hex);
+          if (this.inTable()) this.table.setColor('color', hex);
+          else if (this.view) setTextColor(this.view, hex);
           this.closeColorMenu();
           this.refresh();
         },

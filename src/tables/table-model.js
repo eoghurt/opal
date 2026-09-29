@@ -4,6 +4,8 @@
 // attributes so it can edit the table again:
 //
 //   <table data-opal-table data-pad="8" data-border="all" data-bw="1" data-bc="#16140F" data-header="1" style="…">
+//   (plus, when set: data-hb / data-hc header fill and text colour, data-band
+//   the fill of every other row, data-talign="center", data-autofit="1")
 //   <colgroup><col style="width:120px"><col style="width:160px"></colgroup>
 //   <tr style="height:40px"><th style="…">Name</th><th style="…">Score</th></tr>
 //   <tr><td colspan="2" style="…;background:#F4E36B">Merged</td></tr>
@@ -13,7 +15,30 @@
 // (r, c) and how many rows/columns it covers (rs, cs).
 
 export const BORDERS = ['all', 'outer', 'rows', 'none'];
-export const DEFAULTS = { pad: 8, border: 'all', bw: 1, bc: '#16140F', header: true };
+export const DEFAULTS = { pad: 8, border: 'all', bw: 1, bc: '#16140F', header: true, hb: null, hc: null, band: null, talign: null, autofit: false };
+
+// Word-style table designs: a border style plus header and banded-row colours.
+// Every cell's own fill or text colour still wins over these.
+export const TABLE_STYLES = [
+  { name: 'Plain grid', border: 'all', hb: null, hc: null, band: null },
+  { name: 'Shaded header', border: 'all', hb: '#E7E4DD', hc: null, band: null },
+  { name: 'Banded rows', border: 'rows', hb: '#D6E4F7', hc: null, band: '#F1F5FB' },
+  { name: 'Bold header', border: 'all', hb: '#16140F', hc: '#FFFFFF', band: '#F4F2EE' },
+  { name: 'Lines only', border: 'rows', hb: null, hc: null, band: null },
+  { name: 'Colourful', border: 'outer', hb: '#3B2CF5', hc: '#FFFFFF', band: '#EEEDFE' },
+];
+
+// The fill and text colour a cell gets from the table's design (header row,
+// banded rows) when it has none of its own.
+export function designFill(t, x) {
+  if (t.header && x.r === 0) return t.hb || null;
+  const bodyRow = x.r - (t.header ? 1 : 0);
+  return t.band && bodyRow % 2 === 1 ? t.band : null;
+}
+
+export function designText(t, x) {
+  return t.header && x.r === 0 ? t.hc || null : null;
+}
 export const MIN_COL = 28;
 export const MIN_ROW = 22;
 
@@ -157,6 +182,27 @@ export function split(t, rect) {
   return changed;
 }
 
+// Sorts the rows under the header by the text in column c (A→Z, or Z→A with
+// dir -1), numbers in number order. Returns false if merged rows are in the way.
+export function sortRows(t, c, dir = 1) {
+  const first = t.header ? 1 : 0;
+  const body = t.cells.filter((x) => x.r >= first);
+  if (body.some((x) => x.rs > 1)) return false;
+  const text = (x) => (x ? x.html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim() : '');
+  const rows = [];
+  for (let r = first; r < t.rows; r++) rows.push({ r, key: text(cellAt(t, r, c)), cells: t.cells.filter((x) => x.r === r), h: t.rowH[r] });
+  rows.sort((a, b) => {
+    if (!a.key && b.key) return 1;
+    if (a.key && !b.key) return -1;
+    return dir * a.key.localeCompare(b.key, undefined, { numeric: true, sensitivity: 'base' });
+  });
+  rows.forEach((row, i) => {
+    for (const x of row.cells) x.r = first + i;
+    t.rowH[first + i] = row.h;
+  });
+  return true;
+}
+
 // ---------- Writing ----------
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -183,10 +229,11 @@ export function cellStyle(t, x, { forScreen = false } = {}) {
   if (forScreen) {
     const ink = DEFAULTS.bc.toLowerCase();
     const screenTable = t.bc.toLowerCase() === ink ? { ...t, bc: 'var(--table-line, #16140F)' } : t;
-    let color = x.color;
+    let color = x.color || designText(t, x);
+    const bg = x.bg || designFill(t, x);
     if (color && color.toLowerCase() === ink) color = 'var(--ink)';
-    else if (!color && x.bg) color = '#16140F';
-    return cellStyle(screenTable, { ...x, color });
+    else if (!color && bg) color = '#16140F';
+    return cellStyle(screenTable, { ...x, color, bg });
   }
   const sides = borderSides(t, x);
   const isHead = t.header && x.r === 0;
@@ -204,20 +251,30 @@ export function cellStyle(t, x, { forScreen = false } = {}) {
   parts.push(`padding:${t.pad}px`);
   parts.push(`vertical-align:${x.valign || 'top'}`);
   if (x.align || isHead) parts.push(`text-align:${x.align || 'left'}`);
-  if (x.bg) parts.push(`background:${x.bg}`);
-  if (x.color) parts.push(`color:${x.color}`);
+  const bg = x.bg || designFill(t, x);
+  const color = x.color || designText(t, x);
+  if (bg) parts.push(`background:${bg}`);
+  if (color) parts.push(`color:${color}`);
   return parts.join(';');
 }
 
 export function tableStyle(t) {
   const fixed = t.colW.length && t.colW.every((w) => w != null);
-  const width = fixed ? `width:${t.colW.reduce((a, b) => a + b, 0)}px;table-layout:fixed` : 'width:100%';
-  return `border-collapse:collapse;${width}`;
+  const width = fixed ? `width:${t.colW.reduce((a, b) => a + b, 0)}px;table-layout:fixed` : (t.autofit ? 'width:auto' : 'width:100%');
+  const centre = t.talign === 'center' ? ';margin-left:auto;margin-right:auto' : '';
+  return `border-collapse:collapse;${width}${centre}`;
 }
 
 export function serializeTable(t) {
   const lines = [];
-  lines.push(`<table data-opal-table data-pad="${t.pad}" data-border="${t.border}" data-bw="${t.bw}" data-bc="${esc(t.bc)}" data-header="${t.header ? 1 : 0}" style="${tableStyle(t)}">`);
+  const extra = [
+    t.hb ? ` data-hb="${esc(t.hb)}"` : '',
+    t.hc ? ` data-hc="${esc(t.hc)}"` : '',
+    t.band ? ` data-band="${esc(t.band)}"` : '',
+    t.talign === 'center' ? ' data-talign="center"' : '',
+    t.autofit ? ' data-autofit="1"' : '',
+  ].join('');
+  lines.push(`<table data-opal-table data-pad="${t.pad}" data-border="${t.border}" data-bw="${t.bw}" data-bc="${esc(t.bc)}" data-header="${t.header ? 1 : 0}"${extra} style="${tableStyle(t)}">`);
   if (t.colW.some((w) => w != null)) {
     lines.push(`<colgroup>${t.colW.map((w) => (w != null ? `<col style="width:${w}px">` : '<col>')).join('')}</colgroup>`);
   }
@@ -297,6 +354,11 @@ export function parseTable(source) {
     bw: [1, 2, 3].includes(Number(d.bw)) ? Number(d.bw) : DEFAULTS.bw,
     bc: toHex(d.bc) || DEFAULTS.bc,
     header: d.header !== undefined ? d.header === '1' : Boolean(table.querySelector('tr:first-child th')),
+    hb: toHex(d.hb),
+    hc: toHex(d.hc),
+    band: toHex(d.band),
+    talign: d.talign === 'center' ? 'center' : null,
+    autofit: d.autofit === '1',
   };
 
   const taken = []; // taken[r][c] → true once a cell covers it
@@ -333,6 +395,11 @@ export function parseTable(source) {
   // Fill any holes (a hand-written table with short rows).
   for (let r = 0; r < t.rows; r++) {
     for (let c = 0; c < t.cols; c++) if (!cellAt(t, r, c)) t.cells.push(newCell(r, c));
+  }
+  // Colours that only come from the design aren't the cell's own.
+  for (const x of t.cells) {
+    if (x.bg && x.bg === designFill(t, x)) x.bg = null;
+    if (x.color && x.color === designText(t, x)) x.color = null;
   }
   const cols = [...table.querySelectorAll('col')];
   t.colW = Array.from({ length: t.cols }, (_, i) => (cols[i] ? px(cols[i].style.width) : null));

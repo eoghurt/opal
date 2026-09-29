@@ -890,3 +890,17 @@
 :root[data-theme="github"] .cm-search .cm-button { border-radius: 6px; border: 1px solid var(--line); background: var(--subtle); }
 :root[data-mode="dark"] .cm-searchMatch { background-color: rgb(255 210 63 / 0.3); outline-color: transparent; }
 :root[data-mode="dark"] .cm-searchMatch.cm-searchMatch-selected { background-color: rgb(255 210 63 / 0.55); color: #1C1C1E; }
+:root:not([data-theme="scrapbook"]) .rb-table { border-top-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .rb-table-label { font-family: var(--sans); font-size: 11px; letter-spacing: 0; text-transform: none; border: 0; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+:root:not([data-theme="scrapbook"]) .otable-btn { font-family: var(--sans); border-radius: 6px; font-size: 12px; }
+:root:not([data-theme="scrapbook"]) .otable-btn:hover:not(:disabled) { background: var(--fill); border-color: transparent; }
+:root:not([data-theme="scrapbook"]) .otable-group { border-right-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .otable-select { font-family: var(--sans); border: 1px solid var(--line); border-radius: 6px; background: var(--paper-2); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .otable-menu-row,
+:root:not([data-theme="scrapbook"]) .otable-label { font-family: var(--sans); text-transform: none; letter-spacing: 0; }
+:root:not([data-theme="scrapbook"]) .otable-style,
+:root:not([data-theme="scrapbook"]) .otable-style-mini,
+:root:not([data-theme="scrapbook"]) .otable-align { background: var(--paper-2); border-color: var(--line); border-radius: 6px; }
+:root:not([data-theme="scrapbook"]) .otable-style.is-on,
+:root:not([data-theme="scrapbook"]) .otable-align.is-on { outline: 2px solid var(--accent); background: var(--accent-soft); }
+:root:not([data-theme="scrapbook"]) .otable-swatch { border-color: transparent; border-radius: 50%; }
