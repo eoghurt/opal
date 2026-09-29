@@ -3007,3 +3007,20 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .review-grade.is-good:hover { background: #D5ECDC; }
 .review-grade.is-easy:hover { background: #CFE3FA; }
 .review-empty { padding: 30px; color: var(--ink-3); }
+
+/* ---------- Prep timer ---------- */
+
+.bar-timer { padding: 0; }
+.bar-timer .bar-link { height: 100%; display: flex; align-items: center; gap: 7px; padding: 0 14px; }
+.timer-running { font-variant-numeric: tabular-nums; font-weight: 700; }
+.timer-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c1); animation: timer-pulse 1.6s ease-in-out infinite; }
+@keyframes timer-pulse { 50% { opacity: 0.35; } }
+.bar-timer.is-done .bar-link { background: var(--c1); color: #16140F; }
+.timer-menu { position: fixed; z-index: 70; display: flex; flex-direction: column; gap: 10px; padding: 12px; min-width: 250px; background: var(--white); color: var(--ink); border: var(--rule); box-shadow: var(--lift, 4px 4px 0 var(--ink)); font-family: var(--sans); font-size: 13px; text-transform: none; letter-spacing: 0; }
+.timer-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.timer-preset { padding: 6px 12px; border: var(--rule); border-radius: var(--radius); background: var(--paper); font-weight: 600; }
+.timer-preset:hover, .timer-preset:focus-visible { background: var(--c2); }
+.timer-custom-row { display: inline-flex; gap: 6px; }
+.timer-custom { width: 70px; padding: 5px 6px; border: var(--rule); border-radius: var(--radius); font: inherit; background: var(--white); color: var(--ink); }
+.timer-stop { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; border: var(--rule); border-radius: var(--radius); background: var(--paper); font-weight: 700; }
+.timer-note { font-size: 11.5px; font-weight: 400; color: var(--ink-3); }

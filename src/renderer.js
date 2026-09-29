@@ -62,6 +62,7 @@ import { FlowEditor, isFlowNote, newFlowText } from './editors/flow-editor.js';
 import { inlineRuns } from './export/note-structure.js';
 import { ReviewView } from './views/review-view.js';
 import { countDue } from './flashcards/schedule.js';
+import { PrepTimer } from './timer.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -107,6 +108,15 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onLogbook: () => showLogbook(),
   onTasks: () => showTasks(),
 });
+
+// The prep timer lives in the top bar and keeps running across screens.
+const prepTimer = new PrepTimer({
+  openNote: () => (current && screen && screen.kind === 'note' ? current.filePath : null),
+  notify: (payload) => window.opal.notify(payload).catch(() => {}),
+  record: (session) => window.opal.addSession(session).then(() => { if (logbook) logbook.reload(); }).catch(() => {}),
+});
+chrome.timerSlot = prepTimer.el;
+chrome.renderTop();
 
 // ---------- Everything happens one step at a time ----------
 

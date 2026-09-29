@@ -985,3 +985,10 @@
 :root:not([data-theme="scrapbook"]) .review-grade { border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); }
 :root[data-mode="dark"] .review-grade:hover { color: #16140F; }
 :root[data-mode="dark"] .review-grade:hover .review-grade-when { color: #3B3830; }
+:root:not([data-theme="scrapbook"]) .timer-menu { border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); box-shadow: var(--lift); }
+:root:not([data-theme="scrapbook"]) .timer-preset,
+:root:not([data-theme="scrapbook"]) .timer-stop,
+:root:not([data-theme="scrapbook"]) .timer-custom { border: 1px solid var(--line); border-radius: 999px; background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .timer-preset:hover { background: var(--accent-soft); color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .timer-dot { background: var(--accent); }
+:root:not([data-theme="scrapbook"]) .bar-timer.is-done .bar-link { background: var(--accent); color: var(--on-accent); }
