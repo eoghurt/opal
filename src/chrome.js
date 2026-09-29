@@ -49,6 +49,7 @@ export class Chrome {
     this.palette = null;
     this.recent = [];
     this.status = 'Saved';
+    this.words = null; // { words, selected, target } for the open note
     this.render();
   }
 
@@ -81,6 +82,13 @@ export class Chrome {
   setRecent(files) {
     this.recent = files;
     this.renderFooter();
+  }
+
+  // The open note's word count (and selection), or null off a note.
+  setWords(words) {
+    const same = JSON.stringify(words) === JSON.stringify(this.words);
+    this.words = words;
+    if (!same) this.renderFooter();
   }
 
   setStatus(status) {
@@ -139,9 +147,15 @@ export class Chrome {
       list.append(h('button', { class: 'recent-item', title: file.path, onclick: () => this.onOpenFile(file.path) }, noteName(file.path)));
     });
     const failed = this.status === 'Save failed';
+    const w = this.words;
+    const count = w ? h('span', { class: 'word-count', role: 'status', title: w.target ? `Target: ${w.target.toLocaleString()} words` : 'Words in this note' },
+      w.target ? h('span', { class: 'word-count-bar', 'aria-hidden': 'true' }, h('span', { style: `width: ${Math.min(100, Math.round((w.words / w.target) * 100))}%` })) : null,
+      `${w.words.toLocaleString()} word${w.words === 1 ? '' : 's'}${w.target ? ` / ${w.target.toLocaleString()}` : ''}`,
+      w.selected ? h('span', { class: 'word-count-sel' }, ` · ${w.selected.toLocaleString()} selected`) : null) : null;
     this.footer.replaceChildren(
       h('span', { class: 'recent-label' }, 'Recent'),
       list,
+      count || '',
       h('span', { class: `save-status${failed ? ' is-failed' : ''}`, role: 'status' },
         h('span', { class: 'save-dot' }),
         STATUS_TEXT[this.status] || this.status),

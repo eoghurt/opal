@@ -9,6 +9,7 @@ const FILE_TYPES = require('./file-types.json');
 const frontmatter = require('./shared/frontmatter.js');
 const { stripStickies, parseStickies, writeStickies } = require('./shared/stickies.js');
 const { relinkText, resolve: resolveTarget, joinPath, folderOf } = require('./shared/relink.js');
+const { countWords } = require('./shared/words.js');
 
 app.setName('Opal');
 // Lets automated tests use a throwaway settings folder instead of the real one.
@@ -95,7 +96,7 @@ async function scanDir(relFolder) {
     try {
       if (entry.isDirectory()) {
         const inside = await scanDir(relPath);
-        folders.push({ type: 'folder', name: entry.name, path: relPath, children: inside.nodes, color: inside.color, description: inside.description });
+        folders.push({ type: 'folder', name: entry.name, path: relPath, children: inside.nodes, color: inside.color, description: inside.description, wordTarget: inside.wordTarget });
       } else if (entry.isFile() && isKnownFile(entry.name)) {
         const full = path.join(vaultPath, relPath);
         const stat = await fs.promises.stat(full);
@@ -136,7 +137,13 @@ async function scanDir(relFolder) {
     nodes: [...folders.sort(byName), ...files.sort(byName)],
     color: hidden.color || (folderNote ? folderNote.color : null),
     description: hidden.description || (folderNote ? folderNote.description : ''),
+    wordTarget: hidden.wordTarget || null,
   };
+}
+
+function wordTarget(value) {
+  const n = parseInt(String(value || '').replace(/[,\s]/g, ''), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 // A note's Opal properties, from the start of the file (cached until it changes).
@@ -159,6 +166,7 @@ async function noteProps(full, mtimeMs) {
     fileColors: frontmatter.fileColors(head),
     order: frontmatter.itemOrder(head),
     description: frontmatter.getDescription(head),
+    wordTarget: wordTarget(frontmatter.getProp(head, 'word-target')),
     // Nothing but Opal's own settings (colours, stickies) in it?
     settingsOnly: head.length < 4096 && !stripStickies(frontmatter.stripFrontmatter(head)).trim(),
   };
@@ -208,7 +216,7 @@ async function changeFolderSettings(relFolder, change) {
 }
 
 async function folderSettingsProps(relFolder) {
-  const none = { color: null, fileColors: {}, order: [], description: '' };
+  const none = { color: null, fileColors: {}, order: [], description: '', wordTarget: null };
   let full;
   try {
     full = folderSettingsFull(relFolder);
@@ -222,7 +230,7 @@ async function folderSettingsProps(relFolder) {
     return none;
   }
   const props = await noteProps(full, stat.mtimeMs);
-  return { color: props.color, fileColors: props.fileColors || {}, order: props.order || [], description: props.description || '' };
+  return { color: props.color, fileColors: props.fileColors || {}, order: props.order || [], description: props.description || '', wordTarget: props.wordTarget || null };
 }
 
 // Older vaults: moves Opal's settings out of a folder's own note (School/School.md)
@@ -1148,6 +1156,100 @@ async function moveHistory(fromRel, toRel) {
   await fs.promises.rename(from, to);
 }
 
+// ---------- Words and the Logbook's own records (.opal/logbook.md) ----------
+//
+// Words written per day and prep-timer sessions, as a readable note:
+//   ## Words written
+//   - 2026-09-29: 532
+//   ## Prep sessions
+//   - 2026-09-29 14:00 · 30 min · [[School/Essay plan]]
+
+function logbookFile() {
+  return path.join(vaultPath, '.opal', 'logbook.md');
+}
+
+async function readLogbook() {
+  const out = { words: {}, sessions: [] };
+  let text = '';
+  try {
+    text = await fs.promises.readFile(logbookFile(), 'utf8');
+  } catch {
+    return out;
+  }
+  for (const line of text.split(/\r?\n/)) {
+    let m = /^- (\d{4}-\d{2}-\d{2}): (\d+)\s*$/.exec(line);
+    if (m) out.words[m[1]] = Number(m[2]);
+    m = /^- (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) · (\d+) min(?: · \[\[([^\]]+)\]\])?\s*$/.exec(line);
+    if (m) out.sessions.push({ day: m[1], time: m[2], minutes: Number(m[3]), note: m[4] || null });
+  }
+  return out;
+}
+
+async function writeLogbook(data) {
+  const days = Object.keys(data.words).sort();
+  const sessions = data.sessions.slice().sort((a, b) => `${a.day} ${a.time}`.localeCompare(`${b.day} ${b.time}`));
+  const text = [
+    '# Opal logbook',
+    '',
+    'Words written each day and prep-timer sessions, kept by Opal.',
+    '',
+    '## Words written',
+    ...days.map((d) => `- ${d}: ${data.words[d]}`),
+    '',
+    '## Prep sessions',
+    ...sessions.map((s) => `- ${s.day} ${s.time} · ${s.minutes} min${s.note ? ` · [[${s.note}]]` : ''}`),
+    '',
+  ].join('\n');
+  await fs.promises.mkdir(path.dirname(logbookFile()), { recursive: true });
+  const temp = `${logbookFile()}.opal-saving`;
+  await fs.promises.writeFile(temp, text, 'utf8');
+  await fs.promises.rename(temp, logbookFile());
+}
+
+let logbookQueue = Promise.resolve();
+function changeLogbook(change) {
+  const run = logbookQueue.then(async () => {
+    const data = await readLogbook();
+    change(data);
+    await writeLogbook(data);
+  });
+  logbookQueue = run.catch(() => {});
+  return run;
+}
+
+function addWords(day, count) {
+  const n = Math.floor(Number(count));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day)) || !(n > 0) || n > 100000) return Promise.resolve();
+  return changeLogbook((data) => { data.words[day] = (data.words[day] || 0) + n; });
+}
+
+function addSession(session) {
+  const s = session || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s.day)) || !/^\d{2}:\d{2}$/.test(String(s.time))) return Promise.resolve();
+  const minutes = Math.max(1, Math.min(24 * 60, Math.round(Number(s.minutes) || 0)));
+  const note = typeof s.note === 'string' && s.note && !/[\]\[\n]/.test(s.note) ? s.note.replace(/\.md$/i, '') : null;
+  return changeLogbook((data) => { data.sessions.push({ day: s.day, time: s.time, minutes, note }); });
+}
+
+// Total words in the notes of a folder (and the folders inside it).
+async function folderWords(relFolder) {
+  resolveFolderPath(relFolder || '');
+  let total = 0;
+  for (const notePath of await listNotes(relFolder || '')) {
+    try {
+      total += countWords(await noteText(notePath));
+    } catch {
+      // Skip unreadable notes.
+    }
+  }
+  return total;
+}
+
+async function setFolderWordTarget(relFolder, target) {
+  const n = wordTarget(target);
+  await changeFolderSettings(relFolder || '', (text) => frontmatter.setProp(text, 'word-target', n ? String(n) : null));
+}
+
 // ---------- Pasted and dropped pictures ----------
 
 const ATTACHMENTS = 'Attachments';
@@ -1318,6 +1420,11 @@ function showNotification(payload) {
 }
 
 ipcMain.handle('vault:checkboxes', () => openCheckboxes());
+ipcMain.handle('logbook:read', () => readLogbook());
+ipcMain.handle('logbook:add-words', (_event, day, count) => addWords(day, count));
+ipcMain.handle('logbook:add-session', (_event, session) => addSession(session));
+ipcMain.handle('words:folder', (_event, folder) => folderWords(folder));
+ipcMain.handle('words:set-folder-target', (_event, folder, target) => setFolderWordTarget(folder, target));
 ipcMain.handle('history:save', (_event, relPath, text, reason) => saveSnapshot(relPath, text, reason));
 ipcMain.handle('history:list', (_event, relPath) => listSnapshots(relPath));
 ipcMain.handle('history:read', (_event, relPath, id) => readSnapshot(relPath, id));

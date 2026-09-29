@@ -3,6 +3,7 @@
 // as scrapbook cards.
 
 import { h, scribbleArrow } from '../ui.js';
+import { progressBar } from './note-view.js';
 import { slotFor } from '../palettes.js';
 import { colorOf } from '../item-colors.js';
 import { noteName, relativeDay, shortDate, pad2 } from '../format.js';
@@ -13,7 +14,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -42,16 +43,26 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
     otherCount ? `${otherCount} ${otherCount === 1 ? 'file' : 'files'}` : null,
   ].filter(Boolean).join(' · ') + ' here';
 
+  // Words in the folder (counted in the background) and its word target.
+  const metaLabel = h('span', { class: 'mono-label' }, meta);
+  const targetSlot = h('div', { class: 'home-target' });
+  if (loadWords) {
+    Promise.all([loadWords(), loadWordTarget ? loadWordTarget() : null]).then(([words, target]) => {
+      metaLabel.textContent = `${meta} · ${words.toLocaleString()} word${words === 1 ? '' : 's'}`;
+      if (target) targetSlot.replaceChildren(progressBar(words, target));
+    }).catch(() => {});
+  }
   const head = h('section', { class: 'home-head' },
     h('div', { class: 'home-title' },
-      h('span', { class: 'mono-label' }, meta),
+      metaLabel,
       editableTitle({
         name: folder.name,
         canRename: !isRoot,
         onRename,
         onEnter: () => description.open(),
       }),
-      description.el),
+      description.el,
+      targetSlot),
     h('div', { class: 'home-stamp-cell', 'aria-hidden': 'true' },
       h('div', { class: 'home-stamp' },
         h('span', null, 'Files'),

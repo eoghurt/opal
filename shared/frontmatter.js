@@ -69,13 +69,17 @@ function setProp(text, key, value) {
   return `---${nl}${kept.join(nl)}${nl}---${nl}${rest}`;
 }
 
+// Properties Opal shows in its own way (so a block of only these is hidden in
+// the editor): the description under the title, the word target as a bar.
+const OPAL_SHOWN = ['description', 'word-target'];
+
 // Where the block is, and whether it holds only Opal's own settings (then the
-// editor hides it). The description counts: Opal shows it under the title.
+// editor hides it).
 function frontmatterRange(text) {
   const block = findBlock(text);
   if (!block) return null;
   const keys = block.body.split(/\r?\n/).filter((l) => l.trim()).map((l) => (lineKey(l) || { key: '' }).key);
-  return { from: 0, to: block.end, onlyOpal: keys.length > 0 && keys.every((k) => k.startsWith('opal-') || k === 'description') };
+  return { from: 0, to: block.end, onlyOpal: keys.length > 0 && keys.every((k) => k.startsWith('opal-') || OPAL_SHOWN.includes(k)) };
 }
 
 function stripFrontmatter(text) {

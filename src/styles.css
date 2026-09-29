@@ -2866,3 +2866,18 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .history-summary { flex-grow: 1; font-size: 12.5px; color: var(--ink-3); }
 .history-restore { padding: 7px 16px; background: var(--ink); color: var(--paper); border-radius: var(--radius); font-weight: 600; }
 .history-restore:disabled { opacity: 0.4; cursor: default; }
+
+/* ---------- Word counts and targets ---------- */
+
+.word-count { display: flex; align-items: center; gap: 8px; padding: 0 14px; white-space: nowrap; border-left: 1.5px solid rgb(var(--paper-rgb) / 0.4); }
+.word-count-sel { opacity: 0.75; }
+.word-count-bar { width: 60px; height: 5px; border-radius: 3px; background: rgb(var(--paper-rgb) / 0.25); overflow: hidden; display: inline-flex; }
+.word-count-bar span { background: var(--c4); }
+.word-progress { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; }
+.home-target .word-progress { padding: 8px 0 0; max-width: 420px; }
+.word-progress-track { height: 8px; border: var(--rule); border-radius: 5px; overflow: hidden; background: var(--white); display: flex; }
+.word-progress-fill { background: var(--c3); }
+.word-progress-fill.is-done { background: var(--c4); }
+.word-progress-label { font-size: 11.5px; color: var(--ink-3); }
+.target-input { width: 90px; font: inherit; font-size: 12px; padding: 2px 4px; border: var(--hair); border-radius: var(--radius); background: var(--white); color: var(--ink); }
+.lb-tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }

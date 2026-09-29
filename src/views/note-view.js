@@ -11,14 +11,15 @@ import { findFile, findFolder, countNotes } from '../tree.js';
 import { stripStickies } from '../../shared/stickies.js';
 import { Ribbon } from '../editors/ribbon.js';
 import { editableLine } from './folder-home.js';
-import { getDescription } from '../../shared/frontmatter.js';
+import { getDescription, getProp } from '../../shared/frontmatter.js';
+import { countWords } from '../../shared/words.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget };
     this.backlinks = null; // { linked, unlinked } once loaded
     this.tree = [];
     this.text = '';
@@ -243,9 +244,39 @@ export class NoteView {
     );
   }
 
+  // A number box for the note's word-target property (empty = none).
+  targetField(target) {
+    const input = h('input', {
+      class: 'target-input',
+      type: 'number',
+      min: '0',
+      step: '50',
+      placeholder: 'none',
+      'aria-label': 'Word target',
+      value: target ? String(target) : '',
+    });
+    const commit = () => {
+      const n = parseInt(input.value, 10);
+      const next = Number.isFinite(n) && n > 0 ? n : null;
+      if (next !== target) this.handlers.onWordTarget(next);
+    };
+    input.addEventListener('change', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+    input.addEventListener('blur', () => setTimeout(() => this.renderLeft(), 0));
+    return input;
+  }
+
   renderLeft() {
     const node = findFile(this.tree, this.filePath);
-    const words = (stripFrontmatter(this.text).replace(/<[^>]*>/g, ' ').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
+    // Typing a word target: don't redraw under the cursor.
+    if (this.left.contains(document.activeElement) && document.activeElement.classList.contains('target-input')) return;
+    const words = countWords(this.text);
+    const target = parseInt(String(getProp(this.text, 'word-target') || ''), 10) || null;
     const links = linksIn(this.text);
     const row = (term, ...value) => [h('dt', null, term), h('dd', null, ...value)];
 
@@ -254,9 +285,11 @@ export class NoteView {
       row('File', `${noteName(this.filePath)}.md`),
       row('Created', node && node.created ? shortDate(node.created) : '—'),
       row('Edited', node && node.modified ? `${relativeDay(node.modified)} ${clockTime(node.modified)}` : '—'),
-      row('Words', String(words)),
+      row('Words', words.toLocaleString()),
+      row('Target', this.targetField(target)),
       row('Links', `${links.length} out`),
     );
+    const progress = target ? progressBar(words, target) : null;
 
     const headings = outlineOf(this.text);
     const outline = h('div', { class: 'side-block' },
@@ -274,7 +307,7 @@ export class NoteView {
       swatchRow(node && node.color, (name) => this.handlers.onSetColor(this.filePath, 'file', name)),
       h('button', { class: 'serif-link', onclick: this.handlers.onPalettes }, 'Change palette →'));
 
-    this.leftBody.replaceChildren(details, outline, colour);
+    this.leftBody.replaceChildren(details, progress || '', outline, colour);
   }
 
   // Notes linking here, and notes that mention this one's name without a link.
@@ -349,6 +382,14 @@ export class NoteView {
       linkBlock,
     );
   }
+}
+
+// A bar showing words against a target (shared with folder homes).
+export function progressBar(words, target) {
+  const share = Math.min(1, words / target);
+  return h('div', { class: 'word-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(target), 'aria-valuenow': String(words), title: `${words.toLocaleString()} of ${target.toLocaleString()} words` },
+    h('span', { class: 'word-progress-track' }, h('span', { class: `word-progress-fill${share >= 1 ? ' is-done' : ''}`, style: `width: ${Math.round(share * 100)}%` })),
+    h('span', { class: 'word-progress-label' }, share >= 1 ? `${target.toLocaleString()} words — target met` : `${words.toLocaleString()} / ${target.toLocaleString()} words · ${Math.round(share * 100)}%`));
 }
 
 // Unique [[link]] targets in the order they appear.

@@ -937,3 +937,10 @@
 :root:not([data-theme="scrapbook"]) .history-item.is-on { background: var(--accent-soft); color: var(--ink); }
 :root:not([data-theme="scrapbook"]) .history-item.is-on .history-size { color: var(--ink-3); }
 :root:not([data-theme="scrapbook"]) .history-restore { background: var(--strong); color: var(--on-strong); border-radius: 999px; }
+:root:not([data-theme="scrapbook"]) .word-count { border-left: 0; }
+:root:not([data-theme="scrapbook"]) .word-count-bar { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .word-count-bar span,
+:root:not([data-theme="scrapbook"]) .word-progress-fill { background: var(--accent); }
+:root:not([data-theme="scrapbook"]) .word-progress-fill.is-done { background: #34A853; }
+:root:not([data-theme="scrapbook"]) .word-progress-track { border: 0; background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .target-input { border: 1px solid var(--line); border-radius: 6px; background: var(--paper-2); }

@@ -33,7 +33,9 @@ import { StickyLayer } from './sticky-layer.js';
 import { makePanel } from './panel.js';
 import { swatchRow } from './item-colors.js';
 import { showMenu, closeMenu } from './context-menu.js';
-import { setProp, setDescription, getDescription } from '../shared/frontmatter.js';
+import { setProp, getProp, setDescription, getDescription } from '../shared/frontmatter.js';
+import { countWords, countSelected } from '../shared/words.js';
+import { dayKey } from './calendar/events.js';
 import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
@@ -262,6 +264,26 @@ function showCrumbs(crumbs) {
   document.documentElement.dataset.screen = screen ? screen.kind : '';
   chrome.setCrumbs(crumbs);
   remember();
+  if (!screen || screen.kind !== 'note') chrome.setWords(null);
+  else showWordCount();
+}
+
+// ---------- Word count (status bar) ----------
+
+let wordTimer = null;
+function showWordCount() {
+  clearTimeout(wordTimer);
+  wordTimer = setTimeout(() => {
+    if (!current || !current.editor.view) {
+      chrome.setWords(null);
+      return;
+    }
+    const { state } = current.editor.view;
+    const text = state.doc.toString();
+    const selected = state.selection.ranges.reduce((n, r) => n + (r.empty ? 0 : countSelected(state.sliceDoc(r.from, r.to))), 0);
+    const target = parseInt(String(getProp(text, 'word-target') || ''), 10) || null;
+    chrome.setWords({ words: countWords(text), selected, target });
+  }, 120);
 }
 
 // ---------- Version history ----------
@@ -422,6 +444,8 @@ function showHome(folderPath, notice) {
     onDescribe: (text) => describeFolder(folderPath, text),
     describeNow: describeAfterOpen === '*',
     loadDescription: async () => getDescription(await window.opal.readFolderSettings(folderPath)),
+    loadWords: () => window.opal.folderWords(folderPath),
+    loadWordTarget: async () => parseInt(String(getProp(await window.opal.readFolderSettings(folderPath), 'word-target') || ''), 10) || null,
   });
   describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
@@ -497,6 +521,10 @@ async function showNote(filePath) {
     onRename: (newName, options) => renameOpenNote(filePath, newName, options),
     onDescribe: (text) => describeOpenNote(filePath, text),
     onHistory: () => showHistory(filePath),
+    onWordTarget: (target) => {
+      if (!current || current.filePath !== filePath) return;
+      current.editor.replaceText(setProp(current.editor.getText(), 'word-target', target ? String(target) : null));
+    },
     onOpenAt: async (path, line) => {
       await openFile(path);
       if (current && current.filePath === path && current.editor.goToLine) current.editor.goToLine(line);
@@ -508,12 +536,14 @@ async function showNote(filePath) {
         alert(`Couldn't add the link.\n\n${err.message}`);
       }
       loadBacklinks();
+  showWordCount();
     },
     onSetColor: (path, kind, color) => setItemColor(path, kind, color),
   });
 
   let changeTimer = null;
   let keptOriginal = false;
+  let lastWords = countWords(content); // for words written today (the Logbook)
   const editor = new EditorType({
     parent: noteView.editorHost,
     content,
@@ -526,6 +556,10 @@ async function showNote(filePath) {
       }
       await window.opal.writeFile(filePath, text);
       if (current && current.editor === editor) current.edited = true;
+      // Words written: what was added since the last save (never less than 0).
+      const words = countWords(text);
+      if (words > lastWords) window.opal.addWords(dayKey(new Date()), words - lastWords).catch(() => {});
+      lastWords = words;
       noteSaved(filePath);
       window.opal.saveSnapshot(filePath, text, 'auto').catch(() => {});
     },
@@ -535,7 +569,10 @@ async function showNote(filePath) {
     linkTargets: () => linkTargets(),
     findLink: (target) => window.opal.findLink(target),
     saveImage: (ext, bytes) => window.opal.saveAttachment(filePath, ext, bytes),
-    onCursor: () => noteView.ribbon.refresh(),
+    onCursor: () => {
+      noteView.ribbon.refresh();
+      showWordCount();
+    },
     onChange: () => {
       clearTimeout(changeTimer);
       changeTimer = setTimeout(() => {
@@ -929,6 +966,7 @@ function showLogbook() {
       date: logbookState.date,
       getFiles: () => flattenFiles(tree),
       readFile: (path) => window.opal.readFile(path),
+      readLogbook: () => window.opal.readLogbook(),
       openFile: (path) => openFile(path),
       openCalendarDay: (key) => {
         calendarState = { ...calendarState, mode: 'day' };
@@ -955,6 +993,7 @@ function colorMenu(event, node, kind) {
       { label: 'New folder inside…', onSelect: () => newFolder(node.path, at) },
       'separator',
       { label: node.path === CALENDAR_FOLDER ? 'Daily note template…' : 'Default template…', onSelect: () => chooseDefaultTemplate(node.path, at) },
+      { label: 'Word target…', hint: node.wordTarget ? node.wordTarget.toLocaleString() : '', onSelect: () => setFolderTarget(node) },
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
@@ -980,6 +1019,18 @@ function colorMenu(event, node, kind) {
         setItemColor(node.path, kind, color);
       })),
   });
+}
+
+async function setFolderTarget(node) {
+  const answer = await askName(`Word target for ${node.name}`, 'Words, then Enter (empty = none)', node.wordTarget ? String(node.wordTarget) : '');
+  if (answer === null) return;
+  const n = parseInt(String(answer).replace(/[,\s]/g, ''), 10);
+  try {
+    await window.opal.setFolderWordTarget(node.path, Number.isFinite(n) && n > 0 ? n : null);
+    await refreshFiles();
+  } catch (err) {
+    alert(`Couldn't set the word target.\n\n${err.message}`);
+  }
 }
 
 // Picks the template new notes in a folder start from (for the Calendar

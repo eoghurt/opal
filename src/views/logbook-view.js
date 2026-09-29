@@ -10,6 +10,13 @@ import { periodRange, shiftPeriod, daysIn, summarise, dayScore, loadEvents, load
 
 const LEVELS = 4; // heatmap steps above "nothing"
 
+// 95 → "1 h 35 m", 30 → "30 m".
+function fmtMinutes(minutes) {
+  if (!minutes) return '0 m';
+  const hours = Math.floor(minutes / 60);
+  return hours ? `${hours} h${minutes % 60 ? ` ${minutes % 60} m` : ''}` : `${minutes} m`;
+}
+
 function fmtChange(now, before, unit) {
   if (!before && !now) return 'same as last ' + unit;
   if (!before) return `▲ new this ${unit}`;
@@ -20,11 +27,11 @@ function fmtChange(now, before, unit) {
 
 export class LogbookView {
   // getFiles() → every file node; readFile(path) → text.
-  constructor(container, { kind, date, getFiles, readFile, openFile, openCalendarDay, openTasks, onChange }) {
+  constructor(container, { kind, date, getFiles, readFile, readLogbook, openFile, openCalendarDay, openTasks, onChange }) {
     this.container = container;
     this.kind = kind || 'month';
     this.date = date || new Date();
-    this.io = { getFiles, readFile, openFile, openCalendarDay, openTasks: openTasks || (() => {}), onChange: onChange || (() => {}) };
+    this.io = { getFiles, readFile, readLogbook, openFile, openCalendarDay, openTasks: openTasks || (() => {}), onChange: onChange || (() => {}) };
     this.selected = null;
     this.root = h('div', { class: 'logbook' });
     this.tooltip = h('div', { class: 'lb-tip', role: 'tooltip', hidden: true });
@@ -52,16 +59,17 @@ export class LogbookView {
     const files = this.io.getFiles();
     const range = periodRange(this.kind, this.date);
     const before = periodRange(this.kind, shiftPeriod(this.kind, this.date, -1));
-    const [events, eventsBefore, tasks, tasksBefore] = await Promise.all([
+    const [events, eventsBefore, tasks, tasksBefore, records] = await Promise.all([
       loadEvents(files, range, this.io.readFile),
       loadEvents(files, before, this.io.readFile),
       loadTasksDone(files, range, this.io.readFile),
       loadTasksDone(files, before, this.io.readFile),
+      this.io.readLogbook ? this.io.readLogbook().catch(() => undefined) : undefined,
     ]);
     this.range = range;
     this.thresholds = null;
-    this.data = summarise(files, events, range, tasks);
-    this.previous = summarise(files, eventsBefore, before, tasksBefore);
+    this.data = summarise(files, events, range, tasks, records);
+    this.previous = summarise(files, eventsBefore, before, tasksBefore, records);
     if (!this.selected) {
       const today = dayKey(new Date());
       const keys = daysIn(range);
@@ -104,9 +112,9 @@ export class LogbookView {
           h('button', { class: 'cal-navbtn', 'aria-label': `Next ${unit}`, onclick: () => this.go(this.kind, shiftPeriod(this.kind, this.date, 1)) }, '›'))),
     );
 
-    const tile = (label, now, before, hint) => h('div', { class: 'lb-tile' },
+    const tile = (label, now, before, hint, shown) => h('div', { class: 'lb-tile' },
       h('span', { class: 'mono-label' }, label),
-      h('span', { class: 'display lb-number' }, String(now)),
+      h('span', { class: 'display lb-number' }, shown ?? String(now)),
       h('span', { class: 'lb-change' }, fmtChange(now, before, unit)),
       hint ? h('span', { class: 'serif-i lb-hint' }, hint) : null);
 
@@ -115,6 +123,8 @@ export class LogbookView {
       tile('Notes edited', t.edited, p.edited, 'last change in this period'),
       tile('Calendar events', t.events, p.events),
       tile('Tasks done', t.tasks, p.tasks),
+      tile('Words written', t.words, p.words, 'added while writing in Opal', t.words.toLocaleString()),
+      tile('Prep time', t.prep, p.prep, 'with the prep timer', fmtMinutes(t.prep)),
       tile('Files added', t.added, p.added, 'PDFs, pictures, Office…'));
 
     const main = h('div', { class: 'lb-main' },
@@ -307,6 +317,8 @@ export class LogbookView {
         ? h('div', { class: 'lb-groups' },
           group('Events', day.events.slice().sort((a, b) => a.start - b.start).map((e) => item(e.allDay ? '◆' : clock(e.start), e.title, () => this.io.openCalendarDay(key)))),
           group('Tasks done', day.tasks.map((t) => item('✓', t.title, () => this.io.openTasks(), t.list))),
+          day.words ? group('Words written', [item('✎', `${day.words.toLocaleString()} words`, () => {}, null)]) : null,
+          group('Prep sessions', (day.sessions || []).map((s) => item(s.time, s.note ? s.note.split('/').pop() : 'Prep session', () => s.note && this.io.openFile(`${s.note}.md`), `${s.minutes} min`))),
           group('New notes', day.created.map((f) => item('+', noteName(f.path), () => this.io.openFile(f.path), f.path.includes('/') ? f.path.split('/').slice(0, -1).join('/') : null))),
           group('Edited', day.edited.map((f) => item('✎', noteName(f.path), () => this.io.openFile(f.path), f.path.includes('/') ? f.path.split('/').slice(0, -1).join('/') : null))),
           group('Files added', day.added.map((f) => item('↓', f.path.split('/').pop(), () => this.io.openFile(f.path)))))
@@ -315,6 +327,7 @@ export class LogbookView {
   }
 
   // ---------- Tooltip ----------
+
 
   showTip(anchor, text) {
     const box = anchor.getBoundingClientRect();

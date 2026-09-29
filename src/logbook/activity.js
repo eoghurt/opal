@@ -1,6 +1,7 @@
 // Works out what happened in the vault over a period (week, month, year)
 // from things Opal already knows: each file's created and last-changed dates,
-// and the events in the calendar's day notes. Nothing extra is stored.
+// the events in the calendar's day notes, and Opal's own records in
+// .opal/logbook.md (words written each day, prep-timer sessions).
 
 import { dayKey, addDays, startOfWeek, parseEvents, keyToDate, parseSeries, occurrences, REPEATS_PATH } from '../calendar/events.js';
 import { kindOf } from '../file-types.js';
@@ -35,10 +36,11 @@ const topFolder = (path) => (path.includes('/') ? path.split('/')[0] : 'Vault ro
 
 // files: every file node in the vault. eventsByDay: { 'YYYY-MM-DD': [events] }.
 // tasksByDay: { 'YYYY-MM-DD': [tasks finished that day] }.
-export function summarise(files, eventsByDay, range, tasksByDay = {}) {
+// records: { words: { 'YYYY-MM-DD': n }, sessions: [{ day, time, minutes, note }] }.
+export function summarise(files, eventsByDay, range, tasksByDay = {}, records = { words: {}, sessions: [] }) {
   const perDay = {};
   const ensure = (key) => {
-    if (!perDay[key]) perDay[key] = { created: [], edited: [], added: [], events: [], tasks: [] };
+    if (!perDay[key]) perDay[key] = { created: [], edited: [], added: [], events: [], tasks: [], words: 0, sessions: [] };
     return perDay[key];
   };
   const folders = {};
@@ -66,8 +68,17 @@ export function summarise(files, eventsByDay, range, tasksByDay = {}) {
     if (inRange(keyToDate(key).getTime(), range) && tasks.length) ensure(key).tasks.push(...tasks);
   }
 
-  const totals = { created: 0, edited: 0, events: 0, added: 0, tasks: 0 };
+  for (const [key, words] of Object.entries(records.words || {})) {
+    if (words > 0 && inRange(keyToDate(key).getTime(), range)) ensure(key).words += words;
+  }
+  for (const session of records.sessions || []) {
+    if (inRange(keyToDate(session.day).getTime(), range)) ensure(session.day).sessions.push(session);
+  }
+
+  const totals = { created: 0, edited: 0, events: 0, added: 0, tasks: 0, words: 0, prep: 0 };
   for (const day of Object.values(perDay)) {
+    totals.words += day.words;
+    totals.prep += day.sessions.reduce((n, s) => n + s.minutes, 0);
     totals.created += day.created.length;
     totals.edited += day.edited.length;
     totals.events += day.events.length;
@@ -78,7 +89,9 @@ export function summarise(files, eventsByDay, range, tasksByDay = {}) {
 }
 
 export function dayScore(day) {
-  return day ? day.created.length + day.edited.length + day.added.length + day.events.length + day.tasks.length : 0;
+  // Writing counts too: a note's worth of activity per 250 words written.
+  return day ? day.created.length + day.edited.length + day.added.length + day.events.length + day.tasks.length
+    + Math.ceil((day.words || 0) / 250) + (day.sessions ? day.sessions.length : 0) : 0;
 }
 
 // Tasks (and subtasks) finished in a range, by the day they were done (✅ date).
