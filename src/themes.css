@@ -1,0 +1,785 @@
+/* Themes. styles.css is the Scrapbook look; this file re-dresses it as
+   Minimal or GitHub, each in light and dark. The theme is picked on the
+   Theme & palettes screen and set as data-theme / data-mode on <html>
+   (see src/themes.js). Nothing here applies to Scrapbook. */
+
+/* ============================================================
+   Colours and shapes for each theme and mode
+   ============================================================ */
+
+:root[data-theme="minimal"] {
+  --ink: #1C1C1E;
+  --ink-rgb: 28 28 30;
+  --ink-2: #3A3A3C;
+  --ink-3: #8E8E93;
+  --ink-4: #AEAEB2;
+  --ground: #FAFAF8;
+  --paper: #FAFAF8;
+  --paper-2: #FFFFFF;
+  --paper-3: #F1F1F3;
+  --paper-rgb: 250 250 248;
+  --white: #FFFFFF;
+  --line: #E8E8E6;
+  --line-soft: #EFEFED;
+  --fill: #EDEDEF;          /* pills, quiet buttons */
+  --accent: #3B2CF5;
+  --accent-soft: #ECEAFE;
+  --on-accent: #FFFFFF;
+  --strong: #1C1C1E;        /* the black pill */
+  --on-strong: #FFFFFF;
+  --link: #3B2CF5;
+  --danger: #D70015;
+  --rule: 1px solid var(--line);
+  --hair: 1px solid var(--line-soft);
+  --radius: 8px;
+  --event-mix: #FFFFFF;
+  --event-strength: 26%;
+  --lift: 0 8px 28px rgb(0 0 0 / 0.10), 0 1px 3px rgb(0 0 0 / 0.08);
+  --lift-soft: 0 1px 3px rgb(0 0 0 / 0.06);
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+:root[data-theme="minimal"][data-mode="dark"] {
+  --ink: #F2F2F7;
+  --ink-rgb: 242 242 247;
+  --ink-2: #D1D1D6;
+  --ink-3: #8E8E93;
+  --ink-4: #636366;
+  --ground: #141416;
+  --paper: #141416;
+  --paper-2: #1C1C1E;
+  --paper-3: #232326;
+  --paper-rgb: 20 20 22;
+  --white: #1C1C1E;
+  --line: #2A2A2D;
+  --line-soft: #232326;
+  --fill: #2A2A2E;
+  --accent: #8B80FF;
+  --accent-soft: #28244A;
+  --on-accent: #FFFFFF;
+  --strong: #F2F2F7;
+  --on-strong: #141416;
+  --link: #9D93FF;
+  --danger: #FF6961;
+  --event-mix: #1C1C1E;
+  --event-strength: 34%;
+  --lift: 0 10px 30px rgb(0 0 0 / 0.45), 0 0 0 1px #2A2A2D;
+  --lift-soft: 0 1px 3px rgb(0 0 0 / 0.4);
+}
+
+:root[data-theme="github"] {
+  --ink: #1F2328;
+  --ink-rgb: 31 35 40;
+  --ink-2: #1F2328;
+  --ink-3: #656D76;
+  --ink-4: #8C959F;
+  --ground: #FFFFFF;
+  --paper: #FFFFFF;
+  --paper-2: #FFFFFF;
+  --paper-3: #F6F8FA;
+  --paper-rgb: 255 255 255;
+  --white: #FFFFFF;
+  --subtle: #F6F8FA;        /* headers, table heads */
+  --inset: #F6F8FA;
+  --line: #D0D7DE;
+  --line-soft: #D8DEE4;
+  --fill: #EFF2F5;
+  --accent: #0969DA;
+  --accent-soft: #DDF4FF;
+  --on-accent: #FFFFFF;
+  --success: #1F883D;
+  --success-text: #1A7F37;
+  --tab-line: #FD8C73;
+  --counter: rgb(175 184 193 / 0.2);
+  --strong: #1F883D;
+  --on-strong: #FFFFFF;
+  --link: #0969DA;
+  --danger: #CF222E;
+  --rule: 1px solid var(--line);
+  --hair: 1px solid var(--line-soft);
+  --radius: 6px;
+  --event-mix: #FFFFFF;
+  --event-strength: 22%;
+  --lift: 0 8px 24px rgb(140 149 159 / 0.2), 0 0 0 1px var(--line);
+  --lift-soft: 0 1px 0 rgb(31 35 40 / 0.04);
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --display: var(--sans);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --heat-0: #EBEDF0;
+  --heat-1: #9BE9A8;
+  --heat-2: #40C463;
+  --heat-3: #30A14E;
+  --heat-4: #216E39;
+}
+
+:root[data-theme="github"][data-mode="dark"] {
+  --ink: #E6EDF3;
+  --ink-rgb: 230 237 243;
+  --ink-2: #E6EDF3;
+  --ink-3: #7D8590;
+  --ink-4: #6E7681;
+  --ground: #0D1117;
+  --paper: #0D1117;
+  --paper-2: #0D1117;
+  --paper-3: #161B22;
+  --paper-rgb: 13 17 23;
+  --white: #0D1117;
+  --subtle: #161B22;
+  --inset: #010409;
+  --line: #30363D;
+  --line-soft: #21262D;
+  --fill: #21262D;
+  --accent: #4493F8;
+  --accent-soft: rgb(56 139 253 / 0.15);
+  --success: #238636;
+  --success-text: #3FB950;
+  --tab-line: #F78166;
+  --counter: #30363D;
+  --strong: #238636;
+  --link: #4493F8;
+  --danger: #F85149;
+  --event-mix: #0D1117;
+  --event-strength: 40%;
+  --lift: 0 8px 24px rgb(1 4 9 / 0.75), 0 0 0 1px var(--line);
+  --lift-soft: 0 0 0 1px var(--line);
+  --heat-0: #161B22;
+  --heat-1: #0E4429;
+  --heat-2: #006D32;
+  --heat-3: #26A641;
+  --heat-4: #39D353;
+}
+
+/* ============================================================
+   Both themes: take away the scrapbook trimmings
+   ============================================================ */
+
+:root:not([data-theme="scrapbook"]) body { background: var(--ground); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) #view { background-image: none; background-color: var(--ground); }
+
+/* Small caps labels become quiet sentence-case labels. */
+:root:not([data-theme="scrapbook"]) .mono-label {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-3);
+}
+:root:not([data-theme="scrapbook"]) .serif-i { font-family: var(--sans); font-style: normal; font-size: 13px; color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .display { font-weight: 700; }
+:root:not([data-theme="scrapbook"]) .swatch { border: 0; border-radius: 50%; }
+:root:not([data-theme="scrapbook"]) .tape,
+:root:not([data-theme="scrapbook"]) .sticky-tape,
+:root:not([data-theme="scrapbook"]) .scribble-arrow { display: none; }
+:root:not([data-theme="scrapbook"]) button:focus-visible,
+:root:not([data-theme="scrapbook"]) input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+
+/* No tilting. */
+:root:not([data-theme="scrapbook"]) .note-card,
+:root:not([data-theme="scrapbook"]) .photo-card,
+:root:not([data-theme="scrapbook"]) .sticky,
+:root:not([data-theme="scrapbook"]) .home-empty-text,
+:root:not([data-theme="scrapbook"]) .welcome-hint,
+:root:not([data-theme="scrapbook"]) .viewer-hand,
+:root:not([data-theme="scrapbook"]) .side-empty,
+:root:not([data-theme="scrapbook"]) .ask { transform: none !important; }
+:root:not([data-theme="scrapbook"]) .cal .cal-event,
+:root:not([data-theme="scrapbook"]) .cal .cal-task-block { rotate: 0deg !important; }
+
+/* ---------- Top bar ---------- */
+
+:root:not([data-theme="scrapbook"]) #topbar {
+  height: 44px;
+  background: var(--paper);
+  color: var(--ink);
+  border-bottom: var(--rule);
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root:not([data-theme="scrapbook"]) #topbar .bar-cell,
+:root:not([data-theme="scrapbook"]) #topbar .crumbs { border-right: 0; }
+:root:not([data-theme="scrapbook"]) #topbar .wordmark-text { color: var(--ink); font-size: 16px; }
+:root:not([data-theme="scrapbook"]) #topbar .crumb { color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) #topbar .crumb:hover { color: var(--ink); }
+:root:not([data-theme="scrapbook"]) #topbar .crumbs > span:not([class]) { color: var(--ink-4); }
+:root:not([data-theme="scrapbook"]) #topbar .crumb-current { color: var(--ink); font-weight: 500; }
+:root:not([data-theme="scrapbook"]) #topbar .bar-link,
+:root:not([data-theme="scrapbook"]) #topbar .bar-date,
+:root:not([data-theme="scrapbook"]) #topbar .palette-chip { color: var(--ink-3); padding: 0 12px; }
+:root:not([data-theme="scrapbook"]) #topbar .bar-link:hover,
+:root:not([data-theme="scrapbook"]) #topbar .bar-date:hover,
+:root:not([data-theme="scrapbook"]) #topbar .palette-chip:hover,
+:root:not([data-theme="scrapbook"]) #topbar .wordmark:hover { background: none; color: var(--ink); }
+:root:not([data-theme="scrapbook"]) #topbar .chip-bars span { width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; }
+:root:not([data-theme="scrapbook"]) #topbar button:focus-visible { outline-color: var(--accent); }
+
+/* ---------- Sidebar ---------- */
+
+:root:not([data-theme="scrapbook"]) #sidebar { background: var(--paper); border-right: var(--rule); }
+:root:not([data-theme="scrapbook"]) .side-vault { border-bottom: 0; padding: 10px 10px 4px; }
+:root:not([data-theme="scrapbook"]) .side-vault-name { font-family: var(--sans); font-size: 13.5px; font-weight: 600; border-radius: var(--radius); padding: 6px 10px; }
+:root:not([data-theme="scrapbook"]) .side-vault-name.is-current { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .side-switch { border-left: 0; color: var(--ink-3); border-radius: var(--radius); padding: 0 10px; }
+:root:not([data-theme="scrapbook"]) .side-switch:hover { background: var(--fill); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .side-label { border-bottom: 0; padding: 12px 20px 6px; }
+:root:not([data-theme="scrapbook"]) .side-tree { padding: 0 10px 20px; }
+:root:not([data-theme="scrapbook"]) .side-row { border-bottom: 0; min-height: 28px; border-radius: var(--radius); }
+:root:not([data-theme="scrapbook"]) .side-row:hover:not(.is-current):not(.is-active) { background: rgb(var(--ink-rgb) / 0.05); }
+:root:not([data-theme="scrapbook"]) .side-folder.is-current { background: var(--fill); font-weight: 600; }
+:root:not([data-theme="scrapbook"]) .side-file { color: var(--ink-2); }
+:root:not([data-theme="scrapbook"]) .side-empty { font-size: 13px; font-family: var(--sans); font-weight: 400; color: var(--ink-3); }
+
+/* ---------- Bottom bar ---------- */
+
+:root:not([data-theme="scrapbook"]) #footer {
+  height: 28px;
+  background: var(--paper);
+  color: var(--ink-3);
+  border-top: var(--rule);
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root:not([data-theme="scrapbook"]) .recent-label { background: none; color: var(--ink-4); font-weight: 400; }
+:root:not([data-theme="scrapbook"]) .recent-item:hover { color: var(--ink); text-decoration: none; }
+:root:not([data-theme="scrapbook"]) .save-status { border-left: 0; }
+
+/* ---------- Panels (the note's side columns, the calendar rail…) ---------- */
+
+:root:not([data-theme="scrapbook"]) .panel { background: var(--paper); }
+:root:not([data-theme="scrapbook"]) .panel-close,
+:root:not([data-theme="scrapbook"]) .panel-tab { background: var(--paper); color: var(--ink-3); border-color: var(--line); }
+
+/* ---------- Folder homes ---------- */
+
+:root:not([data-theme="scrapbook"]) .home-head { border-bottom: 0; background: none; }
+:root:not([data-theme="scrapbook"]) .home-h1 { font-size: 40px; letter-spacing: -0.035em; }
+:root:not([data-theme="scrapbook"]) .home-stamp-cell { display: none; }
+:root:not([data-theme="scrapbook"]) .home-desc { color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .home-empty-text { font-family: var(--sans); font-size: 15px; font-weight: 400; color: var(--ink-3); }
+
+/* ---------- Note ---------- */
+
+:root:not([data-theme="scrapbook"]) .note-center { background: var(--paper-2); }
+:root:not([data-theme="scrapbook"]) .note-left,
+:root:not([data-theme="scrapbook"]) .note-right { border-color: var(--line); }
+:root:not([data-theme="scrapbook"]) .note-title { font-weight: 700; color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .note-title:focus { background: none; }
+:root:not([data-theme="scrapbook"]) .chip { border: 0; background: var(--fill) !important; color: var(--ink-3); border-radius: 999px; font-family: var(--sans); text-transform: none; letter-spacing: 0; font-size: 12px; }
+:root:not([data-theme="scrapbook"]) .meta-list dt { font-family: var(--sans); text-transform: none; letter-spacing: 0; color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .meta-list dt,
+:root:not([data-theme="scrapbook"]) .meta-list dd { border-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .folder-card { border: 0; border-radius: var(--radius); background: var(--fill) !important; }
+:root:not([data-theme="scrapbook"]) .sibling.is-active { background: var(--fill); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .dashed-button { border: 1px dashed var(--line); color: var(--ink-3); border-radius: var(--radius); font-family: var(--sans); text-transform: none; letter-spacing: 0; }
+:root:not([data-theme="scrapbook"]) .link-chip { border: 0; background: var(--accent-soft); color: var(--link); border-radius: 999px; }
+
+/* The ribbon */
+:root:not([data-theme="scrapbook"]) .ribbon { background: var(--paper-2); border-bottom: var(--hair); }
+:root:not([data-theme="scrapbook"]) .rb-group { border-right-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .rb-caption { font-family: var(--sans); text-transform: none; letter-spacing: 0; font-size: 10px; color: var(--ink-4); }
+:root:not([data-theme="scrapbook"]) .rb-btn { color: var(--ink-2); border-radius: 6px; }
+:root:not([data-theme="scrapbook"]) .rb-btn:hover { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .rb-btn.is-on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+:root:not([data-theme="scrapbook"]) .rb-btn.is-highlight { box-shadow: inset 0 -6px 0 rgb(255 210 63 / 0.6); }
+:root:not([data-theme="scrapbook"]) .rb-style { border: var(--rule); background: var(--paper-2); color: var(--ink); border-radius: 6px; }
+
+/* The pop-up bar over selected text */
+:root:not([data-theme="scrapbook"]) .cm-format-bar { background: var(--strong); border: 0; border-radius: 10px; box-shadow: var(--lift); }
+:root:not([data-theme="scrapbook"]) .cm-format-btn { color: var(--on-strong); border-radius: 6px; }
+:root:not([data-theme="scrapbook"]) .cm-format-btn:hover { background: rgb(255 255 255 / 0.15); color: var(--on-strong); }
+
+/* ---------- Menus, pop-ups, name boxes ---------- */
+
+:root:not([data-theme="scrapbook"]) .ctx-menu,
+:root:not([data-theme="scrapbook"]) .cal-pop,
+:root:not([data-theme="scrapbook"]) .ask,
+:root:not([data-theme="scrapbook"]) .rb-color-menu,
+:root:not([data-theme="scrapbook"]) .table-picker,
+:root:not([data-theme="scrapbook"]) .repeat-picker,
+:root:not([data-theme="scrapbook"]) .otable-pop,
+:root:not([data-theme="scrapbook"]) .otable-menu,
+:root:not([data-theme="scrapbook"]) .search-box {
+  background: var(--paper-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--lift);
+}
+:root:not([data-theme="scrapbook"]) .ctx-item { border-radius: 6px; }
+:root:not([data-theme="scrapbook"]) .ctx-item:hover,
+:root:not([data-theme="scrapbook"]) .ctx-item:focus { background: var(--accent); color: var(--on-accent); }
+:root:not([data-theme="scrapbook"]) .ctx-sep { border-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .cal-pop-btn,
+:root:not([data-theme="scrapbook"]) .ask-choice {
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  border-radius: 999px;
+  font-family: var(--sans);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  padding: 6px 14px;
+}
+:root:not([data-theme="scrapbook"]) .cal-pop-btn.is-primary,
+:root:not([data-theme="scrapbook"]) .ask-choice.is-primary { background: var(--strong); color: var(--on-strong); border-color: transparent; }
+:root:not([data-theme="scrapbook"]) .cal-pop-select,
+:root:not([data-theme="scrapbook"]) .ask-input,
+:root:not([data-theme="scrapbook"]) .task-edit-select,
+:root:not([data-theme="scrapbook"]) .search-input {
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  border-radius: 8px;
+}
+:root:not([data-theme="scrapbook"]) .cal-new-title { border-bottom: 1px solid var(--line); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .cal-new-title:focus { border-bottom-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .cal-new-kind.is-on { border-bottom-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .item-swatch,
+:root:not([data-theme="scrapbook"]) .cal-swatch { border-radius: 50%; border-color: transparent; }
+:root:not([data-theme="scrapbook"]) .item-swatch.is-on,
+:root:not([data-theme="scrapbook"]) .cal-swatch.is-on { box-shadow: 0 0 0 2px var(--paper-2), 0 0 0 3.5px var(--ink); }
+
+/* Sticky notes stay colourful but lose the tape and the hard shadow. */
+:root:not([data-theme="scrapbook"]) .sticky { border: 0; border-radius: 4px; box-shadow: var(--lift-soft), 0 6px 16px rgb(0 0 0 / 0.08); }
+
+/* ---------- Theme picker (Theme & palettes screen) ---------- */
+
+.theme-picker { display: flex; flex-direction: column; gap: 12px; padding: 0 32px 28px; }
+.theme-row { display: grid; grid-template-columns: repeat(3, minmax(0, 220px)); gap: 16px; }
+.theme-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: var(--rule); border-radius: var(--radius); background: var(--paper-2); text-align: left; }
+.theme-card.is-active { outline: 2.5px solid var(--accent, var(--ink)); outline-offset: 2px; }
+.theme-preview { position: relative; height: 96px; border-radius: 4px; overflow: hidden; border: 1px solid rgb(0 0 0 / 0.08); }
+.theme-preview-bar { position: absolute; left: 0; right: 0; top: 0; height: 14px; opacity: 0.9; }
+.theme-preview-line { position: absolute; left: 14px; top: 34px; width: 60%; height: 8px; border-radius: 4px; opacity: 0.85; }
+.theme-preview-line.is-short { top: 52px; width: 38%; opacity: 1; }
+.theme-preview-dot { position: absolute; right: 14px; bottom: 12px; width: 22px; height: 22px; border-radius: 50%; }
+.theme-name { font-family: var(--display); font-weight: 700; font-size: 16px; }
+.theme-byline { font-size: 12px; color: var(--ink-3); }
+.theme-modes { display: flex; gap: 6px; align-items: center; }
+.theme-mode { padding: 6px 14px; border: var(--rule); border-radius: 999px; font-size: 13px; background: var(--paper-2); }
+.theme-mode.is-on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.theme-mode:disabled { opacity: 0.4; cursor: default; }
+.theme-mode-note { font-size: 12px; color: var(--ink-3); margin-left: 6px; }
+
+/* ============================================================
+   Fixes common to both
+   ============================================================ */
+
+:root:not([data-theme="scrapbook"]) .side-file.is-active { background: var(--fill); color: var(--ink); font-weight: 600; }
+:root:not([data-theme="scrapbook"]) .meta-list dd { font-family: var(--sans); }
+:root:not([data-theme="scrapbook"]) .serif-link { font-family: var(--sans); font-style: normal; font-size: 13px; color: var(--link); }
+:root:not([data-theme="scrapbook"]) .home-desc,
+:root:not([data-theme="scrapbook"]) .home-desc.is-tip { font-family: var(--sans); font-style: normal; font-size: 14px; }
+:root:not([data-theme="scrapbook"]) .home-folders,
+:root:not([data-theme="scrapbook"]) .home-cards { border: 0; }
+:root:not([data-theme="scrapbook"]) .home-actions { width: auto; flex-direction: row; align-items: center; gap: 8px; border-left: 0; padding: 0 28px; }
+:root:not([data-theme="scrapbook"]) .home-action {
+  flex-grow: 0;
+  min-height: 0;
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root:not([data-theme="scrapbook"]) .home-action:last-child { border: 0; }
+:root:not([data-theme="scrapbook"]) .home-action:hover { background: var(--line); }
+:root:not([data-theme="scrapbook"]) .home-action.is-primary { background: var(--strong); color: var(--on-strong); }
+:root:not([data-theme="scrapbook"]) .home-action.is-primary:hover { background: var(--strong); opacity: 0.88; }
+:root:not([data-theme="scrapbook"]) .home-title { padding: 26px 32px 18px; }
+
+/* ============================================================
+   Minimal: frosted folders, white cards, pill buttons
+   ============================================================ */
+
+:root[data-theme="minimal"] { --frost: rgb(233 233 237 / 0.84); --frost-edge: rgb(255 255 255 / 0.9); }
+:root[data-theme="minimal"][data-mode="dark"] { --frost: rgb(48 48 53 / 0.84); --frost-edge: rgb(255 255 255 / 0.08); }
+
+:root[data-theme="minimal"] .home-folders { gap: 18px 22px; padding: 4px 32px 18px; }
+:root[data-theme="minimal"] .folder-tile { height: 150px; padding: 0; justify-content: flex-end; }
+:root[data-theme="minimal"] .folder-sheet { border: 0; border-radius: 6px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+:root[data-theme="minimal"] .sheet-a { background: var(--paper-2); }
+:root[data-theme="minimal"] .sheet-b { background: color-mix(in srgb, var(--item-color) 60%, var(--paper-2)); }
+:root[data-theme="minimal"] .folder-tab { height: 18px; width: 42%; border: 0; border-radius: 12px 12px 0 0; background: var(--frost) !important; backdrop-filter: blur(8px); }
+:root[data-theme="minimal"] .folder-body {
+  height: 96px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0 16px 16px 16px;
+  background: var(--frost) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 var(--frost-edge), 0 6px 16px rgb(0 0 0 / 0.06);
+}
+:root[data-theme="minimal"] .folder-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+:root[data-theme="minimal"] .folder-name::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%; background: var(--item-color); vertical-align: 2px; }
+:root[data-theme="minimal"] .folder-count { border: 0; border-radius: 999px; background: var(--paper-2); font-family: var(--sans); font-size: 11.5px; padding: 1px 8px; }
+:root[data-theme="minimal"] .folder-foot .serif-i { font-size: 12px; }
+
+:root[data-theme="minimal"] .home-cards { gap: 14px; padding: 6px 32px 32px; grid-auto-rows: 170px; }
+:root[data-theme="minimal"] .card-cell { padding: 0; }
+:root[data-theme="minimal"] .note-card,
+:root[data-theme="minimal"] .note-card.look-block,
+:root[data-theme="minimal"] .note-card.look-lined {
+  border: 0;
+  border-radius: 14px;
+  background: var(--paper-2) !important;
+  background-image: none;
+  box-shadow: var(--lift-soft), 0 0 0 1px var(--line-soft);
+  padding: 16px 18px;
+}
+:root[data-theme="minimal"] .note-card:hover { box-shadow: var(--lift); transform: translateY(-1px) !important; }
+:root[data-theme="minimal"] .card-label > span:first-child::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--item-color); }
+:root[data-theme="minimal"] .card-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+:root[data-theme="minimal"] .card-preview { color: var(--ink-3); font-size: 13px; line-height: 1.5; }
+:root[data-theme="minimal"] .type-block { border: 0; border-radius: 10px; }
+:root[data-theme="minimal"] .photo-card { border: 0; border-radius: 12px; overflow: hidden; box-shadow: var(--lift-soft); background: var(--paper-2); }
+:root[data-theme="minimal"] .photo-caption { font-family: var(--sans); font-weight: 500; font-size: 13px; }
+
+/* ============================================================
+   GitHub: the folder home is a repository's file list
+   ============================================================ */
+
+:root[data-theme="github"] .home { gap: 16px; padding-bottom: 32px; }
+:root[data-theme="github"] .home-head { border-bottom: var(--rule); background: var(--subtle); }
+:root[data-theme="github"] .home-title { padding: 18px 24px 16px; }
+:root[data-theme="github"] .home-h1 { font-size: 26px; font-weight: 600; letter-spacing: 0; }
+:root[data-theme="github"] .home-action { border: 1px solid var(--line); background: var(--subtle); border-radius: 6px; padding: 5px 14px; font-weight: 500; }
+:root[data-theme="github"] .home-action.is-primary { background: var(--success); color: #FFFFFF; border-color: rgb(31 35 40 / 0.15); }
+
+:root[data-theme="github"] .home-folders,
+:root[data-theme="github"] .home-cards {
+  display: flex;
+  flex-direction: column;
+  margin: 0 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  gap: 0;
+}
+:root[data-theme="github"] .home-folders { margin-bottom: -17px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+:root[data-theme="github"] .home-folders + .home-cards { border-top-left-radius: 0; border-top-right-radius: 0; }
+:root[data-theme="github"] .folder-tile {
+  height: auto;
+  padding: 0;
+  border-top: 1px solid var(--line-soft);
+  background: var(--paper);
+}
+:root[data-theme="github"] .folder-tile:first-child { border-top: 0; }
+:root[data-theme="github"] .folder-tile:hover { background: var(--subtle); }
+:root[data-theme="github"] .folder-sheet,
+:root[data-theme="github"] .folder-tab { display: none; }
+:root[data-theme="github"] .folder-body {
+  height: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 0;
+  background: none !important;
+}
+:root[data-theme="github"] .folder-name { font-family: var(--sans); font-size: 14px; font-weight: 400; letter-spacing: 0; width: 260px; flex-shrink: 0; }
+:root[data-theme="github"] .folder-name::before {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  height: 12px;
+  margin-right: 10px;
+  vertical-align: -1px;
+  border-radius: 2px;
+  background: #54AEFF;
+  clip-path: polygon(0 0, 42% 0, 52% 18%, 100% 18%, 100% 100%, 0 100%);
+}
+:root[data-theme="github"] .folder-foot { flex-grow: 1; }
+:root[data-theme="github"] .folder-foot .serif-i { font-size: 13.5px; }
+:root[data-theme="github"] .folder-count { border: 0; background: var(--counter); border-radius: 999px; font-family: var(--sans); font-size: 12px; padding: 0 8px; color: var(--ink); }
+
+:root[data-theme="github"] .home-cards { grid-auto-rows: auto; }
+:root[data-theme="github"] .card-cell { padding: 0; border-top: 1px solid var(--line-soft) !important; }
+:root[data-theme="github"] .card-cell:first-child { border-top: 0 !important; }
+:root[data-theme="github"] .note-card,
+:root[data-theme="github"] .note-card.look-block,
+:root[data-theme="github"] .note-card.look-lined {
+  height: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper) !important;
+  background-image: none;
+  box-shadow: none;
+}
+:root[data-theme="github"] .note-card:hover { background: var(--subtle) !important; box-shadow: none; transform: none !important; }
+:root[data-theme="github"] .card-title { order: 1; width: 260px; flex-shrink: 0; font-size: 14px; font-weight: 400; letter-spacing: 0; -webkit-line-clamp: 1; }
+:root[data-theme="github"] .card-title::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 15px;
+  margin-right: 12px;
+  vertical-align: -2px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 2px;
+}
+:root[data-theme="github"] .card-preview { order: 2; flex: 1 1 auto; -webkit-line-clamp: 1; color: var(--ink-3); font-size: 13.5px; }
+:root[data-theme="github"] .card-label { order: 3; flex-shrink: 0; }
+:root[data-theme="github"] .card-label > span:first-child { display: none; }
+:root[data-theme="github"] .card-foot { display: none; }
+:root[data-theme="github"] .type-block { display: none; }
+:root[data-theme="github"] .note-card.file-card .card-label > span:first-child { display: inline; margin-right: 8px; }
+:root[data-theme="github"] .photo-card { width: 100%; height: auto; display: flex; align-items: center; gap: 12px; padding: 6px 16px; border: 0; box-shadow: none; background: var(--paper); }
+:root[data-theme="github"] .photo-img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+:root[data-theme="github"] .photo-caption { font-family: var(--sans); font-weight: 400; font-size: 14px; }
+:root[data-theme="github"] .home-empty { margin: 0 24px; border: 1px dashed var(--line); border-radius: 6px; padding: 24px; }
+
+/* ============================================================
+   Editor type for both
+   ============================================================ */
+
+:root:not([data-theme="scrapbook"]) { --ed-serif: var(--sans); --ed-serif-size: 1em; --ed-quote: var(--ink-3); }
+:root[data-theme="minimal"] { --ed-h-weight: 700; --ed-h1: 2.2em; --ed-h2: 1.45em; --ed-h3: 1.2em; }
+:root[data-theme="github"] {
+  --ed-h-weight: 600; --ed-h1: 2em; --ed-h2: 1.5em; --ed-h3: 1.25em;
+  --ed-h1-track: 0; --ed-h2-track: 0; --ed-h3-track: 0;
+}
+:root[data-theme="minimal"] .meta-list dt,
+:root[data-theme="minimal"] .meta-list dd { border: 0; }
+:root[data-theme="minimal"] .note-left,
+:root[data-theme="minimal"] .note-right { background: var(--paper); }
+
+/* ============================================================
+   GitHub: tabs, file tree, README box
+   ============================================================ */
+
+/* The sections are tabs, underlined when you're on them. */
+:root[data-theme="github"] #topbar { background: var(--inset); height: 48px; }
+:root[data-theme="github"][data-mode="light"] #topbar { background: var(--subtle); }
+:root[data-theme="github"] #topbar .bar-link { color: var(--ink); position: relative; }
+:root[data-theme="github"] #topbar .bar-link:hover { background: none; }
+:root[data-theme="github"] #topbar .bar-link::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px; border-radius: 2px; }
+:root[data-theme="github"] #topbar .bar-link:hover::after { background: var(--line); }
+:root[data-theme="github"][data-screen="calendar"] #topbar .bar-link[data-section="calendar"],
+:root[data-theme="github"][data-screen="tasks"] #topbar .bar-link[data-section="tasks"],
+:root[data-theme="github"][data-screen="logbook"] #topbar .bar-link[data-section="logbook"] { font-weight: 600; }
+:root[data-theme="github"][data-screen="calendar"] #topbar .bar-link[data-section="calendar"]::after,
+:root[data-theme="github"][data-screen="tasks"] #topbar .bar-link[data-section="tasks"]::after,
+:root[data-theme="github"][data-screen="logbook"] #topbar .bar-link[data-section="logbook"]::after { background: var(--tab-line); }
+:root[data-theme="github"] #topbar .bar-search { border: 1px solid var(--line); border-radius: 6px; height: 30px; align-self: center; margin-right: 10px; padding: 0 60px 0 12px; color: var(--ink-3); }
+:root[data-theme="github"] #topbar .crumb { color: var(--link); }
+:root[data-theme="github"] #topbar .crumb-current { font-weight: 600; }
+
+/* A file tree: folder and file icons instead of dots. */
+:root[data-theme="github"] #sidebar { background: var(--paper); }
+:root[data-theme="github"] .side-row { border-radius: 6px; }
+:root[data-theme="github"] .side-folder .swatch {
+  width: 16px; height: 12px; border-radius: 2px;
+  background: #54AEFF !important;
+  clip-path: polygon(0 0, 42% 0, 52% 18%, 100% 18%, 100% 100%, 0 100%);
+}
+:root[data-theme="github"] .side-file .swatch-dot {
+  width: 11px; height: 14px; border-radius: 2px;
+  background: none !important;
+  border: 1.4px solid var(--ink-3);
+}
+:root[data-theme="github"] .side-file.is-active { background: var(--fill); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* The note sits in a bordered box like a README, the ribbon as its header. */
+:root[data-theme="github"] .note-view { background: var(--ground); }
+:root[data-theme="github"] .note-center { margin: 16px; border: 1px solid var(--line); border-radius: 6px; overflow: clip; background: var(--paper); }
+:root[data-theme="github"] .ribbon { background: var(--subtle); border-bottom: 1px solid var(--line); }
+:root[data-theme="github"] .rb-caption { display: none; }
+:root[data-theme="github"] .rb-group { border-right-color: var(--line); }
+:root[data-theme="github"] .rb-btn.is-on { background: var(--accent-soft); color: var(--accent); }
+:root[data-theme="github"] .note-title { font-weight: 600; letter-spacing: 0; }
+:root[data-theme="github"] .cm-heading-line.cm-h1,
+:root[data-theme="github"] .cm-heading-line.cm-h2 { border-bottom: 1px solid var(--line-soft); padding-bottom: 0.25em; margin-bottom: 0.4em; }
+:root[data-theme="github"] .cm-content { font-size: 15px; }
+:root[data-theme="github"] .note-left,
+:root[data-theme="github"] .note-right { background: var(--ground); }
+:root[data-theme="github"] .meta-list dt,
+:root[data-theme="github"] .meta-list dd { border-color: var(--line-soft); }
+:root[data-theme="github"] .folder-card { background: var(--subtle) !important; border: 1px solid var(--line); }
+:root[data-theme="github"] .chip { border-radius: 999px; background: var(--accent-soft) !important; color: var(--accent); font-weight: 500; }
+:root[data-theme="github"] .home-action,
+:root[data-theme="github"] .home-action:last-child { border: 1px solid var(--line); }
+:root[data-theme="github"] .home-action.is-primary { border-color: rgb(31 35 40 / 0.15); }
+
+/* ============================================================
+   Calendar
+   ============================================================ */
+
+:root:not([data-theme="scrapbook"]) { --today-rgb: var(--ink-rgb); --today-alpha: 0.025; }
+:root:not([data-theme="scrapbook"]) .cal-colday.is-today .cal-colnum { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px; padding: 0 9px; }
+:root:not([data-theme="scrapbook"]) .cal .cal-mini-day.is-shown,
+:root:not([data-theme="scrapbook"]) .cal .cal-mini-day.is-selected { background: var(--accent-soft); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .cal .cal-mini-day.is-today { background: var(--accent); color: var(--on-accent); outline: 0; border-radius: 6px; }
+:root:not([data-theme="scrapbook"]) .cal-mini-day { border-radius: 6px; }
+:root:not([data-theme="scrapbook"]) .cal-top .cal-seg.is-on { border-bottom-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .cal .cal-now,
+:root:not([data-theme="scrapbook"]) .cal-now::before { background: var(--accent); }
+:root:not([data-theme="scrapbook"]) .cal-now-time { color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .cal-now-hand { color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .cal-mcell.is-today .cal-mnum { background: var(--accent); color: var(--on-accent); outline: 0; border-radius: 999px; }
+:root:not([data-theme="scrapbook"]) .cal-mcell.is-drop,
+:root:not([data-theme="scrapbook"]) .cal-allday-cell.is-drop,
+:root:not([data-theme="scrapbook"]) .cal-day.is-drop { background: var(--accent-soft); outline-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .cal-navbtn { border: 1px solid var(--line); border-radius: 8px; background: var(--paper-2); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .cal-task-box { border-color: currentColor; }
+
+/* Minimal: the "Ink" calendar — outlined cards, typewriter text, blue ink. */
+:root[data-theme="minimal"] .cal .cal-hand,
+:root[data-theme="minimal"] .cal-now-hand,
+:root[data-theme="minimal"] .cal .hand { color: var(--accent); }
+:root[data-theme="minimal"] .cal .cal-event,
+:root[data-theme="minimal"] .cal .cal-task-block {
+  border: 1.5px solid color-mix(in srgb, var(--ink) 80%, transparent);
+  border-radius: 5px;
+  box-shadow: none;
+}
+:root[data-theme="minimal"] .cal .cal-event:hover { box-shadow: var(--lift-soft); }
+:root[data-theme="minimal"] .cal .cal-chip { border: 1.5px solid color-mix(in srgb, var(--ink) 80%, transparent); border-radius: 5px; box-shadow: none; }
+:root[data-theme="minimal"] .cal .cal-event-title,
+:root[data-theme="minimal"] .cal .cal-chip { font-family: var(--mono); font-weight: 500; font-size: 11.5px; letter-spacing: -0.01em; }
+:root[data-theme="minimal"] .cal .cal-event-time,
+:root[data-theme="minimal"] .cal .cal-event-link { color: var(--ink-3); }
+:root[data-theme="minimal"] .cal .cal-colday,
+:root[data-theme="minimal"] .cal .cal-gutter,
+:root[data-theme="minimal"] .cal .cal-hour { font-family: var(--mono); }
+:root[data-theme="minimal"] .cal-colday.is-today { color: var(--accent); }
+:root[data-theme="minimal"] .cal-top .cal-add { background: var(--accent); color: var(--on-accent); border-radius: 6px; font-family: var(--mono); font-weight: 500; }
+
+/* GitHub: no handwriting; green primary button; square-ish cards. */
+:root[data-theme="github"] .cal .cal-hand,
+:root[data-theme="github"] .cal-now-hand,
+:root[data-theme="github"] .cal .hand { font-family: var(--sans); font-weight: 500; font-size: 12px; color: var(--ink-3); transform: none; }
+:root[data-theme="github"] .cal-now-hand { display: none; }
+:root[data-theme="github"] .cal .cal-h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; }
+:root[data-theme="github"] .cal-top .cal-add { background: var(--success); color: #FFFFFF; border: 1px solid rgb(31 35 40 / 0.15); border-radius: 6px; }
+:root[data-theme="github"] .cal .cal-event,
+:root[data-theme="github"] .cal .cal-chip,
+:root[data-theme="github"] .cal .cal-task-block { border-radius: 6px; box-shadow: 0 0 0 1px rgb(var(--ink-rgb) / 0.08); }
+:root[data-theme="github"] .cal .cal-task-block { border: 1px dashed var(--line); }
+:root[data-theme="github"] .cal .cal-event-title { font-weight: 600; }
+:root[data-theme="github"] .cal .cal-event-time,
+:root[data-theme="github"] .cal .cal-event-link { color: var(--ink-3); }
+:root[data-theme="github"] .cal-top .cal-seg.is-on { border-bottom-color: var(--tab-line); }
+
+/* ============================================================
+   Tasks
+   ============================================================ */
+
+:root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .home-head { align-items: center; }
+:root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .cal-controls { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 28px; border: 0; }
+:root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .cal-segment { border: 0; gap: 6px; }
+:root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .cal-seg {
+  min-height: 0; padding: 7px 16px; border: 0; border-radius: 999px;
+  background: var(--fill); color: var(--ink);
+  font-family: var(--sans); font-size: 13px; letter-spacing: 0; text-transform: none;
+}
+:root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .cal-seg + .cal-seg { border-left: 0; }
+:root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .cal-seg.is-on { background: var(--strong); color: var(--on-strong); }
+:root:not([data-theme="scrapbook"]) .tasks .cal-add { flex-grow: 0; }
+:root:not([data-theme="scrapbook"]) .tasks-rail { background: var(--paper); border-right: var(--rule); }
+:root:not([data-theme="scrapbook"]) .tasks-rail-item { border-bottom: 0; border-radius: 8px; margin: 0 8px; }
+:root:not([data-theme="scrapbook"]) .tasks-rail-item input { accent-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .tasks-count { font-family: var(--sans); }
+:root:not([data-theme="scrapbook"]) .task-col { border: 0; border-radius: 14px; background: var(--paper-2); box-shadow: var(--lift-soft), 0 0 0 1px var(--line-soft); overflow: hidden; }
+:root:not([data-theme="scrapbook"]) .task-col-title { font-size: 18px; font-weight: 700; }
+:root:not([data-theme="scrapbook"]) .task-col-head,
+:root:not([data-theme="scrapbook"]) .task-add,
+:root:not([data-theme="scrapbook"]) .task,
+:root:not([data-theme="scrapbook"]) .task-wrap { border-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .task-wrap { background: var(--paper-3); }
+:root:not([data-theme="scrapbook"]) .task:hover,
+:root:not([data-theme="scrapbook"]) .task-add:hover,
+:root:not([data-theme="scrapbook"]) .task-done-toggle:hover { background: rgb(var(--ink-rgb) / 0.03); }
+:root:not([data-theme="scrapbook"]) .task-add-plus { background: var(--accent); color: var(--on-accent); border: 0; }
+:root:not([data-theme="scrapbook"]) .task-check { border: 1.5px solid var(--ink-4); }
+:root:not([data-theme="scrapbook"]) .task-check:hover { background: var(--accent-soft); border-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .task-check.is-done { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+:root:not([data-theme="scrapbook"]) .task-details { font-family: var(--sans); font-style: normal; font-size: 12.5px; }
+:root:not([data-theme="scrapbook"]) .task-due,
+:root:not([data-theme="scrapbook"]) .task-subcount,
+:root:not([data-theme="scrapbook"]) .task-list-name {
+  font-family: var(--sans); font-size: 11.5px; padding: 1px 8px;
+  border: 0; border-radius: 999px; background: var(--fill); color: var(--ink-3);
+}
+:root:not([data-theme="scrapbook"]) .task-due.is-overdue { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+:root:not([data-theme="scrapbook"]) .task-star.is-on { color: #E3A008; }
+:root:not([data-theme="scrapbook"]) .task-done { border-top: 1px solid var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .task-col-btn { border: 1px solid var(--line); border-radius: 999px; font-family: var(--sans); text-transform: none; letter-spacing: 0; }
+:root:not([data-theme="scrapbook"]) .task-col-btn:hover { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .task-col-btn.is-primary { background: var(--strong); color: var(--on-strong); border-color: transparent; }
+:root:not([data-theme="scrapbook"]) .task-edit-title,
+:root:not([data-theme="scrapbook"]) .task-edit-details,
+:root:not([data-theme="scrapbook"]) .task-edit-date { border: 1px solid var(--line); border-radius: 8px; background: var(--paper-2); color: var(--ink); font-family: var(--sans); }
+
+/* GitHub: lists are boxes with a grey header, like a project's columns. */
+:root[data-theme="github"] :is(.tasks, .logbook) .cal-seg { border-radius: 6px; background: var(--subtle); border: 1px solid var(--line); }
+:root[data-theme="github"] :is(.tasks, .logbook) .cal-seg.is-on { background: var(--fill); color: var(--ink); font-weight: 600; }
+:root[data-theme="github"] .task-col { border-radius: 6px; box-shadow: none; border: 1px solid var(--line); background: var(--paper); }
+:root[data-theme="github"] .task-col-head { background: var(--subtle); border-bottom: 1px solid var(--line); }
+:root[data-theme="github"] .task-col-title { font-size: 14px; font-weight: 600; }
+:root[data-theme="github"] .task-add { color: var(--ink-3); font-weight: 500; }
+:root[data-theme="github"] .task-add-plus { background: none; color: var(--ink-3); border: 0; }
+:root[data-theme="github"] .task-check { border-radius: 50%; border-color: var(--success-text); }
+:root[data-theme="github"] .task-check.is-done { background: #8250DF; border-color: #8250DF; color: #FFFFFF; }
+:root[data-theme="github"] .task-title { font-weight: 600; }
+:root[data-theme="github"] .task-due { background: none; padding: 0; }
+:root[data-theme="github"] .task-due.is-overdue { background: none; font-weight: 600; }
+:root[data-theme="github"] .task-list-name,
+:root[data-theme="github"] .task-subcount { background: var(--accent-soft); color: var(--accent); }
+:root[data-theme="github"] .task-col-btn { border-radius: 6px; }
+:root[data-theme="github"] .task-col-btn.is-primary { background: var(--success); color: #FFFFFF; }
+
+/* ============================================================
+   Logbook
+   ============================================================ */
+
+:root:not([data-theme="scrapbook"]) .logbook .cal-nav { border: 0; gap: 4px; }
+:root:not([data-theme="scrapbook"]) .logbook .cal-navbtn { padding: 6px 12px; font-family: var(--sans); text-transform: none; letter-spacing: 0; font-size: 13px; }
+:root:not([data-theme="scrapbook"]) .logbook .cal-navbtn + .cal-navbtn { border-left: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .lb-tile { border-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .lb-number { font-weight: 700; }
+:root:not([data-theme="scrapbook"]) .lb-change { font-family: var(--sans); font-size: 12px; color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .lb-cell { border-radius: 4px; border-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .lb-cell.is-selected { outline-color: var(--accent); box-shadow: none; }
+:root:not([data-theme="scrapbook"]) .lb-bar-fill { background: var(--accent); border: 0; border-radius: 4px; }
+:root:not([data-theme="scrapbook"]) .lb-col-fill { background: var(--accent); border-radius: 4px 4px 0 0; }
+:root:not([data-theme="scrapbook"]) .lb-col:hover .lb-col-fill,
+:root:not([data-theme="scrapbook"]) .lb-col.is-selected .lb-col-fill { background: var(--ink); outline: 0; }
+
+/* Minimal: activity in shades of the blue ink. */
+:root[data-theme="minimal"] .lb-cell.lvl-1 { background: color-mix(in srgb, var(--accent) 18%, var(--paper-2)); }
+:root[data-theme="minimal"] .lb-cell.lvl-2 { background: color-mix(in srgb, var(--accent) 40%, var(--paper-2)); }
+:root[data-theme="minimal"] .lb-cell.lvl-3 { background: color-mix(in srgb, var(--accent) 68%, var(--paper-2)); }
+:root[data-theme="minimal"] .lb-cell.lvl-4 { background: var(--accent); }
+
+/* GitHub: the green contribution squares. */
+:root[data-theme="github"] .lb-cell { background: var(--heat-0); border-color: transparent; border-radius: 3px; }
+:root[data-theme="github"] .lb-cell.lvl-1 { background: var(--heat-1); }
+:root[data-theme="github"] .lb-cell.lvl-2 { background: var(--heat-2); }
+:root[data-theme="github"] .lb-cell.lvl-3 { background: var(--heat-3); }
+:root[data-theme="github"] .lb-cell.lvl-4 { background: var(--heat-4); }
+:root[data-theme="github"] .lb-cell.is-blank { background: transparent; }
+:root[data-theme="github"] .lb-cell.lvl-3 .lb-daynum,
+:root[data-theme="github"] .lb-cell.lvl-4 .lb-daynum { color: #FFFFFF; }
+:root[data-theme="github"][data-mode="light"] .lb-cell.lvl-1 .lb-daynum,
+:root[data-theme="github"][data-mode="light"] .lb-cell.lvl-2 .lb-daynum { color: #0A3069; }
+:root[data-theme="github"] .lb-bar-fill,
+:root[data-theme="github"] .lb-col-fill { background: var(--heat-3); }
+:root[data-theme="github"] .lb-number { font-weight: 600; letter-spacing: -0.02em; }
+:root[data-theme="github"] .lb-tiles { margin: 16px 24px 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+:root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .home-head .cal-controls { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; max-width: 55%; }
+:root:not([data-theme="scrapbook"]) .logbook .cal-today { min-width: 0; }

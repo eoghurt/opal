@@ -757,7 +757,7 @@ export class CalendarView {
   // down the left edge.
   paint(event) {
     const base = this.fillOf(event);
-    const parts = [`background: color-mix(in srgb, ${base} 34%, #FFFFFF)`];
+    const parts = [`background: color-mix(in srgb, ${base} var(--event-strength, 34%), var(--event-mix))`];
     if (event.secondary) parts.push(`border-left: 4px solid ${EVENT_COLORS[event.secondary]}`);
     return parts.join('; ');
   }

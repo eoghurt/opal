@@ -43,6 +43,7 @@
       "shared/**",
       "src/index.html",
       "src/styles.css",
+      "src/themes.css",
       "dist/**",
       "!dist/**/*.map",
       "package.json"

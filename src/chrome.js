@@ -109,9 +109,9 @@ export class Chrome {
         title: 'Inbox (⌘⇧I)',
         'aria-label': this.inboxCount ? `Inbox, ${this.inboxCount} waiting` : 'Inbox',
       }, 'Inbox', this.inboxCount ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, this.inboxCount > 99 ? '99+' : String(this.inboxCount)) : null),
-      h('button', { class: 'bar-cell bar-link', onclick: () => this.onCalendar() }, 'Calendar'),
-      h('button', { class: 'bar-cell bar-link', onclick: () => this.onTasks() }, 'Tasks'),
-      h('button', { class: 'bar-cell bar-link', onclick: () => this.onLogbook() }, 'Logbook'),
+      h('button', { class: 'bar-cell bar-link', 'data-section': 'calendar', onclick: () => this.onCalendar() }, 'Calendar'),
+      h('button', { class: 'bar-cell bar-link', 'data-section': 'tasks', onclick: () => this.onTasks() }, 'Tasks'),
+      h('button', { class: 'bar-cell bar-link', 'data-section': 'logbook', onclick: () => this.onLogbook() }, 'Logbook'),
       h('button', { class: 'bar-cell bar-date', onclick: () => this.onCalendar(new Date()), title: 'Today in the calendar' }, todayStamp()),
       paletteCell,
     ].filter(Boolean));

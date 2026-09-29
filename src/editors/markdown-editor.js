@@ -25,9 +25,9 @@ const fromDisk = Annotation.define();
 const SAVE_DELAY_MS = 500;
 const RETRY_DELAY_MS = 3000;
 
-const DISPLAY = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif';
-const SERIF = '"Instrument Serif", Georgia, serif';
-const MONO = '"JetBrains Mono", ui-monospace, monospace';
+const DISPLAY = 'var(--display)';
+const SERIF = 'var(--ed-serif, var(--serif))';
+const MONO = 'var(--mono)';
 
 // Styles [[Note name]] as a link and remembers its target on the element.
 const wikilinkMatcher = new MatchDecorator({
@@ -80,18 +80,20 @@ function stickyDecorations(state) {
 
 // Scrapbook type: SF Pro bold headings, serif italics, mono code, faint markup symbols.
 const scrapbookHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontFamily: DISPLAY, fontSize: '2.5em', fontWeight: '800', letterSpacing: '-0.04em', lineHeight: '1.1' },
-  { tag: tags.heading2, fontFamily: DISPLAY, fontSize: '1.65em', fontWeight: '800', letterSpacing: '-0.03em' },
-  { tag: tags.heading3, fontFamily: DISPLAY, fontSize: '1.3em', fontWeight: '800', letterSpacing: '-0.02em' },
-  { tag: [tags.heading4, tags.heading5, tags.heading6], fontFamily: DISPLAY, fontWeight: '800' },
-  { tag: tags.emphasis, fontFamily: SERIF, fontStyle: 'italic', fontSize: '1.12em' },
+  // Sizes, weights and faces come from the theme (see themes.css); the
+  // fallbacks are the Scrapbook look.
+  { tag: tags.heading1, fontFamily: DISPLAY, fontSize: 'var(--ed-h1, 2.5em)', fontWeight: 'var(--ed-h-weight, 800)', letterSpacing: 'var(--ed-h1-track, -0.04em)', lineHeight: '1.1' },
+  { tag: tags.heading2, fontFamily: DISPLAY, fontSize: 'var(--ed-h2, 1.65em)', fontWeight: 'var(--ed-h-weight, 800)', letterSpacing: 'var(--ed-h2-track, -0.03em)' },
+  { tag: tags.heading3, fontFamily: DISPLAY, fontSize: 'var(--ed-h3, 1.3em)', fontWeight: 'var(--ed-h-weight, 800)', letterSpacing: 'var(--ed-h3-track, -0.02em)' },
+  { tag: [tags.heading4, tags.heading5, tags.heading6], fontFamily: DISPLAY, fontWeight: 'var(--ed-h-weight, 800)' },
+  { tag: tags.emphasis, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'var(--ed-serif-size, 1.12em)' },
   { tag: tags.strong, fontWeight: '700' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.quote, fontFamily: SERIF, fontStyle: 'italic', fontSize: '1.12em' },
+  { tag: tags.quote, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'var(--ed-serif-size, 1.12em)', color: 'var(--ed-quote, inherit)' },
   { tag: tags.link, color: 'var(--link)' },
-  { tag: tags.url, color: '#6E685C' },
-  { tag: tags.monospace, fontFamily: MONO, fontSize: '0.88em', backgroundColor: 'rgba(22, 20, 15, 0.06)' },
-  { tag: [tags.processingInstruction, tags.contentSeparator], color: '#A39D90' },
+  { tag: tags.url, color: 'var(--ink-3)' },
+  { tag: tags.monospace, fontFamily: MONO, fontSize: '0.88em', backgroundColor: 'rgb(var(--ink-rgb) / 0.06)' },
+  { tag: [tags.processingInstruction, tags.contentSeparator], color: 'var(--ink-4)' },
 ]);
 
 const theme = EditorView.theme({
@@ -99,29 +101,29 @@ const theme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif', lineHeight: '1.65' },
   // The text fills the note's width, growing and shrinking as side panels open and close.
-  '.cm-content': { maxWidth: 'none', padding: '12px 44px 40vh', caretColor: '#16140F' },
-  '.cm-cursor': { borderLeftColor: '#16140F', borderLeftWidth: '2px' },
+  '.cm-content': { maxWidth: 'none', padding: '12px 44px 40vh', caretColor: 'var(--ink)' },
+  '.cm-cursor': { borderLeftColor: 'var(--ink)', borderLeftWidth: '2px' },
   '.cm-gutters': { display: 'none' },
   '.cm-activeLine': { backgroundColor: 'transparent' },
-  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(22, 20, 15, 0.14) !important' },
+  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'rgb(var(--ink-rgb) / 0.14) !important' },
   // Links are just coloured text (underlined while the pointer is on them).
   '.cm-wikilink': { color: 'var(--link)' },
   '.cm-wikilink:hover': { textDecoration: 'underline', textUnderlineOffset: '3px' },
   '&.cmd-held .cm-wikilink': { cursor: 'pointer' },
   '.cm-highlight': { backgroundColor: 'var(--c2)', padding: '0 1px' },
   '.cm-underline': { textDecoration: 'underline', textUnderlineOffset: '3px' },
-  '.cm-faint-mark': { color: '#A39D90' },
+  '.cm-faint-mark': { color: 'var(--ink-4)' },
   // Find & replace bar (Cmd+F)
-  '.cm-panels': { backgroundColor: 'var(--paper)', color: '#16140F', fontFamily: MONO, fontSize: '11px' },
-  '.cm-panels.cm-panels-bottom': { borderTop: '1.5px solid #16140F' },
-  '.cm-panels.cm-panels-top': { borderBottom: '1.5px solid #16140F' },
+  '.cm-panels': { backgroundColor: 'var(--paper)', color: 'var(--ink)', fontFamily: MONO, fontSize: '11px' },
+  '.cm-panels.cm-panels-bottom': { borderTop: '1.5px solid var(--ink)' },
+  '.cm-panels.cm-panels-top': { borderBottom: '1.5px solid var(--ink)' },
   '.cm-search': { padding: '8px 12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' },
-  '.cm-search input.cm-textfield': { fontFamily: DISPLAY, fontSize: '14px', padding: '4px 8px', border: '1.5px solid #16140F', borderRadius: '2px', backgroundColor: '#FFFFFF' },
-  '.cm-search .cm-button': { backgroundImage: 'none', backgroundColor: '#FFFFFF', border: '1.5px solid #16140F', borderRadius: '2px', padding: '3px 8px', fontFamily: MONO, fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  '.cm-search input.cm-textfield': { fontFamily: DISPLAY, fontSize: '14px', padding: '4px 8px', border: '1.5px solid var(--ink)', borderRadius: '2px', backgroundColor: 'var(--white)' },
+  '.cm-search .cm-button': { backgroundImage: 'none', backgroundColor: 'var(--white)', border: '1.5px solid var(--ink)', borderRadius: '2px', padding: '3px 8px', fontFamily: MONO, fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.06em' },
   '.cm-search .cm-button:hover': { backgroundColor: 'var(--c2)' },
   '.cm-search label': { display: 'inline-flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' },
   '.cm-search button[name=close]': { fontSize: '18px', marginLeft: 'auto' },
-  '.cm-searchMatch': { backgroundColor: 'rgba(255, 210, 63, 0.45)', outline: '1px solid rgba(22, 20, 15, 0.4)' },
+  '.cm-searchMatch': { backgroundColor: 'rgba(255, 210, 63, 0.45)', outline: '1px solid rgb(var(--ink-rgb) / 0.4)' },
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--c2)' },
 });
 

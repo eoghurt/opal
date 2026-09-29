@@ -180,6 +180,7 @@ function folderTile(folder, onOpenFolder, wantPreview, onColorMenu) {
   const [newest, next] = recentFiles(folder.children, 2);
   return h('button', {
     class: 'folder-tile',
+    style: `--item-color: ${color}`,
     onclick: () => onOpenFolder(folder.path),
     oncontextmenu: (event) => onColorMenu(event, folder, 'folder'),
     ondblclick: (event) => onColorMenu(event, folder, 'folder'),
@@ -225,7 +226,7 @@ function photoCard(file, onOpenFile) {
 function fileCard(file, kind, onOpenFile) {
   const ext = extensionOf(file.path).slice(1).toUpperCase();
   return h('div', { class: 'card-cell' },
-    h('button', { class: `note-card file-card kind-${kind}`, onclick: () => onOpenFile(file.path) },
+    h('button', { class: `note-card file-card kind-${kind}`, style: `--item-color: ${colorOf(file)}`, onclick: () => onOpenFile(file.path) },
       h('span', { class: 'card-label mono-label' }, h('span', null, kindLabel(kind)), h('span', null, formatSize(file.size))),
       h('span', { class: 'display card-title' }, noteName(file.path).replace(/\.[^.]+$/, '')),
       h('span', { class: 'type-block', style: `background: ${colorOf(file)}` },
@@ -238,7 +239,7 @@ function noteCard(file, preview, onOpenFile) {
   const color = colorOf(file);
   const card = h('button', {
     class: `note-card look-${look}`,
-    style: look === 'block' ? `background: ${color}` : `--item-color: ${color}`,
+    style: look === 'block' ? `background: ${color}; --item-color: ${color}` : `--item-color: ${color}`,
     onclick: () => onOpenFile(file.path),
   },
   look === 'taped' ? h('span', { class: 'tape', style: `background: ${color}`, 'aria-hidden': 'true' }) : null,

@@ -1,7 +1,7 @@
 // Main process: the only part of Opal that touches the disk.
 // The window (renderer) asks for things through IPC; see preload.js.
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, Notification } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -705,6 +705,28 @@ function setPalette(name) {
   return name;
 }
 
+// The theme (Scrapbook, Minimal or GitHub) and light / dark / match the Mac.
+const THEMES = ['scrapbook', 'minimal', 'github'];
+const MODES = ['light', 'dark', 'auto'];
+
+function getLook() {
+  const { theme, mode } = loadSettings();
+  return { theme: THEMES.includes(theme) ? theme : 'scrapbook', mode: MODES.includes(mode) ? mode : 'light' };
+}
+
+function setLook(look) {
+  const next = { ...getLook(), ...(look || {}) };
+  if (!THEMES.includes(next.theme) || !MODES.includes(next.mode)) throw new Error('Unknown theme.');
+  saveSettings({ ...loadSettings(), theme: next.theme, mode: next.mode });
+  applyNativeTheme(next);
+  return next;
+}
+
+// Window frame, scroll bars and menus follow the chosen mode (Scrapbook is always light).
+function applyNativeTheme({ theme, mode }) {
+  nativeTheme.themeSource = theme === 'scrapbook' || mode === 'light' ? 'light' : mode === 'dark' ? 'dark' : 'system';
+}
+
 // Asks the window to save any unsaved typing, and waits until it has.
 let flushCounter = 0;
 
@@ -876,6 +898,8 @@ ipcMain.handle('file:read-bytes', (_event, relPath) => readFileBytes(relPath));
 ipcMain.handle('folder:create', (_event, name, parent) => createFolder(name, parent));
 ipcMain.handle('palette:get', () => getPalette());
 ipcMain.handle('palette:set', (_event, name) => setPalette(name));
+ipcMain.handle('look:get', () => getLook());
+ipcMain.handle('look:set', (_event, look) => setLook(look));
 
 // ---------- Window and menu ----------
 
@@ -910,7 +934,7 @@ function buildMenu() {
       submenu: [
         { label: 'Vault Home', accelerator: 'CmdOrCtrl+Shift+H', click: () => { if (win) win.webContents.send('ui:go-home'); } },
         { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+\\', click: () => { if (win) win.webContents.send('ui:toggle-sidebar'); } },
-        { label: 'Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
+        { label: 'Theme & Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
         { label: 'Logbook', accelerator: 'CmdOrCtrl+Shift+L', click: () => { if (win) win.webContents.send('ui:show-logbook'); } },
         // Inbox is switched off for now: { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', … 'ui:show-inbox' }
@@ -949,8 +973,10 @@ function createWindow() {
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
-  // The palette goes along in the address so the first paint already has the right colours.
-  win.loadFile(path.join(__dirname, 'src', 'index.html'), { query: { palette: getPalette() } });
+  // The palette and theme go along in the address so the first paint already looks right.
+  const look = getLook();
+  applyNativeTheme(look);
+  win.loadFile(path.join(__dirname, 'src', 'index.html'), { query: { palette: getPalette(), theme: look.theme, mode: look.mode } });
   win.on('closed', () => { win = null; });
 
   // Before the window closes (including Cmd+Q), make sure everything typed is saved.

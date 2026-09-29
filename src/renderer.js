@@ -31,6 +31,7 @@ import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseE
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderPalettes } from './views/palettes-view.js';
 import { applyPalette } from './palettes.js';
+import { applyTheme, currentLook } from './themes.js';
 import { askName, h, scribbleArrow } from './ui.js';
 import { findFile, findFolder, recentFiles, flattenFiles } from './tree.js';
 import { noteName, parentOf } from './format.js';
@@ -47,6 +48,11 @@ const viewEl = document.getElementById('view');
 // Main passes the saved palette in the address so the first paint uses it.
 const initialPalette = new URLSearchParams(location.search).get('palette');
 if (initialPalette) applyPalette(initialPalette);
+// …and the theme, for the same reason.
+{
+  const params = new URLSearchParams(location.search);
+  applyTheme({ theme: params.get('theme') || 'scrapbook', mode: params.get('mode') || 'light' });
+}
 
 let vault = null;
 let tree = [];
@@ -198,6 +204,13 @@ function openReminder(open) {
 
 // ---------- Screens ----------
 
+// The breadcrumb for the screen just shown; also tells themes which screen
+// it is (the GitHub theme underlines that tab).
+function showCrumbs(crumbs) {
+  document.documentElement.dataset.screen = screen ? screen.kind : '';
+  chrome.setCrumbs(crumbs);
+}
+
 function crumbsFor(folderPath) {
   const crumbs = [{ label: vault.name, onClick: () => openFolder('') }];
   const parts = folderPath ? folderPath.split('/') : [];
@@ -217,7 +230,7 @@ function showWelcome(problem) {
   screen = { kind: 'welcome' };
   setTitle('');
   sidebar.setActive(null, null);
-  chrome.setCrumbs([{ label: 'Welcome' }]);
+  showCrumbs([{ label: 'Welcome' }]);
   viewEl.replaceChildren(h('div', { class: 'welcome' },
     problem ? h('div', { class: 'home-notice welcome-notice' }, problem) : null,
     h('span', { class: 'mono-label' }, 'Opal · notes that live in plain files'),
@@ -239,7 +252,7 @@ function showHome(folderPath, notice) {
   screen = { kind: 'home', folderPath };
   setTitle(folder.name);
   sidebar.setActive('folder', folderPath);
-  chrome.setCrumbs(crumbsFor(folderPath));
+  showCrumbs(crumbsFor(folderPath));
   const home = renderFolderHome(viewEl, {
     folder,
     isRoot: !folderPath,
@@ -379,7 +392,7 @@ async function showNote(filePath) {
 
   chrome.setStatus('Saved');
   setTitle(noteName(filePath));
-  chrome.setCrumbs([...crumbsFor(parentOf(filePath)), { label: noteName(filePath) }]);
+  showCrumbs([...crumbsFor(parentOf(filePath)), { label: noteName(filePath) }]);
   sidebar.setActive('file', filePath);
 }
 
@@ -412,7 +425,7 @@ async function showViewer(filePath, ViewerType) {
 
   chrome.setStatus('Saved');
   setTitle(noteName(filePath));
-  chrome.setCrumbs([...crumbsFor(parentOf(filePath)), { label: noteName(filePath) }]);
+  showCrumbs([...crumbsFor(parentOf(filePath)), { label: noteName(filePath) }]);
   sidebar.setActive('file', filePath);
 }
 
@@ -436,9 +449,9 @@ function showPalettes() {
     homeStickies = null;
     leaveCalendar();
     screen = { kind: 'palettes' };
-    setTitle('Palettes');
+    setTitle('Theme & palettes');
     sidebar.setActive(null, null);
-    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Palettes' }]);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Theme & palettes' }]);
     viewEl.scrollTop = 0;
     drawPalettes();
   });
@@ -449,6 +462,15 @@ function drawPalettes() {
   const scrollTop = viewEl.scrollTop;
   renderPalettes(viewEl, {
     active: paletteName,
+    look: currentLook(),
+    onLook: async (change) => {
+      try {
+        applyTheme(await window.opal.setLook(change));
+      } catch (err) {
+        alert(`Couldn't change the theme.\n\n${err.message}`);
+      }
+      drawPalettes();
+    },
     onUse: async (name) => {
       paletteName = await window.opal.setPalette(name);
       chrome.setPalette(applyPalette(paletteName));
@@ -469,7 +491,7 @@ function showCalendar(date) {
     screen = { kind: 'calendar' };
     setTitle('Calendar');
     sidebar.setActive(null, null);
-    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Calendar' }]);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Calendar' }]);
     viewEl.scrollTop = 0;
     calendar = new CalendarView(viewEl, {
       date: calendarState.date,
@@ -588,7 +610,7 @@ function showTasks() {
     screen = { kind: 'tasks' };
     setTitle('Tasks');
     sidebar.setActive(null, null);
-    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Tasks' }]);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Tasks' }]);
     viewEl.scrollTop = 0;
     tasksView = new TasksView(viewEl, {
       // "My Tasks" first, like Google Tasks; the rest alphabetically.
@@ -671,7 +693,7 @@ function showInbox() {
     screen = { kind: 'inbox' };
     setTitle('Inbox');
     sidebar.setActive(null, null);
-    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Inbox' }]);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Inbox' }]);
     viewEl.scrollTop = 0;
     inboxView = new InboxView(viewEl, {
       readInbox: () => readNoteOrNull(INBOX_PATH),
@@ -727,7 +749,7 @@ function showLogbook() {
     screen = { kind: 'logbook' };
     setTitle('Logbook');
     sidebar.setActive(null, null);
-    chrome.setCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Logbook' }]);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Logbook' }]);
     viewEl.scrollTop = 0;
     logbook = new LogbookView(viewEl, {
       kind: logbookState.kind,

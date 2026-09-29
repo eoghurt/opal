@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('opal', {
   trashNote: (relPath) => call('note:trash', relPath),
   getPalette: () => call('palette:get'),
   setPalette: (name) => call('palette:set', name),
+  getLook: () => call('look:get'),
+  setLook: (look) => call('look:set', look),
   notify: (payload) => call('notify:show', payload),
   search: (query) => call('vault:search', query),
   openCheckboxes: () => call('vault:checkboxes'),

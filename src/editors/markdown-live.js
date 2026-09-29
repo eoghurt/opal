@@ -34,6 +34,8 @@ function buildDecorations(view) {
       enter(node) {
         if (node.name.startsWith('ATXHeading')) {
           const line = state.doc.lineAt(node.from);
+          // A class on the whole line, so themes can underline headings.
+          ranges.push(Decoration.line({ class: `cm-heading-line cm-h${node.name.slice(10) || 1}` }).range(line.from));
           if (touches(state, line.from, line.to)) return;
           const mark = node.node.getChild('HeaderMark');
           if (mark) {

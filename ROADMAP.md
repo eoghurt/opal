@@ -64,8 +64,13 @@ their own Mac app with one click. File types live in file-types.json.
 - **Inbox** — ⌘⇧I: quick capture into `Inbox.md`, then → task or → note; overdue,
   today, next 7 days, undated tasks, and loose checklist items from any note.
 
+## v0.15 — themes
+- **Themes** — Scrapbook (the original), Minimal and GitHub, picked on the
+  Theme & palettes screen. Minimal and GitHub come in Light, Dark or Match Mac.
+- **Minimal** — quiet paper, pill buttons, frosted folders, an "ink" calendar.
+- **GitHub** — tabs, a file-tree sidebar, notes in a README box, folders as a
+  file list, lists as project columns, green activity squares in the Logbook.
+
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
-- **Themes** — 4–5 whole-app looks to pick from (the current scrapbook look
-  stays as one), switching the colours, type and surfaces together.
