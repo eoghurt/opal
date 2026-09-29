@@ -64,6 +64,7 @@ import { inlineRuns } from './export/note-structure.js';
 import { ReviewView } from './views/review-view.js';
 import { countDue } from './flashcards/schedule.js';
 import { PrepTimer } from './timer.js';
+import { TabBar } from './tabs.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -107,6 +108,15 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onInbox: INBOX_ENABLED ? () => showInbox() : null,
   onLogbook: () => showLogbook(),
   onTasks: () => showTasks(),
+});
+
+const tabBar = new TabBar(document.getElementById('tabbar'), {
+  onActivate: (id) => activateTab(id),
+  onClose: (id) => closeTab(id),
+  onNew: () => newTab(),
+  onMenu: (event, id) => tabMenu(event, id),
+  onMove: (id, index) => moveTab(id, index),
+  onTogglePin: (id) => togglePin(id),
 });
 
 // The prep timer lives in the top bar and keeps running across screens.
@@ -208,6 +218,7 @@ const reminders = new Reminders({
 async function renameOpenNote(filePath, newName, { describe = false } = {}) {
   if (current && current.filePath === filePath) await current.editor.flush();
   const newPath = await window.opal.renameNote(filePath, newName);
+  if (newPath !== filePath) renamePlaces(filePath, newPath, false);
   await reloadTree();
   if (newPath !== filePath) {
     // Close the editor without saving again (the old file name is gone — a
@@ -347,18 +358,32 @@ function loadBacklinks() {
   }, 120);
 }
 
-// ---------- Back and forward ----------
+// ---------- Tabs, and back and forward ----------
 //
-// Every page you land on is remembered in order, like a web browser: Back
-// goes to the one before, Forward to the one you came back from.
+// Like Obsidian: several tabs, each showing one page and keeping its own
+// back / forward history (like a web browser). Only the active tab's page is
+// drawn; switching tabs draws that tab's page again. ⌘-click (or "Open in
+// new tab") opens something in a new tab, and a pinned tab keeps its page —
+// anything opened from it goes to a new tab. The tabs are saved in the
+// vault's .opal/workspace.json so they come back next time.
 
-const trail = { places: [], at: -1, moving: false };
+const PLACE_KINDS = ['calendar', 'tasks', 'logbook', 'settings', 'inbox', 'review'];
+const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', logbook: 'Logbook', settings: 'Settings', inbox: 'Inbox', review: 'Review' };
+const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', logbook: 'activity', settings: 'settings', inbox: 'tasks', review: 'review' };
+
+let tabs = []; // [{ id, pinned, places: [place], at, scroll }]
+let activeTabId = null;
+let nextTabId = 1;
+// A page being drawn from a tab's history (or another tab): not a new visit.
+let movingTo = null; // { place, at }
+// A ⌘-click just asked for the next page to open in a new tab.
+let newTabAt = 0;
 
 function currentPlace() {
   if (!screen) return null;
   if (screen.kind === 'home') return { kind: 'home', folderPath: screen.folderPath };
   if (screen.kind === 'note') return { kind: 'note', filePath: screen.filePath };
-  if (['calendar', 'tasks', 'logbook', 'settings', 'inbox', 'review'].includes(screen.kind)) return { kind: screen.kind };
+  if (PLACE_KINDS.includes(screen.kind)) return { kind: screen.kind };
   return null;
 }
 
@@ -366,15 +391,72 @@ function samePlace(a, b) {
   return Boolean(a && b && a.kind === b.kind && a.folderPath === b.folderPath && a.filePath === b.filePath);
 }
 
+function makeTab(place = null, pinned = false) {
+  return { id: nextTabId++, pinned, places: place ? [place] : [], at: place ? 0 : -1, scroll: 0 };
+}
+
+function activeTab() {
+  return tabs.find((t) => t.id === activeTabId) || null;
+}
+
+function tabPlace(tab) {
+  return tab ? tab.places[tab.at] || null : null;
+}
+
+function wantsNewTab() {
+  return Boolean(newTabAt) && Date.now() - newTabAt < 1500;
+}
+
+function placeTitle(place) {
+  if (!place) return 'New tab';
+  if (place.kind === 'note') return noteName(place.filePath);
+  if (place.kind === 'home') return place.folderPath ? place.folderPath.split('/').pop() : 'Home';
+  return PLACE_TITLES[place.kind] || '';
+}
+
+function placeIcon(place) {
+  if (!place) return 'plus';
+  if (place.kind === 'note') return 'note';
+  if (place.kind === 'home') return place.folderPath ? 'folder' : 'home';
+  return PLACE_ICONS[place.kind] || 'note';
+}
+
+// A page was just shown: it becomes the active tab's next page (or a new tab's).
 function remember() {
-  if (trail.moving) return;
   const place = currentPlace();
-  if (!place || samePlace(place, trail.places[trail.at])) return;
-  trail.places = trail.places.slice(0, trail.at + 1);
-  trail.places.push(place);
-  if (trail.places.length > 200) trail.places.shift();
-  trail.at = trail.places.length - 1;
-  chrome.setHistory(trail.at > 0, false);
+  if (!place) return;
+  const tab = activeTab();
+  const here = tabPlace(tab);
+  const moving = movingTo && Date.now() - movingTo.at < 3000;
+  movingTo = null;
+  if (moving) {
+    // From history: if the page couldn't be shown (a deleted note), the tab shows where it ended up.
+    if (tab && !samePlace(place, here)) tab.places[tab.at] = place;
+  } else {
+    const toNewTab = wantsNewTab() || Boolean(tab && tab.pinned && here && !samePlace(place, here));
+    newTabAt = 0;
+    if (!tab || toNewTab) {
+      const fresh = makeTab(place);
+      tabs.splice(tab ? tabs.indexOf(tab) + 1 : tabs.length, 0, fresh);
+      activeTabId = fresh.id;
+    } else if (!samePlace(place, here)) {
+      tab.places = tab.places.slice(0, tab.at + 1);
+      tab.places.push(place);
+      if (tab.places.length > 200) tab.places.shift();
+      tab.at = tab.places.length - 1;
+    }
+  }
+  drawTabs();
+  saveWorkspace();
+}
+
+function drawTabs() {
+  tabBar.render(tabs.map((t) => {
+    const place = tabPlace(t);
+    return { id: t.id, pinned: t.pinned, title: placeTitle(place), icon: placeIcon(place), tooltip: place && place.filePath ? place.filePath : placeTitle(place) };
+  }), activeTabId);
+  const tab = activeTab();
+  chrome.setHistory(Boolean(tab && tab.at > 0), Boolean(tab && tab.at < tab.places.length - 1));
 }
 
 function goToPlace(place) {
@@ -389,24 +471,200 @@ function goToPlace(place) {
   return Promise.resolve();
 }
 
-// step: -1 = back, 1 = forward.
-async function goHistory(step) {
-  const index = trail.at + step;
-  if (!vault || index < 0 || index >= trail.places.length) return;
-  trail.at = index;
-  trail.moving = true;
-  try {
-    await goToPlace(trail.places[index]);
-  } finally {
-    trail.moving = false;
-    chrome.setHistory(trail.at > 0, trail.at < trail.places.length - 1);
-  }
+// Shows a page without counting it as a new visit.
+async function showPlace(place) {
+  movingTo = { place, at: Date.now() };
+  newTabAt = 0;
+  await goToPlace(place);
 }
 
-function forgetHistory() {
-  trail.places = [];
-  trail.at = -1;
-  chrome.setHistory(false, false);
+// step: -1 = back, 1 = forward (within the active tab).
+async function goHistory(step) {
+  const tab = activeTab();
+  if (!vault || !tab) return;
+  const index = tab.at + step;
+  if (index < 0 || index >= tab.places.length) return;
+  tab.at = index;
+  drawTabs();
+  await showPlace(tab.places[index]);
+  saveWorkspace();
+}
+
+// Keeps each tab's scroll position, to put back when it's shown again.
+viewEl.addEventListener('scroll', () => {
+  const tab = activeTab();
+  if (tab) tab.scroll = viewEl.scrollTop;
+}, { passive: true });
+
+async function activateTab(id) {
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab || id === activeTabId) return;
+  activeTabId = id;
+  drawTabs();
+  const scroll = tab.scroll;
+  const place = tabPlace(tab);
+  if (!place) {
+    await openFolder('');
+    return;
+  }
+  await showPlace(place);
+  requestAnimationFrame(() => {
+    if (activeTabId === id) viewEl.scrollTop = scroll;
+  });
+  saveWorkspace();
+}
+
+// A new tab after the active one, showing the vault's home page.
+function newTab() {
+  if (!vault) return;
+  const tab = activeTab();
+  const fresh = makeTab();
+  tabs.splice(tab ? tabs.indexOf(tab) + 1 : tabs.length, 0, fresh);
+  activeTabId = fresh.id;
+  drawTabs();
+  openFolder('');
+}
+
+function closeTab(id) {
+  const index = tabs.findIndex((t) => t.id === id);
+  if (index === -1) return;
+  if (tabs.length === 1) {
+    // The last tab: a fresh one on the home page instead.
+    tabs = [makeTab()];
+    activeTabId = tabs[0].id;
+    drawTabs();
+    openFolder('');
+    return;
+  }
+  const wasActive = id === activeTabId;
+  tabs.splice(index, 1);
+  if (wasActive) {
+    activeTabId = null;
+    activateTab((tabs[index] || tabs[index - 1]).id);
+  } else {
+    drawTabs();
+  }
+  saveWorkspace();
+}
+
+function closeTabs(keep) {
+  const active = activeTab();
+  const survivors = tabs.filter(keep);
+  if (!survivors.length) return;
+  tabs = survivors;
+  if (!tabs.includes(active)) {
+    activeTabId = null;
+    activateTab(tabs[0].id);
+  } else {
+    drawTabs();
+  }
+  saveWorkspace();
+}
+
+function togglePin(id) {
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab) return;
+  tab.pinned = !tab.pinned;
+  drawTabs();
+  saveWorkspace();
+}
+
+function moveTab(id, index) {
+  const from = tabs.findIndex((t) => t.id === id);
+  if (from === -1) return;
+  const [tab] = tabs.splice(from, 1);
+  tabs.splice(index > from ? index - 1 : index, 0, tab);
+  drawTabs();
+  saveWorkspace();
+}
+
+function tabMenu(event, id) {
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const index = tabs.indexOf(tab);
+  showMenu(event, {
+    title: placeTitle(tabPlace(tab)),
+    items: [
+      { label: tab.pinned ? 'Unpin' : 'Pin', hint: tab.pinned ? '' : 'keeps this page', onSelect: () => togglePin(id) },
+      { label: 'Duplicate tab', onSelect: () => duplicateTab(id) },
+      'separator',
+      { label: 'Close', hint: '⌘W', onSelect: () => closeTab(id) },
+      { label: 'Close others', hint: 'keeps pinned tabs', disabled: tabs.length < 2, onSelect: () => closeTabs((t) => t === tab || t.pinned) },
+      { label: 'Close tabs to the right', disabled: index === tabs.length - 1, onSelect: () => closeTabs((t, i) => i <= index || t.pinned) },
+    ],
+  });
+}
+
+function duplicateTab(id) {
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const copy = { ...makeTab(), places: tab.places.slice(), at: tab.at, scroll: tab.scroll };
+  tabs.splice(tabs.indexOf(tab) + 1, 0, copy);
+  activateTab(copy.id);
+}
+
+// Opens something in a new tab (the "Open in new tab" menu items).
+function inNewTab(open) {
+  newTabAt = Date.now();
+  return open();
+}
+
+// Notes or folders renamed or moved: every tab follows them.
+function renamePlaces(oldPath, newPath, isFolder) {
+  const moved = (p) => (p === oldPath ? newPath : isFolder && p && p.startsWith(`${oldPath}/`) ? `${newPath}${p.slice(oldPath.length)}` : p);
+  for (const tab of tabs) {
+    tab.places = tab.places.map((place) => {
+      if (place.kind === 'note') return { ...place, filePath: moved(place.filePath) };
+      if (place.kind === 'home' && isFolder) return { ...place, folderPath: moved(place.folderPath) };
+      return place;
+    });
+  }
+  drawTabs();
+  saveWorkspace();
+}
+
+let workspaceTimer = null;
+function saveWorkspace() {
+  if (!vault) return;
+  clearTimeout(workspaceTimer);
+  workspaceTimer = setTimeout(() => {
+    const data = {
+      tabs: tabs.map((t) => ({ place: tabPlace(t), pinned: t.pinned || undefined })).filter((t) => t.place),
+      active: Math.max(0, tabs.filter((t) => tabPlace(t)).indexOf(activeTab())),
+    };
+    window.opal.writeOpalJson('workspace.json', data).catch(() => {});
+  }, 400);
+}
+
+// The tabs saved last time (or one tab on the home page). → the page to show first.
+async function restoreTabs() {
+  clearTimeout(workspaceTimer);
+  tabs = [];
+  activeTabId = null;
+  const saved = vault && vaultSettings.tabs.restore ? await window.opal.readOpalJson('workspace.json').catch(() => ({})) : {};
+  const clean = (place) => {
+    if (!place || typeof place !== 'object') return null;
+    if (place.kind === 'note' && typeof place.filePath === 'string' && findFile(tree, place.filePath)) return { kind: 'note', filePath: place.filePath };
+    if (place.kind === 'home' && typeof (place.folderPath ?? '') === 'string' && findFolder(tree, place.folderPath || '', vault.name)) return { kind: 'home', folderPath: place.folderPath || '' };
+    if (PLACE_KINDS.includes(place.kind) && (place.kind !== 'inbox' || INBOX_ENABLED)) return { kind: place.kind };
+    return null;
+  };
+  for (const t of Array.isArray(saved.tabs) ? saved.tabs.slice(0, 50) : []) {
+    const place = clean(t && t.place);
+    if (place) tabs.push(makeTab(place, Boolean(t.pinned)));
+  }
+  if (!tabs.length) tabs.push(makeTab({ kind: 'home', folderPath: '' }));
+  const tab = tabs[Math.min(Math.max(0, Number(saved.active) || 0), tabs.length - 1)];
+  activeTabId = tab.id;
+  drawTabs();
+  return tabPlace(tab);
+}
+
+// Cycles through the tabs: step 1 = next, -1 = previous.
+function stepTab(step) {
+  if (tabs.length < 2) return;
+  const index = tabs.findIndex((t) => t.id === activeTabId);
+  activateTab(tabs[(index + step + tabs.length) % tabs.length].id);
 }
 
 function crumbsFor(folderPath) {
@@ -699,7 +957,7 @@ function openFolder(folderPath) {
 }
 
 function openFile(filePath) {
-  if (current && current.filePath === filePath) return Promise.resolve();
+  if (current && current.filePath === filePath && !wantsNewTab()) return Promise.resolve();
   return navigate(() => showNote(filePath));
 }
 
@@ -1134,6 +1392,7 @@ function colorMenu(event, node, kind) {
   const items = isFolder
     ? [
       { label: 'Open', onSelect: () => openFolder(node.path) },
+      { label: 'Open in new tab', hint: '⌘-click', onSelect: () => inNewTab(() => openFolder(node.path)) },
       { label: 'New note here…', onSelect: () => newNote(node.path, at) },
       { label: 'New folder inside…', onSelect: () => newFolder(node.path, at) },
       'separator',
@@ -1149,6 +1408,7 @@ function colorMenu(event, node, kind) {
     ]
     : [
       { label: 'Open', onSelect: () => openFile(node.path) },
+      { label: 'Open in new tab', hint: '⌘-click', onSelect: () => inNewTab(() => openFile(node.path)) },
       isNote ? null : { label: 'Open in its own app', onSelect: () => window.opal.openExternal(node.path) },
       isNote ? { label: 'Apply template…', hint: 'or a flow sheet', onSelect: async () => { await openFile(node.path); if (current && current.filePath === node.path) chooseTemplateFor(node.path, at); } } : null,
       'separator',
@@ -1361,6 +1621,7 @@ async function rearrange(item, target, zone) {
       const reopen = openNoteIsIn(item.path, kind) ? current.filePath : null;
       if (reopen) await current.editor.flush();
       const newPath = await window.opal.moveItem(item.path, kind, destFolder);
+      renamePlaces(item.path, newPath, kind === 'folder');
       if (reopen) {
         current.editor.destroy();
         current = null;
@@ -1410,6 +1671,7 @@ async function renameItemTo(node, kind, next) {
     const reopen = isFolder && openNoteIsIn(node.path, kind) ? current.filePath : null;
     if (reopen) await current.editor.flush();
     const newPath = isFolder ? await window.opal.renameFolder(node.path, next) : await window.opal.renameFile(node.path, next);
+    renamePlaces(node.path, newPath, isFolder);
     if (reopen) {
       current.editor.destroy();
       current = null;
@@ -1731,8 +1993,8 @@ function vaultWentMissing() {
 }
 
 function loadVault(newVault) {
-  forgetHistory();
-  return enqueue(async () => {
+  let firstPlace = null;
+  const loading = enqueue(async () => {
     // Main already saved and closed the note before switching; this is a safety net.
     if (current) {
       current.editor.destroy();
@@ -1742,13 +2004,18 @@ function loadVault(newVault) {
     tree = [];
     sidebar.setVault(vault);
       if (!vault) {
+      tabs = [];
+      activeTabId = null;
+      drawTabs();
       showWelcome();
       return;
     }
     await reloadTree();
     await loadVaultSettings();
-    showHome('');
+    firstPlace = await restoreTabs();
   });
+  // The first tab's page is drawn once loading is done (drawing goes through the same queue).
+  return loading.then(() => (firstPlace ? showPlace(firstPlace) : undefined));
 }
 
 // Safety net: if the page is ever unloaded some other way while typing is
@@ -1777,6 +2044,40 @@ window.opal.onNewNoteRequest(() => newNote());
 window.opal.onNewFolderRequest(() => newFolder());
 window.opal.onGoHome(() => vault && openFolder(''));
 window.opal.onHistory((step) => goHistory(step));
+window.opal.onTab((action) => {
+  if (action === 'new') newTab();
+  else if (action === 'close' && activeTabId) closeTab(activeTabId);
+  else if (action === 'pin' && activeTabId) togglePin(activeTabId);
+});
+// ⌘-click opens in a new tab; any other click clears that.
+document.addEventListener('mousedown', (event) => {
+  if (event.button !== 0) return;
+  newTabAt = event.metaKey && !event.target.closest('#tabbar, #topbar .bar-history') ? Date.now() : 0;
+}, true);
+// Middle-click on a note or folder in the sidebar: a new tab too.
+document.addEventListener('auxclick', (event) => {
+  if (event.button !== 1) return;
+  const item = event.target.closest('#sidebar .side-file, #sidebar .side-name');
+  if (!item) return;
+  event.preventDefault();
+  newTabAt = Date.now();
+  item.click();
+}, true);
+// Tab keys: ⌃Tab / ⌃⇧Tab next / previous, ⌘1…⌘8 that tab, ⌘9 the last.
+document.addEventListener('keydown', (event) => {
+  if (!vault) return;
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'Tab') {
+    event.preventDefault();
+    event.stopPropagation();
+    stepTab(event.shiftKey ? -1 : 1);
+  } else if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && /^[1-9]$/.test(event.key)) {
+    event.preventDefault();
+    event.stopPropagation();
+    const n = Number(event.key);
+    const tab = n === 9 ? tabs[tabs.length - 1] : tabs[n - 1];
+    if (tab) activateTab(tab.id);
+  }
+}, true);
 // The back / forward buttons on a mouse.
 window.addEventListener('mouseup', (event) => {
   if (event.button === 3 || event.button === 4) {

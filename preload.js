@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('opal', {
   onNewFolderRequest: (callback) => ipcRenderer.on('folder:new-request', () => callback()),
   onGoHome: (callback) => ipcRenderer.on('ui:go-home', () => callback()),
   onHistory: (callback) => ipcRenderer.on('ui:history', (_event, step) => callback(step)),
+  onTab: (callback) => ipcRenderer.on('ui:tab', (_event, action) => callback(action)),
   onShowPalettes: (callback) => ipcRenderer.on('ui:show-palettes', () => callback()),
   onToggleSidebar: (callback) => ipcRenderer.on('ui:toggle-sidebar', () => callback()),
   onShowCalendar: (callback) => ipcRenderer.on('ui:show-calendar', () => callback()),

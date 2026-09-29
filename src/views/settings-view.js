@@ -68,6 +68,7 @@ function heading(text) {
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: 'palette', title: 'Appearance.', desc: 'The theme is the look of the whole app; the palette colours your folders, pages and events.' },
   { id: 'timer', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer in the top bar: a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
+  { id: 'tabs', label: 'Tabs', icon: 'columns', title: 'Tabs.', desc: 'Pages open in tabs, like Obsidian. ⌘-click anything to open it in a new tab; a pinned tab keeps its page.' },
   { id: 'vault', label: 'Vault', icon: 'folderOpen', title: 'Vault.', desc: 'The folder of notes Opal is showing, and where Opal keeps its own things.' },
   { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard', title: 'Shortcuts.', desc: 'Keys that work everywhere in Opal.' },
   { id: 'about', label: 'About', icon: 'info', title: 'About Opal.', desc: 'Notes that live in plain files.' },
@@ -93,6 +94,20 @@ function timer({ settings, io }) {
     row('Long break after', 'Focus parts in a set before the long break.', minutesInput(p.rounds, (n) => set({ rounds: n }), 'Rounds before a long break', { max: 12 })),
     row('Start the next part by itself', 'Off: each break or focus part waits for you to press Start.', toggle(p.autoStart, (on) => set({ autoStart: on }), 'Start the next part by itself')),
     h('p', { class: 'set-note' }, 'Each finished focus part is saved in the home page’s numbers (.opal/logbook.md), linked to the note that was open, like a prep session.'),
+  ];
+}
+
+function tabsSection({ settings, io }) {
+  const t = settings.tabs;
+  return [
+    heading('Tabs'),
+    row('Reopen tabs when Opal starts', 'The open tabs are kept in the vault’s hidden .opal/workspace.json.', toggle(t.restore, (on) => io.saveSettings({ tabs: { ...t, restore: on } }), 'Reopen tabs when Opal starts')),
+    heading('Using tabs'),
+    h('ul', { class: 'set-list' },
+      h('li', null, h('b', null, '⌘-click'), ' a note, folder, link or section — or right-click → Open in new tab.'),
+      h('li', null, h('b', null, 'Pin'), ' a tab (right-click it): it keeps its page, and anything opened from it goes to a new tab.'),
+      h('li', null, h('b', null, 'Drag'), ' tabs to reorder them; middle-click closes one.'),
+      h('li', null, h('b', null, '⌘T / ⌘W'), ' new / close tab · ', h('b', null, '⌃Tab'), ' next tab · ', h('b', null, '⌘1–9'), ' jump to a tab.')),
   ];
 }
 
@@ -140,6 +155,7 @@ export function renderSettings(container, opts) {
   if (section.render) body = section.render();
   else if (section.id === 'appearance') body = appearance(opts);
   else if (section.id === 'timer') body = timer(opts);
+  else if (section.id === 'tabs') body = tabsSection(opts);
   else if (section.id === 'vault') body = vaultSection(opts);
   else if (section.id === 'shortcuts') body = shortcuts();
   else body = about(opts);

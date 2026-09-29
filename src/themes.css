@@ -1023,3 +1023,15 @@
 :root:not([data-theme="scrapbook"]) .timer-stop.is-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 :root:not([data-theme="scrapbook"]) .flow-notes { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
 :root:not([data-theme="scrapbook"]) .flow-notes:focus { box-shadow: 0 0 0 2px var(--accent); }
+
+/* ---------- Tabs ---------- */
+
+:root:not([data-theme="scrapbook"]) .tabbar { border-bottom: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .tab:focus-visible .tab-inner { box-shadow: 0 0 0 2px var(--accent); }
+:root:not([data-theme="scrapbook"]) .tab.drop-before .tab-inner { box-shadow: -3px 0 0 var(--accent); }
+:root:not([data-theme="scrapbook"]) .tab.drop-after .tab-inner { box-shadow: 3px 0 0 var(--accent); }
+/* Scrapbook: the page's paper colour, an ink rule under the strip. */
+:root[data-theme="scrapbook"] .tabbar { --tab-page: var(--paper); --tab-strip: var(--paper-3); border-bottom: var(--rule); }
+:root[data-theme="scrapbook"] .tab.is-active { margin-bottom: -1.5px; height: 35.5px; }
+/* Minimal and GitHub: a quieter strip, closer to Obsidian's. */
+:root:not([data-theme="scrapbook"]) .tabbar { --tab-strip: color-mix(in srgb, var(--ground) 95%, var(--ink)); }
