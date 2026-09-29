@@ -12,6 +12,22 @@ const STATUS_TEXT = {
   Reloaded: 'Updated from disk',
 };
 
+// The app icon (a milky opal on blue), small, in place of the old square.
+function opalMark() {
+  const wrap = h('span', { class: 'wordmark-mark', 'aria-hidden': 'true' });
+  wrap.innerHTML = `<svg viewBox="0 0 1024 1024" width="18" height="18">
+    <defs>
+      <radialGradient id="opal-mark-milk" cx="0.45" cy="0.4" r="0.7"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.7" stop-color="#EDE8F7"/><stop offset="1" stop-color="#C9D8E8"/></radialGradient>
+      <linearGradient id="opal-mark-fire" x1="0" y1="1" x2="1" y2="0"><stop offset="0.35" stop-color="#3DA5D9" stop-opacity="0"/><stop offset="0.55" stop-color="#3DA5D9" stop-opacity="0.28"/><stop offset="0.7" stop-color="#C3A6FF" stop-opacity="0.3"/><stop offset="0.85" stop-color="#FFD23F" stop-opacity="0.25"/><stop offset="1" stop-color="#FFD23F" stop-opacity="0"/></linearGradient>
+    </defs>
+    <rect width="1024" height="1024" rx="228" fill="#3B2CF5"/>
+    <ellipse cx="512" cy="520" rx="330" ry="258" fill="url(#opal-mark-milk)"/>
+    <ellipse cx="512" cy="520" rx="330" ry="258" fill="url(#opal-mark-fire)"/>
+    <path d="M320 430 C365 350 445 312 535 305" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" fill="none"/>
+  </svg>`;
+  return wrap;
+}
+
 export class Chrome {
   constructor(topbar, footer, { onHome, onPalettes, onOpenFile, onCalendar, onLogbook, onTasks, onSearch, onInbox }) {
     this.topbar = topbar;
@@ -83,7 +99,7 @@ export class Chrome {
 
     this.topbar.replaceChildren(...[
       h('button', { class: 'bar-cell wordmark', onclick: this.onHome, title: 'Vault home' },
-        h('span', { class: 'wordmark-square' }),
+        opalMark(),
         h('span', { class: 'wordmark-text' }, 'opal')),
       crumbs,
       h('button', { class: 'bar-cell bar-link bar-search', onclick: () => this.onSearch(), title: 'Search (⌘O names · ⌘⇧F text)' }, 'Search'),

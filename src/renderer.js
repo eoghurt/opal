@@ -37,6 +37,7 @@ import { noteName, parentOf } from './format.js';
 import { Reminders } from './reminders.js';
 import { openSearch } from './search.js';
 import { InboxView, INBOX_PATH } from './views/inbox-view.js';
+import { openCreateItem } from './create-popover.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -61,6 +62,7 @@ const sidebar = new Sidebar(sidebarPanel, {
   onSwitchVault: () => window.opal.chooseVault(),
   onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
   onRearrange: (item, target, zone) => rearrange(item, target, zone),
+  onCreate: (event) => newNote('', event),
 });
 
 const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
@@ -245,11 +247,12 @@ function showHome(folderPath, notice) {
     getPreviews: (paths) => window.opal.getPreviews(paths),
     onOpenFile: (p) => openFile(p),
     onOpenFolder: (p) => openFolder(p),
-    onNewNote: () => newNote(),
-    onNewFolder: () => newFolder(),
+    onNewNote: (at) => newNote(folderPath, at),
+    onNewFolder: (at) => newFolder(folderPath, at),
     onAddSticky: () => homeStickies && homeStickies.layer.add(viewEl.scrollTop),
     onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
     onRearrange: (item, target, zone) => rearrange(item, target, zone),
+    onCreateHere: (event) => newNote(folderPath, event),
   });
   homeStickies = folderHomeStickies(folderPath, folder, home);
 }
@@ -331,7 +334,7 @@ async function showNote(filePath) {
     onOpenFile: (p) => openFile(p),
     onOpenFolder: (p) => openFolder(p),
     onOpenLink: (target) => openLink(target),
-    onNewNoteHere: () => newNote(),
+    onNewNoteHere: (at) => newNote(parentOf(filePath), at),
     onPalettes: () => showPalettes(),
     onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
     onAddSticky: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - noteView.center.offsetTop),
@@ -353,6 +356,7 @@ async function showNote(filePath) {
     onOpenHref: (href) => openHref(href, filePath),
     linkTargets: () => linkTargets(),
     findLink: (target) => window.opal.findLink(target),
+    onCursor: () => noteView.ribbon.refresh(),
     onChange: () => {
       clearTimeout(changeTimer);
       changeTimer = setTimeout(() => {
@@ -368,6 +372,7 @@ async function showNote(filePath) {
     save: (list) => editor.setStickies(list),
   });
   stickies.refresh();
+  noteView.connectEditor(editor.view);
   current = { filePath, editor, noteView, stickies };
   noteView.setTree(tree);
   noteView.setText(content);
@@ -744,14 +749,15 @@ function showLogbook() {
 
 // The right-click / double-click menu for a page, file or folder.
 function colorMenu(event, node, kind) {
+  const at = { clientX: event.clientX, clientY: event.clientY };
   const isFolder = kind === 'folder';
   const isNote = !isFolder && kindOf(node.path) === 'note';
   const name = isFolder ? node.name : noteName(node.path);
   const items = isFolder
     ? [
       { label: 'Open', onSelect: () => openFolder(node.path) },
-      { label: 'New note here…', onSelect: () => newNote(node.path) },
-      { label: 'New folder inside…', onSelect: () => newFolder(node.path) },
+      { label: 'New note here…', onSelect: () => newNote(node.path, at) },
+      { label: 'New folder inside…', onSelect: () => newFolder(node.path, at) },
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
@@ -1001,31 +1007,55 @@ function folderLabel(folderPath) {
   return folderPath ? folderPath.split('/').pop() : vault.name;
 }
 
-async function newNote(folder = currentFolder()) {
-  if (!vault) return;
-  const name = await askName(`New note in ${folderLabel(folder)}`);
-  if (!name) return;
-  try {
-    const filePath = await window.opal.createNote(name, folder);
-    await openFile(filePath);
-  } catch (err) {
-    alert(`Could not create “${name}”.\n\n${err.message}`);
-  }
+// Every folder, for the "In" list of the create pop-up.
+function folderChoices() {
+  const out = [{ path: '', label: vault.name, depth: 0 }];
+  const walk = (nodes, depth) => {
+    for (const node of nodes) {
+      if (node.type !== 'folder') continue;
+      out.push({ path: node.path, label: node.name, depth });
+      walk(node.children, depth + 1);
+    }
+  };
+  walk(tree, 1);
+  return out;
 }
 
-async function newFolder(parent = currentFolder()) {
+// The create pop-up (name, Note/Folder, where, colour). `at` is the click or
+// button it opens beside.
+function createItem(kind, folder = currentFolder(), at = null) {
   if (!vault) return;
-  const name = await askName(`New folder in ${folderLabel(parent)}`);
-  if (!name) return;
-  try {
-    const folderPath = await window.opal.createFolder(name, parent);
-    await navigate(async () => {
-      await reloadTree();
-      showHome(folderPath);
-    });
-  } catch (err) {
-    alert(`Could not create folder “${name}”.\n\n${err.message}`);
-  }
+  openCreateItem(at, {
+    kind,
+    folder,
+    folders: folderChoices(),
+    onCreate: async ({ kind: made, name, folder: where, color }) => {
+      try {
+        if (made === 'folder') {
+          const folderPath = await window.opal.createFolder(name, where);
+          if (color) await setItemColor(folderPath, 'folder', color);
+          await navigate(async () => {
+            await reloadTree();
+            showHome(folderPath);
+          });
+        } else {
+          const filePath = await window.opal.createNote(name, where);
+          if (color) await setItemColor(filePath, 'file', color);
+          await openFile(filePath);
+        }
+      } catch (err) {
+        alert(`Could not create “${name}”.\n\n${err.message}`);
+      }
+    },
+  });
+}
+
+function newNote(folder = currentFolder(), at = null) {
+  createItem('note', folder, at);
+}
+
+function newFolder(parent = currentFolder(), at = null) {
+  createItem('folder', parent, at);
 }
 
 // ---------- Keeping up with the disk ----------
@@ -1166,8 +1196,8 @@ window.opal.onFlushRequest(({ closeEditor }) =>
     }
   }),
 );
-window.opal.onNewNoteRequest(newNote);
-window.opal.onNewFolderRequest(newFolder);
+window.opal.onNewNoteRequest(() => newNote());
+window.opal.onNewFolderRequest(() => newFolder());
 window.opal.onGoHome(() => vault && openFolder(''));
 window.opal.onShowPalettes(showPalettes);
 window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggle());

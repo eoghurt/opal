@@ -8,6 +8,7 @@ const { pathToFileURL } = require('url');
 const FILE_TYPES = require('./file-types.json');
 const frontmatter = require('./shared/frontmatter.js');
 const { stripStickies } = require('./shared/stickies.js');
+const { relinkText } = require('./shared/relink.js');
 
 app.setName('Opal');
 // Lets automated tests use a throwaway settings folder instead of the real one.
@@ -210,7 +211,7 @@ async function setOrder(relFolder, names) {
 }
 
 // Moves a page, file or folder into another folder. Never a folder into itself.
-async function moveItem(relPath, kind, destFolder) {
+async function moveItemOnly(relPath, kind, destFolder) {
   const full = kind === 'folder' ? resolveSubfolder(relPath) : resolveVaultFile(relPath);
   const destFull = resolveFolderPath(destFolder || '');
   if (kind === 'folder' && (destFolder === relPath || (destFolder || '').startsWith(`${relPath}/`))) {
@@ -364,7 +365,7 @@ function serveVaultFile(request) {
 }
 
 // Renames a note in place (same folder). Returns its new path.
-async function renameNote(relPath, newName) {
+async function renameNoteOnly(relPath, newName) {
   const full = resolveNotePath(relPath);
   const fileName = `${safeFileName(String(newName).replace(/\.md$/i, ''))}.md`;
   const folder = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
@@ -379,8 +380,8 @@ async function renameNote(relPath, newName) {
 }
 
 // Renames any vault file, keeping its extension (notes: see renameNote).
-async function renameFile(relPath, newName) {
-  if (isNoteFile(relPath)) return renameNote(relPath, newName);
+async function renameFileOnly(relPath, newName) {
+  if (isNoteFile(relPath)) return renameNoteOnly(relPath, newName);
   const full = resolveVaultFile(relPath);
   const ext = path.extname(full);
   const base = safeFileName(String(newName).replace(new RegExp(`${ext.replace('.', '\\.')}$`, 'i'), ''));
@@ -407,7 +408,7 @@ function resolveSubfolder(relFolder) {
   return full;
 }
 
-async function renameFolder(relFolder, newName) {
+async function renameFolderOnly(relFolder, newName) {
   const full = resolveSubfolder(relFolder);
   const name = safeFileName(String(newName));
   const parent = relFolder.includes('/') ? relFolder.slice(0, relFolder.lastIndexOf('/')) : '';
@@ -426,6 +427,69 @@ async function trashFolder(relFolder) {
 
 function revealFolder(relFolder) {
   shell.showItemInFolder(relFolder ? resolveSubfolder(relFolder) : resolveFolderPath(''));
+}
+
+// ---------- Keeping links working after a rename or move ----------
+
+const RELINK_MAX_BYTES = 2 * 1024 * 1024;
+
+// Runs a rename/move, then points every link in the vault at the new place.
+async function withRelink(relPath, kind, change) {
+  const before = listNotePaths(await scanFolder(''));
+  const newRel = await change();
+  if (newRel === relPath) return newRel;
+  const moves = kind === 'folder'
+    ? before.filter((p) => p.startsWith(`${relPath}/`)).map((p) => ({ from: p, to: newRel + p.slice(relPath.length) }))
+    : [{ from: relPath, to: newRel }];
+  try {
+    await relinkVault(before, moves);
+  } catch (err) {
+    console.error('Could not update links:', err); // the rename itself still worked
+  }
+  return newRel;
+}
+
+async function relinkVault(before, moves) {
+  const moved = new Map(moves.map((m) => [m.from, m.to]));
+  const after = before.map((p) => moved.get(p) || p);
+  let count = 0;
+  for (let i = 0; i < before.length; i++) {
+    if (!isNoteFile(after[i])) continue;
+    const full = path.join(vaultPath, after[i]);
+    try {
+      const stat = await fs.promises.stat(full);
+      if (stat.size > RELINK_MAX_BYTES) continue;
+      const text = await fs.promises.readFile(full, 'utf8');
+      if (!text.includes('[[') && !text.includes('](')) continue;
+      const next = relinkText(text, { oldPath: before[i], newPath: after[i], moves, before, after });
+      if (next === text) continue;
+      // Written like any outside edit, so an open note picks up the change.
+      const temp = path.join(path.dirname(full), `.${path.basename(full)}.opal-saving`);
+      await fs.promises.writeFile(temp, next, 'utf8');
+      await fs.promises.rename(temp, full);
+      count++;
+    } catch (err) {
+      console.error(`Could not update links in ${after[i]}:`, err);
+    }
+  }
+  if (count) scheduleRefresh();
+  return count;
+}
+
+function renameNote(relPath, newName) {
+  return withRelink(relPath, 'file', () => renameNoteOnly(relPath, newName));
+}
+
+function renameFile(relPath, newName) {
+  return withRelink(relPath, 'file', () => renameFileOnly(relPath, newName));
+}
+
+function renameFolder(relFolder, newName) {
+  return withRelink(relFolder, 'folder', () => renameFolderOnly(relFolder, newName));
+}
+
+function moveItem(relPath, kind, destFolder) {
+  return withRelink(relPath, kind === 'folder' ? 'folder' : 'file', () => moveItemOnly(relPath, kind, destFolder));
 }
 
 // Moves a note to the Mac's Trash (recoverable from there).

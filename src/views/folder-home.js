@@ -13,7 +13,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -49,8 +49,8 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
         h('span', { class: 'home-stamp-num' }, String(total)),
         h('span', null, 'in here'))),
     h('div', { class: 'home-actions' },
-      h('button', { class: 'home-action is-primary', onclick: onNewNote }, '+ Note'),
-      h('button', { class: 'home-action', onclick: onNewFolder }, '+ Folder'),
+      h('button', { class: 'home-action is-primary', onclick: (e) => onNewNote(e.currentTarget) }, '+ Note'),
+      h('button', { class: 'home-action', onclick: (e) => onNewFolder(e.currentTarget) }, '+ Folder'),
       h('button', { class: 'home-action', onclick: onAddSticky }, '+ Sticky')),
   );
 
@@ -94,6 +94,15 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   const home = h('div', { class: 'home' }, sections);
   container.replaceChildren(home);
   container.scrollTop = scrollTop;
+
+  // Right-click or double-click on empty space: make a new note or folder here.
+  const onBlank = (event) => {
+    if (event.target.closest('button, a, input, textarea, select, [draggable="true"], [contenteditable], .sticky-layer > *')) return;
+    event.preventDefault();
+    onCreateHere(event);
+  };
+  home.addEventListener('contextmenu', onBlank);
+  home.addEventListener('dblclick', onBlank);
 
   // Fill in previews once they arrive (the page is usable before then).
   const wanted = [...previewSlots.keys()];

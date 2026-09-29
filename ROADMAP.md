@@ -67,3 +67,5 @@ their own Mac app with one click. File types live in file-types.json.
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
+- **Themes** — 4–5 whole-app looks to pick from (the current scrapbook look
+  stays as one), switching the colours, type and surfaces together.

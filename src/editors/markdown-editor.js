@@ -88,7 +88,7 @@ const scrapbookHighlight = HighlightStyle.define([
   { tag: tags.strong, fontWeight: '700' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
   { tag: tags.quote, fontFamily: SERIF, fontStyle: 'italic', fontSize: '1.12em' },
-  { tag: tags.link, textDecoration: 'underline' },
+  { tag: tags.link, color: 'var(--link)' },
   { tag: tags.url, color: '#6E685C' },
   { tag: tags.monospace, fontFamily: MONO, fontSize: '0.88em', backgroundColor: 'rgba(22, 20, 15, 0.06)' },
   { tag: [tags.processingInstruction, tags.contentSeparator], color: '#A39D90' },
@@ -104,7 +104,9 @@ const theme = EditorView.theme({
   '.cm-gutters': { display: 'none' },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(22, 20, 15, 0.14) !important' },
-  '.cm-wikilink': { backgroundColor: 'var(--c2)', borderBottom: '1.5px solid #16140F', padding: '0 2px' },
+  // Links are just coloured text (underlined while the pointer is on them).
+  '.cm-wikilink': { color: 'var(--link)' },
+  '.cm-wikilink:hover': { textDecoration: 'underline', textUnderlineOffset: '3px' },
   '&.cmd-held .cm-wikilink': { cursor: 'pointer' },
   '.cm-highlight': { backgroundColor: 'var(--c2)', padding: '0 1px' },
   '.cm-underline': { textDecoration: 'underline', textUnderlineOffset: '3px' },
@@ -128,7 +130,7 @@ export class MarkdownEditor {
 
   // onOpenHref(address) opens a [text](address) link; linkTargets() lists notes
   // and files for [[ suggestions; findLink(name) finds a file without creating it.
-  constructor({ parent, content, save, onStatus, onOpenLink, onOpenHref, onChange, linkTargets, findLink }) {
+  constructor({ parent, content, save, onStatus, onOpenLink, onOpenHref, onChange, onCursor, linkTargets, findLink }) {
     this.linkTargets = linkTargets || (() => []);
     this.save = save;
     this.onStatus = onStatus;
@@ -193,6 +195,7 @@ export class MarkdownEditor {
           blur: (_event, view) => { view.dom.classList.remove('cmd-held'); },
         }),
         EditorView.updateListener.of((update) => {
+          if (onCursor && (update.selectionSet || update.docChanged)) onCursor();
           if (!update.docChanged) return;
           if (update.transactions.some((tr) => tr.annotation(fromDisk))) this.onChange();
           else this.markEdited();

@@ -9,6 +9,7 @@ import { stripFrontmatter } from '../../shared/frontmatter.js';
 import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../format.js';
 import { findFile, findFolder, countNotes } from '../tree.js';
 import { stripStickies } from '../../shared/stickies.js';
+import { Ribbon } from '../editors/ribbon.js';
 
 export class NoteView {
   constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename }) {
@@ -24,7 +25,12 @@ export class NoteView {
     this.chips = h('div', { class: 'note-chips' });
     this.editorHost = h('div', { class: 'note-editor' });
     this.title = this.makeTitle();
-    const center = h('div', { class: 'note-center' }, this.chips, this.title, this.editorHost);
+    // The Word-style editing bar across the top (connected once the editor exists).
+    this.ribbon = new Ribbon({
+      onAddSticky: () => this.handlers.onAddSticky(),
+      onInsertTable: (anchor) => this.tablePicker(anchor),
+    });
+    const center = h('div', { class: 'note-center' }, this.ribbon.el, this.chips, this.title, this.editorHost);
     this.center = center; // stickies sit on top of this
 
     container.replaceChildren(h('div', { class: 'note-view' }, this.left, center, this.right));
@@ -85,6 +91,12 @@ export class NoteView {
     });
     title.addEventListener('blur', save);
     return title;
+  }
+
+  // Hooks the ribbon up to the note's editor (a CodeMirror view).
+  connectEditor(view) {
+    if (view) this.ribbon.connect(view);
+    else this.ribbon.el.hidden = true;
   }
 
   setTree(tree) {
@@ -180,8 +192,6 @@ export class NoteView {
       h('span', { class: 'chip', style: `background: ${colorOf(note)}` }, 'Note'),
       h('button', { class: 'chip', style: `background: ${colorOf(this.folderPath ? this.folderNode() : null)}`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
       h('span', { class: 'chip chip-plain' }, `${noteName(this.filePath)}.md`),
-      h('button', { class: 'chip chip-add', onclick: () => this.handlers.onAddSticky() }, '+ Sticky'),
-      h('button', { class: 'chip chip-add', 'aria-haspopup': 'dialog', onmousedown: (e) => e.preventDefault(), onclick: (e) => this.tablePicker(e.currentTarget) }, '+ Table'),
     );
   }
 
@@ -250,7 +260,7 @@ export class NoteView {
       home,
       h('div', { class: 'side-label mono-label' }, h('span', null, `Also in ${name}`), h('span', null, pad2(siblings.length))),
       list,
-      h('button', { class: 'dashed-button mono-label', onclick: this.handlers.onNewNoteHere }, `+ New note in ${name}`),
+      h('button', { class: 'dashed-button mono-label', onclick: (e) => this.handlers.onNewNoteHere(e.currentTarget) }, `+ New note in ${name}`),
       h('div', { class: 'grow' }),
       linkBlock,
     );

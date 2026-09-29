@@ -1,20 +1,21 @@
 // Sidebar: the vault's folder tree — the second way to get around.
 // Clicking a folder's name opens its home page; the arrow just expands it.
 // Drag a page or folder onto a folder to move it in, or between rows to put
-// it in your own order.
+// it in your own order. Right-click empty space to make something new.
 
 import { h, icon } from './ui.js';
 import { colorOf } from './item-colors.js';
 import { noteName, pad2 } from './format.js';
 
 export class Sidebar {
-  constructor(container, { onOpenFile, onOpenFolder, onSwitchVault, onColorMenu, onRearrange }) {
+  constructor(container, { onOpenFile, onOpenFolder, onSwitchVault, onColorMenu, onRearrange, onCreate }) {
     this.container = container;
     this.onOpenFile = onOpenFile;
     this.onOpenFolder = onOpenFolder;
     this.onSwitchVault = onSwitchVault;
     this.onColorMenu = onColorMenu;
     this.onRearrange = onRearrange;
+    this.onCreate = onCreate;
     this.vault = null;
     this.tree = [];
     this.active = { kind: null, path: null };
@@ -66,6 +67,14 @@ export class Sidebar {
       list.append(h('div', { class: 'side-empty hand' }, 'empty vault — make a note!'));
     }
     list.append(...this.rows(this.tree, 0));
+    // Right-click or double-click below the rows: a new note or folder in the vault.
+    const onBlank = (event) => {
+      if (!this.vault || event.target !== list) return;
+      event.preventDefault();
+      this.onCreate(event);
+    };
+    list.addEventListener('contextmenu', onBlank);
+    list.addEventListener('dblclick', onBlank);
 
     this.container.replaceChildren(vaultRow, label, list);
     list.scrollTop = scrollTop;

@@ -1,6 +1,7 @@
 // Live preview for the markdown editor:
 //  - hides the markdown symbols (# ** * ~~ ` == <u>) unless the cursor is on them
-//  - a formatting bar that pops up over selected text
+//  - a small formatting bar that pops up over selected text
+//  - the commands the ribbon (ribbon.js) uses, and what's active at the cursor
 //  - Cmd+B / Cmd+I / Cmd+U / Cmd+K shortcuts
 // The file keeps plain markdown; this only changes what you see while writing.
 
@@ -65,9 +66,26 @@ function buildDecorations(view) {
       ranges.push((isHighlight ? highlightMark : underlineMark).range(start + open, end - close));
       ranges.push((active ? faintMark : hide).range(end - close, end));
     }
+
+    // <span style="color: …">coloured text</span> (from the ribbon's text colour).
+    const colored = new RegExp(COLOR_SPAN.source, 'g');
+    for (let m = colored.exec(text); m; m = colored.exec(text)) {
+      const start = from + m.index;
+      const end = start + m[0].length;
+      const openEnd = start + m[0].indexOf('>') + 1;
+      const closeStart = end - '</span>'.length;
+      if (closeStart <= openEnd || !SAFE_COLOR.test(m[1])) continue;
+      const active = touches(state, start, end);
+      ranges.push((active ? faintMark : hide).range(start, openEnd));
+      ranges.push(Decoration.mark({ attributes: { style: `color: ${m[1]}` } }).range(openEnd, closeStart));
+      ranges.push((active ? faintMark : hide).range(closeStart, end));
+    }
   }
   return Decoration.set(ranges, true);
 }
+
+export const COLOR_SPAN = /<span style="color: ?([^";<>]+);?">([^\n]*?)<\/span>/g;
+const SAFE_COLOR = /^(#[0-9a-f]{3,8}|[a-z]+)$/i;
 
 export const livePreview = ViewPlugin.fromClass(
   class {
@@ -195,14 +213,18 @@ export function clearFormatting(view) {
   for (let round = 0; round < 8; round++) {
     const range = view.state.selection.main;
     const wrapper = ['**', '*', '~~', '`', '==', '<u>'].find((w) => enclosing(view.state, w, range.from, range.to));
-    if (!wrapper) break;
+    if (!wrapper) {
+      if (!colorSpanAround(view.state, range.from, range.to)) break;
+      setTextColor(view, null);
+      continue;
+    }
     toggleWrap(view, wrapper, wrapper === '<u>' ? '</u>' : wrapper);
   }
   // …then any symbols inside it.
   const { state } = view;
   const changes = state.changeByRange((range) => {
     const text = state.sliceDoc(range.from, range.to);
-    const clean = text.replace(/\*\*|__|~~|==|<\/?u>|`/g, '').replace(/(^|[^*])\*(?!\*)/g, '$1');
+    const clean = text.replace(/<span style="color: ?[^";<>]+;?">|<\/span>/g, '').replace(/\*\*|__|~~|==|<\/?u>|`/g, '').replace(/(^|[^*])\*(?!\*)/g, '$1');
     return { changes: { from: range.from, to: range.to, insert: clean }, range: EditorSelection.range(range.from, range.from + clean.length) };
   });
   view.dispatch(state.update(changes, { userEvent: 'input.format' }));
@@ -217,25 +239,160 @@ function setHeadingOff(view) {
     .map(({ l, m }) => ({ from: l.from, to: l.from + m[0].length, insert: '' })));
 }
 
+// The pop-up bar over selected text keeps to the basics; everything else is
+// in the ribbon at the top of the note (see ribbon.js).
 const ACTIONS = [
   { id: 'bold', label: 'B', title: 'Bold (⌘B)', run: (v) => toggleWrap(v, '**'), cls: 'is-bold' },
   { id: 'italic', label: 'I', title: 'Italic (⌘I)', run: (v) => toggleWrap(v, '*'), cls: 'is-italic' },
   { id: 'underline', label: 'U', title: 'Underline (⌘U)', run: (v) => toggleWrap(v, '<u>', '</u>'), cls: 'is-underline' },
   { id: 'strike', label: 'S', title: 'Strikethrough (⌘⇧X)', run: (v) => toggleWrap(v, '~~'), cls: 'is-strike' },
   { id: 'highlight', label: 'Hi', title: 'Highlight', run: (v) => toggleWrap(v, '=='), cls: 'is-highlight' },
-  { id: 'code', label: '</>', title: 'Code', run: (v) => toggleWrap(v, '`'), cls: 'is-mono' },
   { sep: true },
-  { id: 'h1', label: 'H1', title: 'Big heading', run: (v) => setHeading(v, 1) },
-  { id: 'h2', label: 'H2', title: 'Heading', run: (v) => setHeading(v, 2) },
-  { id: 'h3', label: 'H3', title: 'Small heading', run: (v) => setHeading(v, 3) },
-  { sep: true },
-  { id: 'quote', label: '❝', title: 'Quote', run: (v) => toggleLinePrefix(v, '> ', /^\s*>\s?/) },
-  { id: 'bullet', label: '•', title: 'Bullet list', run: (v) => toggleLinePrefix(v, '- ', /^\s*[-*+]\s(?!\[[ xX]\])/) },
-  { id: 'task', label: '☐', title: 'Checklist', run: (v) => toggleLinePrefix(v, '- [ ] ', /^\s*[-*+]\s\[[ xX]\]\s/) },
   { id: 'link', label: '[[ ]]', title: 'Link to a note (⌘K)', run: (v) => toggleWrap(v, '[[', ']]'), cls: 'is-mono' },
-  { sep: true },
   { id: 'clear', label: '⌫', title: 'Clear formatting', run: (v) => clearFormatting(v) },
 ];
+
+// ---------- More commands (used by the ribbon) ----------
+
+// The <span style="color"> around [from, to] on its line, if any.
+function colorSpanAround(state, from, to) {
+  const line = state.doc.lineAt(from);
+  const pattern = new RegExp(COLOR_SPAN.source, 'g');
+  for (let m = pattern.exec(line.text); m; m = pattern.exec(line.text)) {
+    const start = line.from + m.index;
+    const end = start + m[0].length;
+    const openEnd = start + m[0].indexOf('>') + 1;
+    if (start <= from && end >= to) return { start, end, openEnd, closeStart: end - 7, color: m[1] };
+  }
+  return null;
+}
+
+// Colours the selected text (color = null takes the colour off).
+export function setTextColor(view, color) {
+  const { state } = view;
+  const range = state.selection.main;
+  const found = colorSpanAround(state, range.from, range.to);
+  if (found) {
+    const inner = state.sliceDoc(found.openEnd, found.closeStart);
+    const insert = color ? `<span style="color: ${color}">${inner}</span>` : inner;
+    const shift = color ? `<span style="color: ${color}">`.length : 0;
+    view.dispatch({
+      changes: { from: found.start, to: found.end, insert },
+      selection: { anchor: found.start + shift, head: found.start + shift + inner.length },
+      userEvent: 'input.format',
+    });
+  } else if (color && !range.empty) {
+    const open = `<span style="color: ${color}">`;
+    view.dispatch({
+      changes: { from: range.from, to: range.to, insert: `${open}${state.sliceDoc(range.from, range.to)}</span>` },
+      selection: { anchor: range.from + open.length, head: range.to + open.length },
+      userEvent: 'input.format',
+    });
+  }
+  view.focus();
+  return true;
+}
+
+// 1. 2. 3. numbering on the selected lines (or takes it off).
+export function toggleNumbered(view) {
+  return eachLine(view, (lines) => {
+    const pattern = /^(\s*)(\d+\.\s|[-*+]\s(\[[ xX]\]\s)?|>\s)?/;
+    const allHave = lines.every((l) => /^\s*\d+\.\s/.test(l.text));
+    return lines.map((l, i) => {
+      const m = pattern.exec(l.text);
+      return { from: l.from + m[1].length, to: l.from + m[0].length, insert: allHave ? '' : `${i + 1}. ` };
+    });
+  });
+}
+
+// Normal text, Heading 1–4, Quote or Code block for the selected lines.
+export function setBlockStyle(view, style) {
+  if (style === 'code') return toggleCodeBlock(view);
+  eachLine(view, (lines) => lines.map((l) => {
+    const m = /^(#{1,6}\s+|>\s?)?/.exec(l.text);
+    const insert = style === 'quote' ? '> ' : /^h[1-6]$/.test(style) ? `${'#'.repeat(Number(style[1]))} ` : '';
+    return { from: l.from, to: l.from + m[0].length, insert };
+  }));
+  return true;
+}
+
+// Wraps the selected lines in ``` fences, or takes the fences away.
+export function toggleCodeBlock(view) {
+  const { state } = view;
+  const range = state.selection.main;
+  for (let node = syntaxTree(state).resolveInner(range.head, -1); node; node = node.parent) {
+    if (node.name === 'FencedCode') {
+      const first = state.doc.lineAt(node.from);
+      const last = state.doc.lineAt(node.to);
+      const changes = [{ from: first.from, to: Math.min(first.to + 1, state.doc.length) }];
+      if (last.number !== first.number) changes.push({ from: Math.max(last.from - 1, first.to + 1), to: last.to });
+      view.dispatch({ changes, userEvent: 'input.format' });
+      view.focus();
+      return true;
+    }
+  }
+  const first = state.doc.lineAt(range.from);
+  const last = state.doc.lineAt(range.to);
+  view.dispatch({
+    changes: [{ from: first.from, insert: '```\n' }, { from: last.to, insert: '\n```' }],
+    userEvent: 'input.format',
+  });
+  view.focus();
+  return true;
+}
+
+// A horizontal line below the cursor's line.
+export function insertDivider(view) {
+  const line = view.state.doc.lineAt(view.state.selection.main.head);
+  const insert = `${line.text.trim() ? '\n' : ''}\n---\n`;
+  view.dispatch({ changes: { from: line.to, insert }, selection: { anchor: line.to + insert.length }, userEvent: 'input' });
+  view.focus();
+  return true;
+}
+
+// [selected text](https://) with the address selected, ready to paste over.
+export function insertWebLink(view) {
+  const { state } = view;
+  const range = state.selection.main;
+  const text = state.sliceDoc(range.from, range.to) || 'link';
+  const insert = `[${text}](https://)`;
+  const urlFrom = range.from + text.length + 3;
+  view.dispatch({ changes: { from: range.from, to: range.to, insert }, selection: { anchor: urlFrom, head: urlFrom + 8 }, userEvent: 'input' });
+  view.focus();
+  return true;
+}
+
+export function insertText(view, text) {
+  const range = view.state.selection.main;
+  view.dispatch({ changes: { from: range.from, to: range.to, insert: text }, selection: { anchor: range.from + text.length }, userEvent: 'input' });
+  view.focus();
+  return true;
+}
+
+// What the cursor or selection is in, for lighting up ribbon buttons.
+export function activeFormats(state) {
+  const range = state.selection.main;
+  const line = state.doc.lineAt(range.head).text;
+  const heading = /^(#{1,6})\s/.exec(line);
+  let code = false;
+  for (let node = syntaxTree(state).resolveInner(range.head, -1); node; node = node.parent) {
+    if (node.name === 'FencedCode') code = true;
+  }
+  const color = colorSpanAround(state, range.from, range.to);
+  return {
+    bold: !!enclosing(state, '**', range.from, range.to),
+    italic: !!enclosing(state, '*', range.from, range.to),
+    underline: !!enclosing(state, '<u>', range.from, range.to),
+    strike: !!enclosing(state, '~~', range.from, range.to),
+    highlight: !!enclosing(state, '==', range.from, range.to),
+    code: !!enclosing(state, '`', range.from, range.to),
+    color: color ? color.color : null,
+    style: code ? 'code' : heading ? `h${Math.min(4, heading[1].length)}` : /^\s*>/.test(line) ? 'quote' : 'normal',
+    bullet: /^\s*[-*+]\s(?!\[[ xX]\])/.test(line),
+    numbered: /^\s*\d+\.\s/.test(line),
+    task: /^\s*[-*+]\s\[[ xX]\]\s/.test(line),
+  };
+}
 
 // ---------- Pop-up formatting bar ----------
 
