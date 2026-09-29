@@ -139,6 +139,26 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Flow sheets** — `opal-type: flow` notes as speaker columns (Australs 3v3,
   World Schools, BP or your own), Tab between columns, export as a Word table.
 
+## Home, tabs and settings (done)
+- **Home page widgets** — the vault's home page has a clock, Today (events and
+  tasks due, tick them off there), Flashcards, the Timer, Recent pages, Writing,
+  and the Logbook's Numbers, Activity, Where you worked and Busiest days.
+  Customize adds, removes, resizes (S/M/L) and drags them; the layout is the
+  `opal-home` list in the vault's hidden .opal.md. The Logbook screen is gone.
+- **Tabs like Obsidian** — in the top bar; each tab has its own back/forward;
+  ⌘-click opens in a new tab; pinned tabs keep their page; drag to reorder;
+  ⌘T, ⌘W, ⌃Tab, ⌘1–9; they squeeze to icons when there are many; reopened on
+  start from .opal/workspace.json.
+- **One-row top bar** — logo (as wide as the sidebar), back/forward, tabs, then
+  icons (Tabler Icons) for Search, Calendar, Tasks, Review, the Timer and
+  Settings. No Recent strip at the bottom.
+- **Settings** — Appearance (theme, palette), Home page, Timer, Tabs, Vault,
+  Shortcuts, About (⌘,). Vault settings live in .opal/settings.json.
+- **Pomodoro** — focus / short break / long break, lengths in Settings; focus
+  parts are saved with the timer sessions.
+- **Flow sheets are templates** — apply one (or any vault template) to a note
+  from its Template button; Normal note turns it back.
+
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
