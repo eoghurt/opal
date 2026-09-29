@@ -2,11 +2,13 @@
 //  - [[Note]], [[Note|shown text]], [[Note#Heading]] show tidily (brackets and
 //    the hidden part appear only while the cursor is on the link)
 //  - [text](address) shows just its text; bare web addresses look like links
-//  - ![[picture.png]] shows the picture
+//  - pictures in the vault — [[photo.png]], ![[photo.png]], ![alt](photo.png) —
+//    show as the picture; double-click one to edit its link text
 //  - typing [[ suggests notes and files from the vault
 // Clicking is handled in markdown-editor.js; the file keeps plain markdown.
 
-import { Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
+import { Decoration, ViewPlugin, WidgetType, EditorView } from '@codemirror/view';
+import { StateField, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { fileUrl, kindOf } from '../file-types.js';
 
@@ -30,7 +32,8 @@ class HeadingArrow extends WidgetType {
   }
 }
 
-// ![[picture.png]] → the picture (found in the vault without creating anything).
+// A picture → the picture (found in the vault without creating anything; a
+// path that doesn't match from the vault's top falls back to the file name).
 class EmbedWidget extends WidgetType {
   constructor(target, findLink) {
     super();
@@ -49,7 +52,10 @@ class EmbedWidget extends WidgetType {
     img.alt = this.target;
     img.draggable = false;
     wrap.append(img);
-    this.findLink(this.target).then((path) => {
+    const name = this.target.split('/').pop();
+    this.findLink(this.target)
+      .then((path) => path || (name !== this.target ? this.findLink(name) : null))
+      .then((path) => {
       if (path && kindOf(path) === 'image') {
         img.src = fileUrl(path);
       } else {
@@ -68,6 +74,29 @@ class EmbedWidget extends WidgetType {
   }
 }
 
+// The picture being edited as text (after a double-click), as { from, to };
+// it turns back into the picture once the cursor leaves it.
+const editPicture = StateEffect.define();
+const editingPicture = StateField.define({
+  create: () => null,
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(editPicture)) return effect.value;
+    if (!value) return value;
+    const next = tr.docChanged ? { from: tr.changes.mapPos(value.from, -1), to: tr.changes.mapPos(value.to, 1) } : value;
+    const head = tr.state.selection.main.head;
+    return head >= next.from && head <= next.to ? next : null;
+  },
+});
+
+function isEditing(state, from, to) {
+  const editing = state.field(editingPicture, false);
+  return Boolean(editing && editing.from <= from && editing.to >= to);
+}
+
+function pictureWidget(target, findLink, from, to) {
+  return Decoration.replace({ widget: new EmbedWidget(target, findLink) }).range(from, to);
+}
+
 const WIKILINK = /(!?)\[\[([^[\]\n]+?)\]\]/g;
 const BARE_URL = /\bhttps?:\/\/[^\s<>()[\]]+[^\s<>()[\].,;:!?'"]/g;
 
@@ -82,11 +111,9 @@ function buildDecorations(view, findLink) {
       const end = start + m[0].length;
       const embed = m[1] === '!';
       const inner = m[2];
-      if (embed && kindOf(inner.split('|')[0].trim()) === 'image') {
-        const line = state.doc.lineAt(start);
-        if (!cursorIn(state, line.from, line.to)) {
-          ranges.push(Decoration.replace({ widget: new EmbedWidget(inner.split('|')[0].trim(), findLink) }).range(start, end));
-        }
+      // A picture, linked or embedded: show the picture itself.
+      if (kindOf(inner.split('|')[0].split('#')[0].trim()) === 'image') {
+        if (!isEditing(state, start, end)) ranges.push(pictureWidget(inner.split('|')[0].trim(), findLink, start, end));
         continue;
       }
       if (cursorIn(state, start, end)) continue;
@@ -107,6 +134,21 @@ function buildDecorations(view, findLink) {
       from,
       to,
       enter(node) {
+        if (node.name === 'Image') {
+          // ![alt](photo.png): a picture from the vault (web pictures stay links).
+          const urlNode = node.node.getChild('URL');
+          const url = urlNode ? state.doc.sliceString(urlNode.from, urlNode.to).replace(/^<|>$/g, '') : '';
+          let target = url;
+          try {
+            target = decodeURIComponent(url);
+          } catch {
+            // Not %-encoded.
+          }
+          if (target && !/^[a-z][a-z0-9+.-]*:/i.test(target) && kindOf(target) === 'image' && !isEditing(state, node.from, node.to)) {
+            ranges.push(pictureWidget(target, findLink, node.from, node.to));
+          }
+          return false;
+        }
         if (node.name !== 'Link') return undefined;
         const marks = [];
         let url = null;
@@ -138,7 +180,7 @@ function buildDecorations(view, findLink) {
 
 // findLink(target) → vault path or null, without creating anything.
 export function linkPreview(findLink) {
-  return ViewPlugin.fromClass(
+  const plugin = ViewPlugin.fromClass(
     class {
       constructor(view) {
         this.decorations = buildDecorations(view, findLink);
@@ -146,13 +188,33 @@ export function linkPreview(findLink) {
 
       update(update) {
         if (update.docChanged || update.viewportChanged || update.selectionSet
+            || update.state.field(editingPicture, false) !== update.startState.field(editingPicture, false)
             || syntaxTree(update.state) !== syntaxTree(update.startState)) {
           this.decorations = buildDecorations(update.view, findLink);
         }
       }
     },
-    { decorations: (plugin) => plugin.decorations },
+    { decorations: (p) => p.decorations },
   );
+  // Double-click a picture to edit its link text.
+  const doubleClick = EditorView.domEventHandlers({
+    dblclick(event, view) {
+      const picture = event.target.closest && event.target.closest('.cm-embed');
+      if (!picture) return false;
+      const set = view.plugin(plugin);
+      let found = null;
+      const pos = view.posAtDOM(picture);
+      set.decorations.between(pos, pos + 1, (from, to) => {
+        if (from === pos) found = { from, to };
+      });
+      if (!found) return false;
+      event.preventDefault();
+      view.dispatch({ effects: editPicture.of(found), selection: { anchor: found.to } });
+      view.focus();
+      return true;
+    },
+  });
+  return [editingPicture, plugin, doubleClick];
 }
 
 // Typing [[ suggests notes and files. getTargets() → [{ name, folder, isNote }].
