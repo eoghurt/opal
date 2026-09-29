@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('opal', {
   resolveLink: (target) => call('link:resolve', target),
   createNote: (name, folder, template) => call('note:create', name, folder, template),
   templateInfo: (folder) => call('templates:info', folder),
+  fillTemplate: (templatePath, notePath) => call('templates:fill', templatePath, notePath),
   setDefaultTemplate: (folder, templatePath) => call('templates:set-default', folder, templatePath),
   createFolder: (name, parent) => call('folder:create', name, parent),
   getPreviews: (paths) => call('note:previews', paths),

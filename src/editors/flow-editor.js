@@ -13,6 +13,9 @@
 //
 // `flow-format` is australs, world-schools, bp or custom (then `flow-columns`
 // lists the columns). Tab moves to the next column. Autosaves like any note.
+// A flow sheet is a template you apply to a note (toFlowText): whatever the
+// note already had stays, shown as Notes above the columns. "Normal note"
+// (fromFlowText) takes the flow properties off again.
 
 import { h, askName } from '../ui.js';
 import { readProperties, writeProperty } from '../../shared/properties.js';
@@ -122,13 +125,49 @@ export function newFlowText(formatKeyName, customColumns = []) {
   return serializeFlow(parseFlow(text));
 }
 
+// Any note → a flow sheet in that format. Nothing written is lost: text
+// before the first speaker heading becomes the sheet's Notes, other headings
+// are kept after the columns.
+export function toFlowText(text, key, customColumns = ['Speaker 1', 'Speaker 2']) {
+  let out = writeProperty(text, 'opal-type', 'flow', 'text');
+  out = writeProperty(out, 'flow-format', key, 'text');
+  if (key === 'custom' && !readProperties(out)['flow-columns']) out = writeProperty(out, 'flow-columns', customColumns, 'text');
+  const flow = parseFlow(out);
+  // Empty headings left over from another format's speakers go.
+  const speakers = new Set(Object.values(FLOW_FORMATS).flatMap((f) => f.columns.map((c) => c.toLowerCase())));
+  const kept = [];
+  const lines = flow.extra.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^##\s+(.+?)\s*#*\s*$/.exec(lines[i]);
+    if (m && speakers.has(m[1].toLowerCase())) {
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim()) j++;
+      if (j >= lines.length || /^#{1,2}\s/.test(lines[j])) {
+        i = j - 1;
+        continue;
+      }
+    }
+    kept.push(lines[i]);
+  }
+  flow.extra = kept.join('\n').trim();
+  return serializeFlow(flow);
+}
+
+// A flow sheet → an ordinary note (its headings and points stay as they are).
+export function fromFlowText(text) {
+  let out = writeProperty(text, 'opal-type', null);
+  out = writeProperty(out, 'flow-format', null);
+  return writeProperty(out, 'flow-columns', null);
+}
+
 export class FlowEditor {
   static editsText = true;
 
   // Same shape as MarkdownEditor (see editor-registry.js). onExport(data)
   // exports the sheet to Word.
-  constructor({ parent, content, save, onStatus, onChange, onExport }) {
+  constructor({ parent, content, save, onStatus, onChange, onExport, onLeaveFlow }) {
     this.save = save;
+    this.onLeaveFlow = onLeaveFlow || null;
     this.onStatus = onStatus;
     this.onChange = onChange || (() => {});
     this.onExport = onExport || (() => {});
@@ -163,7 +202,17 @@ export class FlowEditor {
       format,
       key === 'custom' ? h('button', { class: 'flow-btn', onclick: () => this.editColumns() }, 'Columns…') : null,
       h('span', { class: 'flow-hint' }, 'Tab moves to the next speaker · one point per line'),
+      this.onLeaveFlow ? h('button', { class: 'flow-btn', title: 'Show this as an ordinary note (the points stay as headings and bullets)', onclick: () => this.onLeaveFlow() }, 'Normal note') : null,
       h('button', { class: 'flow-btn is-primary', onclick: () => this.onExport(this.exportData()) }, 'Export to Word…'));
+    // Notes above the columns: the motion, which side, anything the note had before.
+    const notes = h('textarea', { class: 'flow-notes', 'aria-label': 'Notes', spellcheck: 'true', placeholder: 'Motion, side, notes…', rows: String(Math.min(8, Math.max(1, flow.before.split('\n').length))) });
+    notes.value = flow.before;
+    notes.addEventListener('input', () => {
+      flow.before = notes.value;
+      notes.rows = Math.min(8, Math.max(1, notes.value.split('\n').length));
+      this.text = serializeFlow(flow);
+      this.markEdited();
+    });
     const grid = h('div', { class: 'flow-grid', style: `grid-template-columns: repeat(${flow.columns.length}, minmax(190px, 1fr))` },
       flow.columns.map((column, i) => {
         const area = h('textarea', {
@@ -191,7 +240,7 @@ export class FlowEditor {
           h('h3', { class: 'flow-speaker' }, column),
           area);
       }));
-    this.root.replaceChildren(bar, grid);
+    this.root.replaceChildren(bar, notes, grid);
   }
 
   exportData() {

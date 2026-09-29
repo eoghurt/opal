@@ -3091,3 +3091,6 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .timer-stop.is-primary .timer-note { color: rgb(var(--paper-rgb) / 0.7); }
 .timer-settings-link { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 12px; color: var(--ink-3); }
 .timer-settings-link:hover { color: var(--ink); text-decoration: underline; }
+.chip-template + .chip-history { margin-left: 0; }
+.flow-notes { width: 100%; resize: vertical; border: var(--rule); border-radius: var(--radius); background: var(--white); color: var(--ink); font: inherit; font-size: 13.5px; line-height: 1.5; padding: 8px 12px; margin: 12px 0 4px; outline: none; }
+.flow-notes:focus { box-shadow: 0 0 0 2px var(--c2); }

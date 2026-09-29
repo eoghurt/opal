@@ -58,7 +58,8 @@ import { DatabaseView, PRESETS } from './views/database-view.js';
 import { ManuscriptView } from './views/manuscript-view.js';
 import { noteStructure } from './export/note-structure.js';
 import { docxFromChapters, docxFromTable } from './export/docx.js';
-import { FlowEditor, isFlowNote, newFlowText } from './editors/flow-editor.js';
+import { FlowEditor, FLOW_FORMATS, isFlowNote, newFlowText, toFlowText, fromFlowText } from './editors/flow-editor.js';
+import { mergeTemplate } from './templates.js';
 import { inlineRuns } from './export/note-structure.js';
 import { ReviewView } from './views/review-view.js';
 import { countDue } from './flashcards/schedule.js';
@@ -573,6 +574,7 @@ async function showNote(filePath) {
     onRename: (newName, options) => renameOpenNote(filePath, newName, options),
     onDescribe: (text) => describeOpenNote(filePath, text),
     onHistory: () => showHistory(filePath),
+    onTemplate: (anchor) => chooseTemplateFor(filePath, anchor),
     onWordTarget: (target) => {
       if (!current || current.filePath !== filePath) return;
       current.editor.replaceText(setProp(current.editor.getText(), 'word-target', target ? String(target) : null));
@@ -622,6 +624,7 @@ async function showNote(filePath) {
     findLink: (target) => window.opal.findLink(target),
     saveImage: (ext, bytes) => window.opal.saveAttachment(filePath, ext, bytes),
     onExport: (data) => exportFlow(noteName(filePath), data),
+    onLeaveFlow: () => changeOpenNote(filePath, fromFlowText),
     onCursor: () => {
       noteView.ribbon.refresh();
       showWordCount();
@@ -1147,6 +1150,7 @@ function colorMenu(event, node, kind) {
     : [
       { label: 'Open', onSelect: () => openFile(node.path) },
       isNote ? null : { label: 'Open in its own app', onSelect: () => window.opal.openExternal(node.path) },
+      isNote ? { label: 'Apply template…', hint: 'or a flow sheet', onSelect: async () => { await openFile(node.path); if (current && current.filePath === node.path) chooseTemplateFor(node.path, at); } } : null,
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealInFinder(node.path) },
@@ -1215,6 +1219,68 @@ async function exportFlow(title, data) {
   } catch (err) {
     alert(`Couldn't export the flow sheet.\n\n${err.message}`);
   }
+}
+
+// ---------- Templates on an existing note ----------
+
+// The Template menu on a note: its vault templates and the flow sheet formats.
+async function chooseTemplateFor(filePath, anchor) {
+  let info = { templates: [] };
+  try {
+    info = await window.opal.templateInfo(parentOf(filePath));
+  } catch {
+    // Just the flow sheets then.
+  }
+  const box = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.clientX, bottom: anchor.clientY };
+  const isFlow = current && current.filePath === filePath && current.editor instanceof FlowEditor;
+  const name = (p) => p.replace(/^Templates\//, '').replace(/\.md$/i, '');
+  showMenu({ clientX: box.left, clientY: box.bottom + 4, preventDefault() {}, stopPropagation() {} }, {
+    title: 'Apply a template',
+    items: [
+      ...(info.templates.length
+        ? info.templates.map((p) => ({ label: name(p), hint: 'adds to the note', onSelect: () => applyTemplate(filePath, p) }))
+        : [{ label: 'Notes in a Templates folder show here', disabled: true, onSelect: () => {} }]),
+      'separator',
+      ...Object.entries(FLOW_FORMATS).map(([key, format]) => ({
+        label: `Flow sheet · ${format.name}`,
+        hint: isFlow ? '' : 'speaker columns',
+        onSelect: () => changeOpenNote(filePath, (text) => toFlowText(text, key)),
+      })),
+      isFlow ? 'separator' : null,
+      isFlow ? { label: 'Normal note', hint: 'no columns', onSelect: () => changeOpenNote(filePath, fromFlowText) } : null,
+    ].filter(Boolean),
+  });
+}
+
+async function applyTemplate(filePath, templatePath) {
+  let templateText;
+  try {
+    templateText = await window.opal.fillTemplate(templatePath, filePath);
+  } catch (err) {
+    alert(`Couldn't read that template.\n\n${err.message}`);
+    return;
+  }
+  await changeOpenNote(filePath, (text) => mergeTemplate(text, templateText));
+}
+
+// Changes the open note's whole text (saved like typing, with a snapshot of
+// how it was first); if it became or stopped being a flow sheet, it reopens
+// in the right editor.
+async function changeOpenNote(filePath, change) {
+  if (!current || current.filePath !== filePath || !current.editor.getText) return;
+  const before = current.editor.getText();
+  const next = change(before);
+  if (next === before) return;
+  await window.opal.saveSnapshot(filePath, before, 'restore').catch(() => {});
+  current.editor.replaceText(next);
+  try {
+    await current.editor.flush();
+  } catch (err) {
+    alert(`Couldn't save “${noteName(filePath)}”.\n\n${err.message}`);
+    return;
+  }
+  current.edited = true;
+  if (isFlowNote(next) !== (current.editor instanceof FlowEditor)) await navigate(() => showNote(filePath));
 }
 
 // Shows a folder as a database (starting from a preset), or back as a page.
@@ -1523,12 +1589,14 @@ function createItem(kind, folder = currentFolder(), at = null) {
     folder,
     folders: folderChoices(),
     loadTemplates: (where) => window.opal.templateInfo(where),
-    onCreate: async ({ kind: made, name, folder: where, color, description, template, flowFormat }) => {
+    onCreate: async ({ kind: made, name, folder: where, color, description, template }) => {
       try {
-        if (made === 'flow') {
+        // A flow sheet is one of the templates ("flow:australs", …).
+        if (made === 'note' && template && template.startsWith('flow:')) {
           const filePath = await window.opal.createNote(name, where);
-          await window.opal.writeFile(filePath, newFlowText(flowFormat || 'australs', ['Speaker 1', 'Speaker 2']));
+          await window.opal.writeFile(filePath, newFlowText(template.slice(5), ['Speaker 1', 'Speaker 2']));
           if (color) await setItemColor(filePath, 'file', color);
+          if (description) await window.opal.setDescription(filePath, 'file', description);
           await openFile(filePath);
           return;
         }

@@ -3,7 +3,8 @@
 //   openCreateItem(at, { kind, folder, folders, loadTemplates, onCreate })
 // `at` is a mouse event, an element to sit beside, or null (top of the window).
 // folders: [{ path, label, depth }]; loadTemplates(folder) → { templates, default };
-// onCreate({ kind, name, folder, color, description, template }).
+// onCreate({ kind, name, folder, color, description, template }). `template`
+// is a Templates/… path, "flow:<format>" for a debate flow sheet, or null.
 // Enter after the name offers a description line (optional); Enter again makes it.
 
 import { h } from './ui.js';
@@ -28,25 +29,17 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
     'data-kind': value,
     onclick: () => { state.kind = value; sync(); title.focus(); },
   }, label);
-  const kinds = h('div', { class: 'cal-new-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('note', 'Note'), kindBtn('folder', 'Folder'), kindBtn('flow', 'Flow sheet'));
-  // A debate flow sheet's format.
-  const flowSelect = h('select', { class: 'cal-pop-select create-where', 'aria-label': 'Flow format' },
-    h('option', { value: 'australs' }, 'Australs 3v3'),
-    h('option', { value: 'world-schools' }, 'World Schools'),
-    h('option', { value: 'bp' }, 'British Parliamentary'),
-    h('option', { value: 'custom' }, 'Custom (name the columns)'));
-  const flowRow = h('div', { class: 'cal-new-when create-flow' }, h('span', { class: 'mono-label' }, 'Format'), flowSelect);
-  flowRow.hidden = true;
+  const kinds = h('div', { class: 'cal-new-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('note', 'Note'), kindBtn('folder', 'Folder'));
   const where = h('select', { class: 'cal-pop-select create-where', 'aria-label': 'In folder' },
     folders.map((f) => h('option', { value: f.path, selected: f.path === folder || null }, `${'  '.repeat(f.depth)}${f.label}`)));
   where.addEventListener('change', () => { state.folder = where.value; fillTemplates(); });
 
   // Template for a new note: the folder's default is picked to start with.
+  // The debate flow sheets are built-in templates.
   const templateSelect = h('select', { class: 'cal-pop-select create-where', 'aria-label': 'Template' });
   const templateRow = h('div', { class: 'cal-new-when create-template' }, h('span', { class: 'mono-label' }, 'Template'), templateSelect);
   templateRow.hidden = true;
   templateSelect.addEventListener('change', () => { state.template = templateSelect.value || null; });
-  let templateCount = 0;
   const fillTemplates = async () => {
     if (!loadTemplates) return;
     let info = { templates: [], default: null };
@@ -55,12 +48,17 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
     } catch {
       // No templates then.
     }
-    templateCount = info.templates.length;
     state.template = info.default;
     templateSelect.replaceChildren(
       h('option', { value: '' }, 'Blank note'),
-      ...info.templates.map((p) => h('option', { value: p, selected: p === info.default || null },
-        `${p.replace(/^Templates\//, '').replace(/\.md$/i, '')}${p === info.default ? ' (folder default)' : ''}`)));
+      info.templates.length ? h('optgroup', { label: 'Templates' },
+        info.templates.map((p) => h('option', { value: p, selected: p === info.default || null },
+          `${p.replace(/^Templates\//, '').replace(/\.md$/i, '')}${p === info.default ? ' (folder default)' : ''}`))) : null,
+      h('optgroup', { label: 'Flow sheets (debate)' },
+        h('option', { value: 'flow:australs' }, 'Flow sheet · Australs 3v3'),
+        h('option', { value: 'flow:world-schools' }, 'Flow sheet · World Schools'),
+        h('option', { value: 'flow:bp' }, 'Flow sheet · British Parliamentary'),
+        h('option', { value: 'flow:custom' }, 'Flow sheet · Custom columns')));
     templateSelect.value = info.default || '';
     sync();
   };
@@ -74,11 +72,9 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
       b.setAttribute('aria-pressed', String(on));
     });
     title.placeholder = state.kind === 'folder' ? 'Folder name' : 'Note name';
-    templateRow.hidden = state.kind !== 'note' || !templateCount;
-    flowRow.hidden = state.kind !== 'flow';
-    if (state.kind === 'flow') title.placeholder = 'Debate (e.g. Round 3 — social media ban)';
+    templateRow.hidden = state.kind !== 'note';
     pop.setAttribute('aria-label', state.kind === 'folder' ? 'New folder' : 'New note');
-    save.textContent = state.kind === 'folder' ? 'Create folder' : state.kind === 'flow' ? 'Create flow sheet' : 'Create note';
+    save.textContent = state.kind === 'folder' ? 'Create folder' : 'Create note';
   };
 
   const submit = () => {
@@ -89,7 +85,7 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
       return;
     }
     close();
-    onCreate({ kind: state.kind, name, folder: state.folder, color: state.color, description: describe.value.trim(), template: state.kind === 'note' ? state.template : null, flowFormat: flowSelect.value });
+    onCreate({ kind: state.kind, name, folder: state.folder, color: state.color, description: describe.value.trim(), template: state.kind === 'note' ? state.template : null });
   };
   title.addEventListener('input', () => title.classList.remove('is-empty'));
   title.addEventListener('keydown', (e) => {
@@ -118,7 +114,6 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
     kinds,
     h('div', { class: 'cal-new-when' }, h('span', { class: 'mono-label' }, 'In'), where),
     templateRow,
-    flowRow,
     h('div', { class: 'cal-picker' }, h('span', { class: 'mono-label' }, 'Colour'), colours),
     h('div', { class: 'cal-pop-actions' }, save, h('button', { class: 'cal-pop-btn', onclick: () => close() }, 'Cancel')));
   drawColours();

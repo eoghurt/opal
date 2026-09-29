@@ -869,6 +869,13 @@ function fillTemplate(text, title, when = new Date()) {
     .replace(/\{\{\s*time(?::([^}]+))?\s*\}\}/gi, (_m, format) => formatDate(when, (format || 'HH:mm').trim()));
 }
 
+// A template's text filled in for an existing note (applying a template to it).
+async function filledTemplate(templatePath, notePath) {
+  if (!validTemplate(templatePath)) throw new Error('Templates live in the Templates folder.');
+  const title = path.basename(String(notePath || ''), '.md');
+  return fillTemplate(stripStickies(await readNote(templatePath)), title, new Date());
+}
+
 // Creates a note in a folder (default: the vault root) and returns its path.
 // If a note with that name is already there, it is left untouched ('wx' never overwrites).
 // template: a Templates/… path, 'default' for the folder's default, or nothing (blank).
@@ -1693,6 +1700,7 @@ ipcMain.handle('link:find', (_event, target) => resolveLink(target, false));
 ipcMain.handle('link:web', (_event, url) => openWebLink(url));
 ipcMain.handle('note:create', (_event, name, folder, template) => createNote(name, folder, template));
 ipcMain.handle('templates:info', (_event, folder) => templateInfo(folder));
+ipcMain.handle('templates:fill', (_event, templatePath, notePath) => filledTemplate(templatePath, notePath));
 ipcMain.handle('templates:set-default', (_event, folder, templatePath) => setFolderTemplate(folder, templatePath));
 ipcMain.handle('note:previews', (_event, paths) => notePreviews(paths));
 ipcMain.handle('file:open-external', (_event, relPath) => openInDefaultApp(relPath));

@@ -15,11 +15,11 @@ import { getDescription, getProp } from '../../shared/frontmatter.js';
 import { countWords } from '../../shared/words.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate };
     this.backlinks = null; // { linked, unlinked } once loaded
     this.tree = [];
     this.text = '';
@@ -240,6 +240,7 @@ export class NoteView {
       h('span', { class: 'chip', style: `background: ${colorOf(note)}` }, 'Note'),
       h('button', { class: 'chip', style: `background: ${colorOf(this.folderPath ? this.folderNode() : null)}`, onclick: () => this.handlers.onOpenFolder(this.folderPath) }, this.folderName()),
       h('span', { class: 'chip chip-plain' }, `${noteName(this.filePath)}.md`),
+      this.handlers.onTemplate ? h('button', { class: 'chip chip-add chip-template', title: 'Apply a template or a flow sheet to this note', onclick: (e) => this.handlers.onTemplate(e.currentTarget) }, 'Template') : null,
       h('button', { class: 'chip chip-add chip-history', title: 'Earlier versions of this note', onclick: () => this.handlers.onHistory() }, 'History'),
     );
   }

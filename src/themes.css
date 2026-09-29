@@ -1021,3 +1021,5 @@
 :root:not([data-theme="scrapbook"]) .timer-pomodoro-start { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
 :root:not([data-theme="scrapbook"]) .timer-pomodoro-start:hover { background: var(--fill); }
 :root:not([data-theme="scrapbook"]) .timer-stop.is-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .flow-notes { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+:root:not([data-theme="scrapbook"]) .flow-notes:focus { box-shadow: 0 0 0 2px var(--accent); }
