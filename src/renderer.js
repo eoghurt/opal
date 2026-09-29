@@ -33,7 +33,7 @@ import { StickyLayer } from './sticky-layer.js';
 import { makePanel } from './panel.js';
 import { swatchRow } from './item-colors.js';
 import { showMenu, closeMenu } from './context-menu.js';
-import { setProp, setFileColor, setDescription } from '../shared/frontmatter.js';
+import { setProp, setDescription, getDescription } from '../shared/frontmatter.js';
 import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
@@ -314,26 +314,17 @@ function showHome(folderPath, notice) {
     onRename: (next, options) => renameFolderFromHome(folderPath, next, options),
     onDescribe: (text) => describeFolder(folderPath, text),
     describeNow: describeAfterOpen === '*',
+    loadDescription: async () => getDescription(await window.opal.readFolderSettings(folderPath)),
   });
   describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
 }
 
-// A folder home's stickies are kept in the folder's own note (e.g.
-// School/School.md), which is created the first time one is added.
+// A folder home's stickies are kept in the folder's hidden settings file
+// (School/.opal.md), made the first time one is added.
 // Writes wait a moment so a burst of typing becomes one save.
 function folderHomeStickies(folderPath, folder, home) {
-  const noteName = folder.name || vault.name;
-  const existing = folder.children.find((n) => n.type === 'file' && n.name.toLowerCase() === `${noteName.toLowerCase()}.md`);
-  // Always go by the file on disk (the file list might not have caught up yet).
-  let notePath = existing ? existing.path : `${folderPath ? `${folderPath}/` : ''}${noteName}.md`;
-  const readNote = async () => {
-    try {
-      return await window.opal.readFile(notePath);
-    } catch {
-      return null; // not created yet
-    }
-  };
+  const read = () => window.opal.readFolderSettings(folderPath).catch(() => '');
   let latest = null;
   let timer = null;
   let writing = Promise.resolve();
@@ -344,18 +335,13 @@ function folderHomeStickies(folderPath, folder, home) {
     const list = latest;
     latest = null;
     writing = writing.then(async () => {
-      let text = await readNote();
-      if (text === null) {
-        notePath = await window.opal.createNote(noteName, folderPath);
-        text = await window.opal.readFile(notePath);
-      }
-      await window.opal.writeFile(notePath, writeStickies(text, list));
+      await window.opal.writeFolderSettings(folderPath, writeStickies(await read(), list));
     }).catch((err) => alert(`Opal couldn't save the sticky notes.\n\n${err.message}`));
     return writing;
   };
 
   const layer = new StickyLayer(home, {
-    load: async () => parseStickies((await readNote()) || ''),
+    load: async () => parseStickies(await read()),
     save: (list) => {
       latest = list;
       clearTimeout(timer);
@@ -965,25 +951,16 @@ async function deleteItem(node, kind) {
   }
 }
 
-// Which note stores a folder's or file's colour.
-function colorNotePath(path, kind) {
-  const folder = kind === 'folder' ? path : parentOf(path);
-  if (kind === 'file' && kindOf(path) === 'note') return path;
-  const name = folder ? folder.split('/').pop() : vault.name;
-  return `${folder ? `${folder}/` : ''}${name}.md`;
-}
 
 async function setItemColor(path, kind, color) {
   try {
-    const target = colorNotePath(path, kind);
-    const open = current && current.editor.getStickies && current.filePath.toLowerCase() === target.toLowerCase();
+    // Notes keep their colour in their own properties; folders and other files
+    // in the folder's hidden settings file.
+    const isNote = kind === 'file' && kindOf(path) === 'note';
+    const open = isNote && current && current.editor.getStickies && current.filePath.toLowerCase() === path.toLowerCase();
     if (open) {
       // The note is open: change it through the editor so nothing typed is lost.
-      const text = current.editor.getText();
-      const next = kind === 'file' && kindOf(path) !== 'note'
-        ? setFileColor(text, path.split('/').pop(), color)
-        : setProp(text, 'opal-color', color);
-      current.editor.replaceText(next);
+      current.editor.replaceText(setProp(current.editor.getText(), 'opal-color', color));
       await current.editor.flush();
       await refreshFiles();
     } else {

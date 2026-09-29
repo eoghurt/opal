@@ -65,6 +65,27 @@ export class NoteView {
       title.style.height = `${title.scrollHeight}px`;
     };
     requestAnimationFrame(fit);
+    // Measure again once the theme's font has loaded (a different font is a
+    // different height) and whenever the note gets wider or narrower.
+    document.fonts.ready.then(fit);
+    const refit = () => {
+      if (!title.isConnected) {
+        document.fonts.removeEventListener('loadingdone', refit);
+        window.removeEventListener('opal:theme', refit);
+        return;
+      }
+      requestAnimationFrame(fit);
+    };
+    document.fonts.addEventListener('loadingdone', refit);
+    window.addEventListener('opal:theme', refit);
+    let lastWidth = 0;
+    new ResizeObserver(() => {
+      if (title.clientWidth !== lastWidth) {
+        lastWidth = title.clientWidth;
+        fit();
+      }
+    }).observe(title);
+    this.fitTitle = fit;
     title.addEventListener('input', () => {
       // A file name can't hold line breaks or slashes.
       const clean = title.value.replace(/[\r\n]+/g, ' ').replace(/[/\\:]/g, '-');

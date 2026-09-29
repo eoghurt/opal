@@ -22,6 +22,7 @@ function paint() {
   const dark = theme.dark && (current.mode === 'dark' || (current.mode === 'auto' && darkQuery.matches));
   document.documentElement.dataset.theme = theme.id;
   document.documentElement.dataset.mode = dark ? 'dark' : 'light';
+  window.dispatchEvent(new Event('opal:theme')); // things sized by their font measure again
 }
 
 darkQuery.addEventListener('change', () => {

@@ -13,7 +13,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -26,7 +26,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   // property (or, for older folder notes, the note's first sentence).
   const folderNoteFile = allFiles.find((f) => noteName(f.path).toLowerCase() === folder.name.toLowerCase());
   const folderNote = folderNoteFile && !folderNoteFile.quiet ? folderNoteFile : null;
-  const savedDescription = (folderNoteFile && folderNoteFile.description) || '';
+  let savedDescription = folder.description || (folderNoteFile && folderNoteFile.description) || '';
   const description = editableLine({
     className: 'home-desc',
     label: `Description of ${folder.name}`,
@@ -122,6 +122,15 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
       if (folderNote && !savedDescription) {
         const first = (previews[folderNote.path] || '').split(/(?<=[.!?])\s/)[0];
         if (first) description.show(first);
+      }
+    }).catch(() => {});
+  }
+  // The vault's own description isn't in the file list, so it's fetched.
+  if (!savedDescription && loadDescription) {
+    loadDescription().then((text) => {
+      if (text) {
+        savedDescription = text;
+        description.set(text);
       }
     }).catch(() => {});
   }

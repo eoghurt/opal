@@ -7,7 +7,7 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 const FILE_TYPES = require('./file-types.json');
 const frontmatter = require('./shared/frontmatter.js');
-const { stripStickies } = require('./shared/stickies.js');
+const { stripStickies, parseStickies, writeStickies } = require('./shared/stickies.js');
 const { relinkText } = require('./shared/relink.js');
 
 app.setName('Opal');
@@ -54,6 +54,7 @@ function setVault(folder) {
   vaultPath = path.resolve(folder);
   saveSettings({ ...loadSettings(), vaultPath: folder });
   watchVault();
+  migrateVault().catch((err) => console.error('Settings move failed:', err));
   if (win) win.webContents.send('vault:changed', vaultInfo());
 }
 
@@ -107,12 +108,15 @@ async function scanDir(relFolder) {
     }
   }));
 
-  // The folder's own note (School/School.md; the vault's is named after the
-  // vault) holds the folder's colour and the colours of its non-note files.
+  // The folder's settings (colour, order, file colours, description) live in
+  // its hidden .opal.md. Older vaults kept them in the folder's own note
+  // (School/School.md; the vault's is named after the vault) — still read.
   const folderName = relFolder ? path.posix.basename(relFolder) : path.basename(vaultPath);
   const folderNote = files.find((f) => f.name.toLowerCase() === `${folderName.toLowerCase()}.md`);
-  const map = folderNote ? folderNote.fileColors || {} : {};
-  const order = folderNote ? folderNote.order || [] : [];
+  const hidden = await folderSettingsProps(relFolder);
+  const legacyColors = folderNote ? folderNote.fileColors || {} : {};
+  const map = { ...legacyColors, ...hidden.fileColors };
+  const order = hidden.order.length ? hidden.order : (folderNote ? folderNote.order || [] : []);
   for (const file of files) {
     if (!isNoteFile(file.name)) file.color = frontmatter.validColor(map[file.name]);
     // A folder note that only holds Opal's settings stays behind the scenes.
@@ -130,8 +134,8 @@ async function scanDir(relFolder) {
   const byName = (a, b) => (rank(a) - rank(b)) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   return {
     nodes: [...folders.sort(byName), ...files.sort(byName)],
-    color: folderNote ? folderNote.color : null,
-    description: folderNote ? folderNote.description : '',
+    color: hidden.color || (folderNote ? folderNote.color : null),
+    description: hidden.description || (folderNote ? folderNote.description : ''),
   };
 }
 
@@ -162,6 +166,129 @@ async function noteProps(full, mtimeMs) {
   return props;
 }
 
+// ---------- A folder's hidden settings file (.opal.md) ----------
+//
+// Every folder can have a hidden `.opal.md` holding Opal's settings for it,
+// as note properties (and folder-page stickies). Hidden files don't show in
+// Finder or Obsidian, so setting a colour never adds a visible note.
+
+const SETTINGS_FILE = '.opal.md';
+const FOLDER_KEYS = ['opal-color', 'opal-file-colors', 'opal-order', 'description'];
+
+function folderSettingsFull(relFolder) {
+  return path.join(resolveFolderPath(relFolder || ''), SETTINGS_FILE);
+}
+
+async function readFolderSettings(relFolder) {
+  try {
+    return await fs.promises.readFile(folderSettingsFull(relFolder), 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return '';
+    throw err;
+  }
+}
+
+async function writeFolderSettings(relFolder, text) {
+  if (typeof text !== 'string') throw new Error('Invalid settings.');
+  const full = folderSettingsFull(relFolder);
+  // Nothing left in it: no file at all.
+  if (!frontmatter.stripFrontmatter(text).trim() && !frontmatter.frontmatterRange(text)) {
+    await fs.promises.rm(full, { force: true });
+  } else {
+    const temp = `${full}.opal-saving`;
+    await fs.promises.writeFile(temp, text, 'utf8');
+    await fs.promises.rename(temp, full);
+  }
+  scheduleRefresh(); // hidden files don't wake the folder watcher
+}
+
+// Changes a folder's settings; `change(text) → text`.
+async function changeFolderSettings(relFolder, change) {
+  await writeFolderSettings(relFolder, change(await readFolderSettings(relFolder)));
+}
+
+async function folderSettingsProps(relFolder) {
+  const none = { color: null, fileColors: {}, order: [], description: '' };
+  let full;
+  try {
+    full = folderSettingsFull(relFolder);
+  } catch {
+    return none;
+  }
+  let stat;
+  try {
+    stat = await fs.promises.stat(full);
+  } catch {
+    return none;
+  }
+  const props = await noteProps(full, stat.mtimeMs);
+  return { color: props.color, fileColors: props.fileColors || {}, order: props.order || [], description: props.description || '' };
+}
+
+// Older vaults: moves Opal's settings out of a folder's own note (School/School.md)
+// into its hidden .opal.md. A note that held nothing else goes to the Trash; one
+// with your own writing keeps it and just loses Opal's lines.
+async function migrateFolderNote(relFolder) {
+  const name = relFolder ? path.posix.basename(relFolder) : path.basename(vaultPath);
+  const notePath = joinRel(relFolder, `${name}.md`);
+  let noteText;
+  try {
+    noteText = await readNote(notePath);
+  } catch {
+    return false;
+  }
+  const keys = FOLDER_KEYS.filter((k) => frontmatter.getProp(noteText, k) != null);
+  const stickies = parseStickies(noteText);
+  if (!keys.length && !stickies.length) return false;
+
+  let settings = await readFolderSettings(relFolder);
+  let rest = noteText;
+  for (const key of keys) {
+    const raw = rawProp(noteText, key);
+    if (frontmatter.getProp(settings, key) == null) settings = frontmatter.setProp(settings, key, raw);
+    rest = frontmatter.setProp(rest, key, null);
+  }
+  if (stickies.length) {
+    if (!parseStickies(settings).length) settings = writeStickies(settings, stickies);
+    rest = writeStickies(rest, []);
+  }
+  await writeFolderSettings(relFolder, settings);
+  if (!rest.trim()) {
+    await shell.trashItem(resolveNotePath(notePath));
+  } else {
+    await writeNote(notePath, rest);
+  }
+  return true;
+}
+
+// A property's value exactly as written (keeps quotes, e.g. on descriptions).
+function rawProp(text, key) {
+  const match = new RegExp(`^${key}:\\s?(.*)$`, 'm').exec(text.slice(0, text.indexOf('\n---', 3) + 1 || text.length));
+  return match ? match[1].trim() : frontmatter.getProp(text, key);
+}
+
+// Once per vault opening: tidy every folder's old settings note away.
+async function migrateVault() {
+  if (!vaultPath) return;
+  const folders = [''];
+  const walk = (nodes) => nodes.forEach((n) => {
+    if (n.type === 'folder') {
+      folders.push(n.path);
+      walk(n.children);
+    }
+  });
+  walk(await scanFolder(''));
+  let moved = 0;
+  for (const folder of folders) {
+    try {
+      if (await migrateFolderNote(folder)) moved++;
+    } catch (err) {
+      console.error(`Could not move the settings for ${folder || 'the vault'}:`, err);
+    }
+  }
+  if (moved) scheduleRefresh();
+}
+
 // ---------- Colours ----------
 
 // Sets the colour of a folder or file (null = back to the default).
@@ -169,44 +296,45 @@ async function noteProps(full, mtimeMs) {
 // (created if needed); other files in their folder's note.
 async function setColor(relPath, kind, color) {
   if (color !== null && !frontmatter.validColor(color)) throw new Error('Unknown colour.');
-  let notePath;
-  let change;
   if (kind === 'folder') {
-    resolveFolderPath(relPath);
-    const name = relPath ? path.posix.basename(relPath) : path.basename(vaultPath);
-    notePath = joinRel(relPath, `${name}.md`);
-    change = (text) => frontmatter.setProp(text, 'opal-color', color);
-  } else if (isNoteFile(relPath)) {
-    notePath = relPath;
-    change = (text) => frontmatter.setProp(text, 'opal-color', color);
-  } else {
+    await changeFolderSettings(relPath, (text) => frontmatter.setProp(text, 'opal-color', color));
+    return relPath;
+  }
+  if (!isNoteFile(relPath)) {
     resolveVaultFile(relPath);
     const folder = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
-    const name = folder ? path.posix.basename(folder) : path.basename(vaultPath);
-    notePath = joinRel(folder, `${name}.md`);
-    change = (text) => frontmatter.setFileColor(text, path.posix.basename(relPath), color);
+    await changeFolderSettings(folder, (text) => frontmatter.setFileColor(text, path.posix.basename(relPath), color));
+    return relPath;
   }
   let text = '';
   try {
-    text = await readNote(notePath);
+    text = await readNote(relPath);
   } catch (err) {
     if (err.code !== 'ENOENT') throw err;
   }
-  await writeNote(notePath, change(text));
+  await writeNote(relPath, frontmatter.setProp(text, 'opal-color', color));
   scheduleRefresh(); // Opal's own save isn't picked up by the watcher
-  return notePath;
+  return relPath;
+}
+
+// ---------- Rearranging ----------
+
+// Saves a folder's own order for its items (names, in order).
+async function setOrder(relFolder, names) {
+  if (!Array.isArray(names) || names.some((n) => typeof n !== 'string')) throw new Error('Invalid order.');
+  await changeFolderSettings(relFolder, (text) => frontmatter.setItemOrder(text, names.slice(0, 500)));
 }
 
 // The line under a note's or folder's title (empty = none). Folders keep it
-// in their folder note, created if needed, like their colour.
+// in their hidden .opal.md, like their colour.
 async function setDescription(relPath, kind, text) {
   if (typeof text !== 'string') throw new Error('Invalid description.');
-  let notePath = relPath;
   if (kind === 'folder') {
-    resolveFolderPath(relPath);
-    const name = relPath ? path.posix.basename(relPath) : path.basename(vaultPath);
-    notePath = joinRel(relPath, `${name}.md`);
-  } else if (!isNoteFile(relPath)) {
+    await changeFolderSettings(relPath, (current) => frontmatter.setDescription(current, text));
+    return relPath;
+  }
+  const notePath = relPath;
+  if (!isNoteFile(relPath)) {
     throw new Error('Only notes and folders have descriptions.');
   }
   let current = '';
@@ -219,24 +347,6 @@ async function setDescription(relPath, kind, text) {
   if (next !== current) await writeNote(notePath, next);
   scheduleRefresh();
   return notePath;
-}
-
-// ---------- Rearranging ----------
-
-// Saves a folder's own order for its items (names, in order) in its folder note.
-async function setOrder(relFolder, names) {
-  if (!Array.isArray(names) || names.some((n) => typeof n !== 'string')) throw new Error('Invalid order.');
-  resolveFolderPath(relFolder);
-  const name = relFolder ? path.posix.basename(relFolder) : path.basename(vaultPath);
-  const notePath = joinRel(relFolder, `${name}.md`);
-  let text = '';
-  try {
-    text = await readNote(notePath);
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err;
-  }
-  await writeNote(notePath, frontmatter.setItemOrder(text, names.slice(0, 500)));
-  scheduleRefresh();
 }
 
 // Moves a page, file or folder into another folder. Never a folder into itself.
@@ -921,6 +1031,8 @@ ipcMain.handle('file:trash', (_event, relPath) => trashFile(relPath));
 ipcMain.handle('folder:rename', (_event, relFolder, newName) => renameFolder(relFolder, newName));
 ipcMain.handle('folder:trash', (_event, relFolder) => trashFolder(relFolder));
 ipcMain.handle('folder:reveal', (_event, relFolder) => revealFolder(relFolder));
+ipcMain.handle('folder:settings-read', (_event, relFolder) => readFolderSettings(relFolder || ''));
+ipcMain.handle('folder:settings-write', (_event, relFolder, text) => writeFolderSettings(relFolder || '', text));
 ipcMain.handle('description:set', (_event, relPath, kind, text) => setDescription(relPath, kind, text));
 ipcMain.handle('order:set', (_event, relFolder, names) => setOrder(relFolder, names));
 ipcMain.handle('item:move', (_event, relPath, kind, destFolder) => moveItem(relPath, kind, destFolder));
@@ -1056,6 +1168,7 @@ if (!app.requestSingleInstanceLock()) {
     const saved = loadSettings().vaultPath;
     if (saved && isFolder(saved)) vaultPath = path.resolve(saved);
     watchVault();
+    migrateVault().catch((err) => console.error('Settings move failed:', err));
     buildMenu();
     createWindow();
   });

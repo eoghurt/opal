@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('opal', {
   setPalette: (name) => call('palette:set', name),
   getLook: () => call('look:get'),
   setDescription: (relPath, kind, text) => call('description:set', relPath, kind, text),
+  readFolderSettings: (relFolder) => call('folder:settings-read', relFolder),
+  writeFolderSettings: (relFolder, text) => call('folder:settings-write', relFolder, text),
   setLook: (look) => call('look:set', look),
   notify: (payload) => call('notify:show', payload),
   search: (query) => call('vault:search', query),
