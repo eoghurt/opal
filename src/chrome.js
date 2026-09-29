@@ -29,11 +29,15 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onPalettes, onOpenFile, onCalendar, onLogbook, onTasks, onSearch, onInbox }) {
+  constructor(topbar, footer, { onHome, onPalettes, onBack, onForward, onOpenFile, onCalendar, onLogbook, onTasks, onSearch, onInbox }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
     this.onPalettes = onPalettes;
+    this.onBack = onBack;
+    this.onForward = onForward;
+    this.canBack = false;
+    this.canForward = false;
     this.onOpenFile = onOpenFile;
     this.onCalendar = onCalendar;
     this.onLogbook = onLogbook;
@@ -58,6 +62,14 @@ export class Chrome {
   setInboxCount(count) {
     if (count === this.inboxCount) return;
     this.inboxCount = count;
+    this.renderTop();
+  }
+
+  // Whether Back / Forward have somewhere to go.
+  setHistory(canBack, canForward) {
+    if (canBack === this.canBack && canForward === this.canForward) return;
+    this.canBack = canBack;
+    this.canForward = canForward;
     this.renderTop();
   }
 
@@ -101,6 +113,9 @@ export class Chrome {
       h('button', { class: 'bar-cell wordmark', onclick: this.onHome, title: 'Vault home' },
         opalMark(),
         h('span', { class: 'wordmark-text' }, 'opal')),
+      h('div', { class: 'bar-cell bar-history' },
+        h('button', { class: 'bar-arrow', 'aria-label': 'Back', title: 'Back (⌘[)', disabled: !this.canBack || null, onclick: () => this.onBack() }, '‹'),
+        h('button', { class: 'bar-arrow', 'aria-label': 'Forward', title: 'Forward (⌘])', disabled: !this.canForward || null, onclick: () => this.onForward() }, '›')),
       crumbs,
       h('button', { class: 'bar-cell bar-link bar-search', onclick: () => this.onSearch(), title: 'Search (⌘O names · ⌘⇧F text)' }, 'Search'),
       !this.onInbox ? null : h('button', {

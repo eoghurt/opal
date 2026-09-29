@@ -853,3 +853,6 @@
 :root[data-theme="github"] .home-h1 { font-family: var(--display); font-weight: 650; }
 :root:not([data-theme="scrapbook"]) .note-desc { font-family: var(--sans); font-style: normal; font-size: 16px; }
 :root:not([data-theme="scrapbook"]) .create-desc:focus { border-bottom-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .bar-arrow { color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .bar-arrow:hover:not(:disabled) { background: var(--fill); color: var(--ink); }
+:root[data-theme="github"] #topbar .bar-history { border: 0; }

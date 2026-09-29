@@ -86,6 +86,8 @@ const sidebar = new Sidebar(sidebarPanel, {
 const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
   onHome: () => vault && openFolder(''),
   onPalettes: () => showPalettes(),
+  onBack: () => goHistory(-1),
+  onForward: () => goHistory(1),
   onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
@@ -254,6 +256,68 @@ function openReminder(open) {
 function showCrumbs(crumbs) {
   document.documentElement.dataset.screen = screen ? screen.kind : '';
   chrome.setCrumbs(crumbs);
+  remember();
+}
+
+// ---------- Back and forward ----------
+//
+// Every page you land on is remembered in order, like a web browser: Back
+// goes to the one before, Forward to the one you came back from.
+
+const trail = { places: [], at: -1, moving: false };
+
+function currentPlace() {
+  if (!screen) return null;
+  if (screen.kind === 'home') return { kind: 'home', folderPath: screen.folderPath };
+  if (screen.kind === 'note') return { kind: 'note', filePath: screen.filePath };
+  if (['calendar', 'tasks', 'logbook', 'palettes', 'inbox'].includes(screen.kind)) return { kind: screen.kind };
+  return null;
+}
+
+function samePlace(a, b) {
+  return Boolean(a && b && a.kind === b.kind && a.folderPath === b.folderPath && a.filePath === b.filePath);
+}
+
+function remember() {
+  if (trail.moving) return;
+  const place = currentPlace();
+  if (!place || samePlace(place, trail.places[trail.at])) return;
+  trail.places = trail.places.slice(0, trail.at + 1);
+  trail.places.push(place);
+  if (trail.places.length > 200) trail.places.shift();
+  trail.at = trail.places.length - 1;
+  chrome.setHistory(trail.at > 0, false);
+}
+
+function goToPlace(place) {
+  if (place.kind === 'home') return openFolder(place.folderPath);
+  if (place.kind === 'note') return openFile(place.filePath);
+  if (place.kind === 'calendar') return showCalendar();
+  if (place.kind === 'tasks') return showTasks();
+  if (place.kind === 'logbook') return showLogbook();
+  if (place.kind === 'palettes') return showPalettes();
+  if (place.kind === 'inbox') return showInbox();
+  return Promise.resolve();
+}
+
+// step: -1 = back, 1 = forward.
+async function goHistory(step) {
+  const index = trail.at + step;
+  if (!vault || index < 0 || index >= trail.places.length) return;
+  trail.at = index;
+  trail.moving = true;
+  try {
+    await goToPlace(trail.places[index]);
+  } finally {
+    trail.moving = false;
+    chrome.setHistory(trail.at > 0, trail.at < trail.places.length - 1);
+  }
+}
+
+function forgetHistory() {
+  trail.places = [];
+  trail.at = -1;
+  chrome.setHistory(false, false);
 }
 
 function crumbsFor(folderPath) {
@@ -1221,6 +1285,7 @@ function vaultWentMissing() {
 }
 
 function loadVault(newVault) {
+  forgetHistory();
   return enqueue(async () => {
     // Main already saved and closed the note before switching; this is a safety net.
     if (current) {
@@ -1265,6 +1330,14 @@ window.opal.onFlushRequest(({ closeEditor }) =>
 window.opal.onNewNoteRequest(() => newNote());
 window.opal.onNewFolderRequest(() => newFolder());
 window.opal.onGoHome(() => vault && openFolder(''));
+window.opal.onHistory((step) => goHistory(step));
+// The back / forward buttons on a mouse.
+window.addEventListener('mouseup', (event) => {
+  if (event.button === 3 || event.button === 4) {
+    event.preventDefault();
+    goHistory(event.button === 3 ? -1 : 1);
+  }
+});
 window.opal.onShowPalettes(showPalettes);
 window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggle());
 window.opal.onShowCalendar(() => showCalendar());

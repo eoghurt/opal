@@ -2789,3 +2789,10 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 }
 .create-desc { font: inherit; font-size: 13px; padding: 5px 2px; border: 0; border-bottom: 1px solid rgb(var(--ink-rgb) / 0.2); background: transparent; color: var(--ink); outline: none; }
 .create-desc:focus { border-bottom-color: var(--ink); }
+
+/* ---------- Back / forward ---------- */
+
+.bar-history { gap: 2px; padding: 0 8px; }
+.bar-arrow { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 20px; line-height: 1; padding-bottom: 2px; color: inherit; }
+.bar-arrow:hover:not(:disabled) { background: rgb(var(--paper-rgb) / 0.14); }
+.bar-arrow:disabled { opacity: 0.3; cursor: default; }

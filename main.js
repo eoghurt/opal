@@ -1074,6 +1074,9 @@ function buildMenu() {
       // No "Reload": reloading the page could drop typing that hasn't been saved yet.
       label: 'View',
       submenu: [
+        { label: 'Back', accelerator: 'CmdOrCtrl+[', click: () => { if (win) win.webContents.send('ui:history', -1); } },
+        { label: 'Forward', accelerator: 'CmdOrCtrl+]', click: () => { if (win) win.webContents.send('ui:history', 1); } },
+        { type: 'separator' },
         { label: 'Vault Home', accelerator: 'CmdOrCtrl+Shift+H', click: () => { if (win) win.webContents.send('ui:go-home'); } },
         { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+\\', click: () => { if (win) win.webContents.send('ui:toggle-sidebar'); } },
         { label: 'Theme & Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
@@ -1114,6 +1117,11 @@ function createWindow() {
   // The window must never navigate away or open new windows.
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // Swiping between pages on the trackpad goes back / forward.
+  win.on('swipe', (_event, direction) => {
+    if (direction === 'left') win.webContents.send('ui:history', 1);
+    if (direction === 'right') win.webContents.send('ui:history', -1);
+  });
 
   // The palette and theme go along in the address so the first paint already looks right.
   const look = getLook();
