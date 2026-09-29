@@ -2,6 +2,10 @@
 
 Rule for every version: the markdown files on disk are the only source of truth.
 
+Versions: each finished version updates three things together — its section
+here (marked done), `version` in package.json (v0.10 → 0.10.0), and a git tag
+(`v0.10.0`) pushed to GitHub.
+
 ## v0.1 — Obsidian foundation (done)
 Vault, sidebar tree, CodeMirror editor with autosave, [[links]], new notes.
 
@@ -64,10 +68,18 @@ their own Mac app with one click. File types live in file-types.json.
 - **Inbox** — ⌘⇧I: quick capture into `Inbox.md`, then → task or → note; overdue,
   today, next 7 days, undated tasks, and loose checklist items from any note.
 
-## v0.15 — themes
+## v0.10 — Themes and editing (done)
+- **Ribbon** — a Word-style editing bar at the top of every note (styles, text
+  colour, lists, indent, insert link/table/sticky/date, find); the pop-up bar
+  over selected text keeps just the basics.
+- **Create pop-up** — new notes and folders from a pop-up like the calendar's
+  (name, note/folder, where, colour); right-click or double-click empty space.
+- **Links follow renames** — renaming or moving a note, file or folder updates
+  every link to it across the vault. Links show as plain coloured text.
 - **Themes** — Scrapbook (the original), Minimal and GitHub, picked on the
   Theme & palettes screen. Minimal and GitHub come in Light, Dark or Match Mac.
-- **Minimal** — quiet paper, pill buttons, frosted folders, an "ink" calendar.
+- **Minimal** — quiet paper, pill buttons, frosted folders, and a calendar of
+  solid colour blocks with bold titles.
 - **GitHub** — tabs, a file-tree sidebar, notes in a README box, folders as a
   file list, lists as project columns, green activity squares in the Logbook.
 - **Font sets** — Scrapbook: SF Pro, Instrument Serif, Caveat, JetBrains Mono.
@@ -75,6 +87,9 @@ their own Mac app with one click. File types live in file-types.json.
   Arial, Monaspace Neon. All bundled, nothing loaded from the web.
 - **Descriptions** — a line under a note's or folder's title, edited in place
   (Enter after the name opens it), saved as the `description` property.
+- **Hidden folder settings** — a folder's colour, order, description and page
+  stickies live in a hidden `.opal.md` inside it, so no extra notes show in
+  Finder or Obsidian. Old settings-only folder notes are moved in automatically.
 
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a

@@ -1,5 +1,16 @@
+# Mac clutter
 .DS_Store
-.build-cache/
-dist/
+
+# Downloaded libraries (npm install brings them back)
 node_modules/
+
+# Built by `npm run build` / `npm run dist`
+dist/
 release/
+.build-cache/
+
+# Logs and local secrets, never uploaded
+*.log
+npm-debug.log*
+.env
+.env.*
