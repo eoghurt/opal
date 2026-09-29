@@ -9,6 +9,18 @@ import '@fontsource/instrument-serif/latin-400.css';
 import '@fontsource/instrument-serif/latin-400-italic.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
 import '@fontsource/jetbrains-mono/latin-600.css';
+// Minimal's fonts
+import '@fontsource/geist/latin-400.css';
+import '@fontsource/geist/latin-500.css';
+import '@fontsource/geist/latin-600.css';
+import '@fontsource/geist/latin-700.css';
+import '@fontsource/geist-mono/latin-400.css';
+import '@fontsource/geist-mono/latin-500.css';
+import '@fontsource/nanum-pen-script/latin-400.css';
+// GitHub's fonts
+import '@fontsource-variable/mona-sans/wght.css';
+import '@fontsource/monaspace-neon/latin-400.css';
+import '@fontsource/monaspace-neon/latin-500.css';
 
 import { Sidebar } from './sidebar.js';
 import { Chrome } from './chrome.js';
@@ -21,7 +33,7 @@ import { StickyLayer } from './sticky-layer.js';
 import { makePanel } from './panel.js';
 import { swatchRow } from './item-colors.js';
 import { showMenu, closeMenu } from './context-menu.js';
-import { setProp, setFileColor } from '../shared/frontmatter.js';
+import { setProp, setFileColor, setDescription } from '../shared/frontmatter.js';
 import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
 import { LogbookView } from './views/logbook-view.js';
@@ -161,7 +173,7 @@ const reminders = new Reminders({
 
 // ---------- Renaming the open note (from its title) ----------
 
-async function renameOpenNote(filePath, newName) {
+async function renameOpenNote(filePath, newName, { describe = false } = {}) {
   if (current && current.filePath === filePath) await current.editor.flush();
   const newPath = await window.opal.renameNote(filePath, newName);
   await reloadTree();
@@ -173,6 +185,39 @@ async function renameOpenNote(filePath, newName) {
       current = null;
     }
     await navigate(() => showNote(newPath));
+  }
+  // Enter after the name: straight on to the description line.
+  if (describe && current && current.filePath === newPath && current.noteView.openDescription) current.noteView.openDescription();
+}
+
+// The open note's description, changed through its editor (so it's saved
+// like typing and nothing typed is lost).
+function describeOpenNote(filePath, text) {
+  if (!current || current.filePath !== filePath || !current.editor.replaceText) return;
+  current.editor.replaceText(setDescription(current.editor.getText(), text));
+}
+
+// A folder's description, kept in its folder note.
+async function describeFolder(folderPath, text) {
+  try {
+    await window.opal.setDescription(folderPath, 'folder', text);
+    await refreshFiles();
+  } catch (err) {
+    alert(`Couldn't save the description.\n\n${err.message}`);
+  }
+}
+
+// Folder renamed from its own page (the big title).
+let describeAfterOpen = null; // a folder whose description should open when it's shown
+async function renameFolderFromHome(folderPath, next, { describe = false } = {}) {
+  const node = findFolder(tree, folderPath, vault.name);
+  if (!node) return;
+  // Renaming reopens the folder's page; this tells it to open the description.
+  describeAfterOpen = describe ? '*' : null;
+  try {
+    await renameItemTo(node, 'folder', next);
+  } finally {
+    describeAfterOpen = null;
   }
 }
 
@@ -266,7 +311,11 @@ function showHome(folderPath, notice) {
     onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
     onRearrange: (item, target, zone) => rearrange(item, target, zone),
     onCreateHere: (event) => newNote(folderPath, event),
+    onRename: (next, options) => renameFolderFromHome(folderPath, next, options),
+    onDescribe: (text) => describeFolder(folderPath, text),
+    describeNow: describeAfterOpen === '*',
   });
+  describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
 }
 
@@ -352,7 +401,8 @@ async function showNote(filePath) {
     onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
     onAddSticky: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - noteView.center.offsetTop),
     onInsertTable: (rows, cols) => current && current.editor.insertTable && current.editor.insertTable(rows, cols),
-    onRename: (newName) => renameOpenNote(filePath, newName),
+    onRename: (newName, options) => renameOpenNote(filePath, newName, options),
+    onDescribe: (text) => describeOpenNote(filePath, text),
     onSetColor: (path, kind, color) => setItemColor(path, kind, color),
   });
 
@@ -853,14 +903,21 @@ async function rearrange(item, target, zone) {
 }
 
 async function renameItem(node, kind) {
-  const isFolder = kind === 'folder';
-  const oldName = isFolder ? node.name : noteName(node.path);
+  const oldName = kind === 'folder' ? node.name : noteName(node.path);
   const next = await askName(`Rename “${oldName}”`, 'New name, then Enter', oldName);
   if (!next || next === oldName) return;
+  await renameItemTo(node, kind, next).catch(() => {}); // already explained in an alert
+}
+
+// Renames a page, file or folder and keeps whatever's open pointing at it.
+// Returns the new path (or null if it couldn't).
+async function renameItemTo(node, kind, next) {
+  const isFolder = kind === 'folder';
+  const oldName = isFolder ? node.name : noteName(node.path);
   try {
     if (!isFolder && openNoteIsIn(node.path, kind)) {
       await renameOpenNote(node.path, next);
-      return;
+      return current ? current.filePath : null;
     }
     // Save what's open first; if it lives in the folder, reopen it at its new path.
     const reopen = isFolder && openNoteIsIn(node.path, kind) ? current.filePath : null;
@@ -871,16 +928,18 @@ async function renameItem(node, kind) {
       current = null;
       await reloadTree();
       await navigate(() => showNote(`${newPath}${reopen.slice(node.path.length)}`));
-      return;
+      return newPath;
     }
     await reloadTree();
     if (isFolder && screen.kind === 'home' && (screen.folderPath === node.path || screen.folderPath.startsWith(`${node.path}/`))) {
-      openFolder(`${newPath}${screen.folderPath.slice(node.path.length)}`);
+      await openFolder(`${newPath}${screen.folderPath.slice(node.path.length)}`);
     } else {
       refreshFiles();
     }
+    return newPath;
   } catch (err) {
     alert(`Couldn't rename “${oldName}”.\n\n${err.message}`);
+    throw err;
   }
 }
 
@@ -1051,11 +1110,12 @@ function createItem(kind, folder = currentFolder(), at = null) {
     kind,
     folder,
     folders: folderChoices(),
-    onCreate: async ({ kind: made, name, folder: where, color }) => {
+    onCreate: async ({ kind: made, name, folder: where, color, description }) => {
       try {
         if (made === 'folder') {
           const folderPath = await window.opal.createFolder(name, where);
           if (color) await setItemColor(folderPath, 'folder', color);
+          if (description) await window.opal.setDescription(folderPath, 'folder', description);
           await navigate(async () => {
             await reloadTree();
             showHome(folderPath);
@@ -1063,6 +1123,7 @@ function createItem(kind, folder = currentFolder(), at = null) {
         } else {
           const filePath = await window.opal.createNote(name, where);
           if (color) await setItemColor(filePath, 'file', color);
+          if (description) await window.opal.setDescription(filePath, 'file', description);
           await openFile(filePath);
         }
       } catch (err) {
@@ -1103,6 +1164,12 @@ function refreshFiles() {
       inboxView.reload();
     } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
+      // Typing the folder's name or description: redraw once that's finished.
+      const typing = viewEl.querySelector('.home-h1-text:focus, .home .editable-line:focus');
+      if (typing) {
+        typing.addEventListener('blur', () => setTimeout(refreshFiles, 0), { once: true });
+        return;
+      }
       await flushHomeStickies();
       const gone = screen.folderPath && !findFolder(tree, screen.folderPath, vault.name);
       showHome(screen.folderPath, gone ? `The folder “${screen.folderPath}” was moved or deleted outside Opal.` : undefined);

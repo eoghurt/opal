@@ -2302,7 +2302,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 
 /* ---------- Tables in notes ---------- */
 
-.otable { position: relative; margin: 6px 0 12px; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+.otable { position: relative; margin: 6px 0 12px; font-family: var(--sans); }
 .otable-scroll { position: relative; overflow-x: auto; padding: 2px 2px 8px; }
 .otable-t { font-size: 14.5px; line-height: 1.45; color: var(--ink); background: transparent; }
 .otable-t td, .otable-t th { min-width: 28px; word-break: break-word; outline: none; caret-color: var(--ink); }
@@ -2456,7 +2456,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .cm-embed img { display: block; max-width: 100%; max-height: 520px; border: var(--rule); box-shadow: var(--lift-soft, 4px 4px 0 rgb(var(--ink-rgb) / 0.2)); }
 .cm-embed.is-missing { font-family: var(--mono); font-size: 11px; padding: 4px 8px; border: 1px dashed var(--ink-3); color: var(--ink-3); }
 .cm-content ::selection { background: rgba(61, 120, 217, 0.26); }
-.cm-editor .cm-tooltip-autocomplete { border: var(--rule); border-radius: 2px; background: var(--white); box-shadow: var(--lift, 4px 4px 0 var(--ink)); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+.cm-editor .cm-tooltip-autocomplete { border: var(--rule); border-radius: 2px; background: var(--white); box-shadow: var(--lift, 4px 4px 0 var(--ink)); font-family: var(--sans); }
 .cm-editor .cm-tooltip-autocomplete > ul > li { padding: 4px 10px !important; font-size: 13.5px; }
 .cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--c2); color: var(--ink); }
 .cm-editor .cm-completionDetail { margin-left: 10px; font-family: var(--mono); font-size: 10.5px; font-style: normal; color: var(--ink-3); }
@@ -2769,3 +2769,22 @@ body.is-resizing { cursor: col-resize; user-select: none; }
   .rb-caption { display: none; }
   .ribbon { padding-bottom: 3px; row-gap: 2px; }
 }
+
+/* ---------- Editable titles and description lines ---------- */
+
+.home-h1-text { outline: none; border-radius: 3px; }
+.home-h1-text:focus { background: rgb(var(--ink-rgb) / 0.05); }
+.editable-line { outline: none; border-radius: 3px; min-width: 200px; cursor: text; }
+.editable-line:focus { background: rgb(var(--ink-rgb) / 0.04); }
+.editable-line:empty::before { content: attr(data-placeholder); color: var(--ink-4); }
+.note-desc {
+  margin: 0;
+  padding: 2px 44px 6px 50px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 20px;
+  line-height: 1.3;
+  color: var(--ink-3);
+}
+.create-desc { font: inherit; font-size: 13px; padding: 5px 2px; border: 0; border-bottom: 1px solid rgb(var(--ink-rgb) / 0.2); background: transparent; color: var(--ink); outline: none; }
+.create-desc:focus { border-bottom-color: var(--ink); }

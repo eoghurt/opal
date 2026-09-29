@@ -99,7 +99,7 @@ const scrapbookHighlight = HighlightStyle.define([
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '15.5px', backgroundColor: 'transparent' },
   '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif', lineHeight: '1.65' },
+  '.cm-scroller': { fontFamily: 'var(--sans)', lineHeight: '1.65' },
   // The text fills the note's width, growing and shrinking as side panels open and close.
   '.cm-content': { maxWidth: 'none', padding: '12px 44px 40vh', caretColor: 'var(--ink)' },
   '.cm-cursor': { borderLeftColor: 'var(--ink)', borderLeftWidth: '2px' },

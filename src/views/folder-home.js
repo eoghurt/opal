@@ -13,7 +13,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -22,13 +22,17 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   const total = countNotes(folder);
 
   // A note with the same name as its folder (like School/School.md) is the
-  // folder's own note: its first line becomes the description.
+  // folder's own note. The line under the title is its `description`
+  // property (or, for older folder notes, the note's first sentence).
   const folderNoteFile = allFiles.find((f) => noteName(f.path).toLowerCase() === folder.name.toLowerCase());
   const folderNote = folderNoteFile && !folderNoteFile.quiet ? folderNoteFile : null;
-  const description = h('p', { class: 'home-desc' },
-    folderNote ? '' : `Tip: a note named “${folder.name || 'Home'}” in here becomes this line.`);
-  if (!folderNote) description.classList.add('is-tip');
-
+  const savedDescription = (folderNoteFile && folderNoteFile.description) || '';
+  const description = editableLine({
+    className: 'home-desc',
+    label: `Description of ${folder.name}`,
+    value: savedDescription,
+    onSave: (text) => onDescribe(text),
+  });
   const noteCount = files.filter((f) => kindOf(f.path) === 'note').length;
   const otherCount = files.length - noteCount;
   const meta = [
@@ -41,8 +45,13 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   const head = h('section', { class: 'home-head' },
     h('div', { class: 'home-title' },
       h('span', { class: 'mono-label' }, meta),
-      h('h1', { class: 'display home-h1' }, `${folder.name}.`),
-      description),
+      editableTitle({
+        name: folder.name,
+        canRename: !isRoot,
+        onRename,
+        onEnter: () => description.open(),
+      }),
+      description.el),
     h('div', { class: 'home-stamp-cell', 'aria-hidden': 'true' },
       h('div', { class: 'home-stamp' },
         h('span', null, 'Files'),
@@ -110,13 +119,122 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   if (wanted.length) {
     getPreviews(wanted).then((previews) => {
       for (const [p, els] of previewSlots) els.forEach((el) => { el.textContent = previews[p] || ''; });
-      if (folderNote) {
+      if (folderNote && !savedDescription) {
         const first = (previews[folderNote.path] || '').split(/(?<=[.!?])\s/)[0];
-        description.textContent = first || `${folder.name} has a folder note — write a line in it.`;
+        if (first) description.show(first);
       }
     }).catch(() => {});
   }
+  if (describeNow) description.open();
   return home;
+}
+
+// The big folder name, editable in place: Enter or clicking away renames,
+// Escape puts it back. Enter also opens the description line below.
+function editableTitle({ name, canRename, onRename, onEnter }) {
+  const text = h('span', {
+    class: 'home-h1-text',
+    contenteditable: 'plaintext-only',
+    spellcheck: 'false',
+    role: 'textbox',
+    'aria-label': canRename ? `Folder name (edit to rename)` : 'Vault name',
+  }, name);
+  let done = false;
+  const save = (describe) => {
+    const next = text.textContent.replace(/[\r\n]+/g, ' ').replace(/[/\\:]/g, '-').trim();
+    if (!canRename || !next || next === name) {
+      text.textContent = name;
+      if (describe) onEnter();
+      return;
+    }
+    if (done) return;
+    done = true;
+    onRename(next, { describe }).catch(() => {
+      done = false;
+      text.textContent = name;
+    });
+  };
+  text.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      text.dataset.enter = '1';
+      text.blur();
+      save(true);
+    } else if (event.key === 'Escape') {
+      text.textContent = name;
+      text.blur();
+    }
+  });
+  text.addEventListener('blur', () => {
+    if (text.dataset.enter) {
+      delete text.dataset.enter;
+      return;
+    }
+    save(false);
+  });
+  return h('h1', { class: 'display home-h1' }, text, h('span', { 'aria-hidden': 'true' }, '.'));
+}
+
+// A one-line description that's hidden until there is one (or you ask for it
+// by pressing Enter on the title). Enter or clicking away saves it.
+export function editableLine({ className, label, value, onSave, onDone }) {
+  let saved = value || '';
+  const el = h('p', {
+    class: `${className} editable-line`,
+    contenteditable: 'plaintext-only',
+    spellcheck: 'true',
+    role: 'textbox',
+    'aria-label': label,
+    'data-placeholder': 'Add a description…',
+  }, saved);
+  el.hidden = !saved;
+  const commit = () => {
+    const next = el.textContent.replace(/[\r\n]+/g, ' ').trim();
+    el.textContent = next;
+    el.hidden = !next;
+    if (next !== saved) {
+      saved = next;
+      onSave(next);
+    }
+  };
+  el.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      el.blur();
+      if (onDone) onDone();
+    } else if (event.key === 'Escape') {
+      el.textContent = saved;
+      el.blur();
+    }
+  });
+  el.addEventListener('blur', commit);
+  return {
+    el,
+    // Shows it (empty) and puts the cursor in it.
+    open() {
+      el.hidden = false;
+      el.focus();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    },
+    // Shows text that isn't a saved description (an old folder note's first line).
+    show(text) {
+      if (document.activeElement === el) return;
+      el.textContent = text;
+      el.hidden = false;
+      saved = text;
+    },
+    set(text) {
+      if (document.activeElement === el) return;
+      saved = text || '';
+      el.textContent = saved;
+      el.hidden = !saved;
+    },
+  };
 }
 
 // The sheets peeking out of a folder show its two most recently edited files

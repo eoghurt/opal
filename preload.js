@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('opal', {
   getPalette: () => call('palette:get'),
   setPalette: (name) => call('palette:set', name),
   getLook: () => call('look:get'),
+  setDescription: (relPath, kind, text) => call('description:set', relPath, kind, text),
   setLook: (look) => call('look:set', look),
   notify: (payload) => call('notify:show', payload),
   search: (query) => call('vault:search', query),

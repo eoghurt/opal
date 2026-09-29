@@ -2,7 +2,8 @@
 // Folder, which folder it goes in, and its colour — all before it's made.
 //   openCreateItem(at, { kind, folder, folders, onCreate })
 // `at` is a mouse event, an element to sit beside, or null (top of the window).
-// folders: [{ path, label, depth }]; onCreate({ kind, name, folder, color }).
+// folders: [{ path, label, depth }]; onCreate({ kind, name, folder, color, description }).
+// Enter after the name offers a description line (optional); Enter again makes it.
 
 import { h } from './ui.js';
 import { swatchRow } from './item-colors.js';
@@ -18,6 +19,8 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, onCrea
   const state = { kind, folder, color: null };
 
   const title = h('input', { class: 'cal-new-title', 'aria-label': 'Name', spellcheck: 'false' });
+  const describe = h('input', { class: 'create-desc', 'aria-label': 'Description (optional)', placeholder: 'Add a description… (optional)', spellcheck: 'true' });
+  describe.hidden = true;
   const kindBtn = (value, label) => h('button', {
     type: 'button',
     class: 'cal-new-kind',
@@ -50,10 +53,22 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, onCrea
       return;
     }
     close();
-    onCreate({ kind: state.kind, name, folder: state.folder, color: state.color });
+    onCreate({ kind: state.kind, name, folder: state.folder, color: state.color, description: describe.value.trim() });
   };
   title.addEventListener('input', () => title.classList.remove('is-empty'));
   title.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!title.value.trim()) {
+      submit(); // shows it needs a name
+    } else if (describe.hidden) {
+      describe.hidden = false;
+      describe.focus();
+    } else {
+      submit();
+    }
+  });
+  describe.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       submit();
@@ -63,6 +78,7 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, onCrea
   const save = h('button', { class: 'cal-pop-btn is-primary', onclick: submit }, 'Create');
   const pop = h('div', { class: 'cal-pop cal-new create-pop', role: 'dialog' },
     title,
+    describe,
     kinds,
     h('div', { class: 'cal-new-when' }, h('span', { class: 'mono-label' }, 'In'), where),
     h('div', { class: 'cal-picker' }, h('span', { class: 'mono-label' }, 'Colour'), colours),

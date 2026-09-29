@@ -94,7 +94,7 @@ async function scanDir(relFolder) {
     try {
       if (entry.isDirectory()) {
         const inside = await scanDir(relPath);
-        folders.push({ type: 'folder', name: entry.name, path: relPath, children: inside.nodes, color: inside.color });
+        folders.push({ type: 'folder', name: entry.name, path: relPath, children: inside.nodes, color: inside.color, description: inside.description });
       } else if (entry.isFile() && isKnownFile(entry.name)) {
         const full = path.join(vaultPath, relPath);
         const stat = await fs.promises.stat(full);
@@ -128,7 +128,11 @@ async function scanDir(relFolder) {
     return i === -1 ? Infinity : i;
   };
   const byName = (a, b) => (rank(a) - rank(b)) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-  return { nodes: [...folders.sort(byName), ...files.sort(byName)], color: folderNote ? folderNote.color : null };
+  return {
+    nodes: [...folders.sort(byName), ...files.sort(byName)],
+    color: folderNote ? folderNote.color : null,
+    description: folderNote ? folderNote.description : '',
+  };
 }
 
 // A note's Opal properties, from the start of the file (cached until it changes).
@@ -150,6 +154,7 @@ async function noteProps(full, mtimeMs) {
     color: frontmatter.validColor(frontmatter.getProp(head, 'opal-color')),
     fileColors: frontmatter.fileColors(head),
     order: frontmatter.itemOrder(head),
+    description: frontmatter.getDescription(head),
     // Nothing but Opal's own settings (colours, stickies) in it?
     settingsOnly: head.length < 4096 && !stripStickies(frontmatter.stripFrontmatter(head)).trim(),
   };
@@ -189,6 +194,30 @@ async function setColor(relPath, kind, color) {
   }
   await writeNote(notePath, change(text));
   scheduleRefresh(); // Opal's own save isn't picked up by the watcher
+  return notePath;
+}
+
+// The line under a note's or folder's title (empty = none). Folders keep it
+// in their folder note, created if needed, like their colour.
+async function setDescription(relPath, kind, text) {
+  if (typeof text !== 'string') throw new Error('Invalid description.');
+  let notePath = relPath;
+  if (kind === 'folder') {
+    resolveFolderPath(relPath);
+    const name = relPath ? path.posix.basename(relPath) : path.basename(vaultPath);
+    notePath = joinRel(relPath, `${name}.md`);
+  } else if (!isNoteFile(relPath)) {
+    throw new Error('Only notes and folders have descriptions.');
+  }
+  let current = '';
+  try {
+    current = await readNote(notePath);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  const next = frontmatter.setDescription(current, text);
+  if (next !== current) await writeNote(notePath, next);
+  scheduleRefresh();
   return notePath;
 }
 
@@ -892,6 +921,7 @@ ipcMain.handle('file:trash', (_event, relPath) => trashFile(relPath));
 ipcMain.handle('folder:rename', (_event, relFolder, newName) => renameFolder(relFolder, newName));
 ipcMain.handle('folder:trash', (_event, relFolder) => trashFolder(relFolder));
 ipcMain.handle('folder:reveal', (_event, relFolder) => revealFolder(relFolder));
+ipcMain.handle('description:set', (_event, relPath, kind, text) => setDescription(relPath, kind, text));
 ipcMain.handle('order:set', (_event, relFolder, names) => setOrder(relFolder, names));
 ipcMain.handle('item:move', (_event, relPath, kind, destFolder) => moveItem(relPath, kind, destFolder));
 ipcMain.handle('file:read-bytes', (_event, relPath) => readFileBytes(relPath));

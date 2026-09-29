@@ -70,12 +70,12 @@ function setProp(text, key, value) {
 }
 
 // Where the block is, and whether it holds only Opal's own settings (then the
-// editor hides it).
+// editor hides it). The description counts: Opal shows it under the title.
 function frontmatterRange(text) {
   const block = findBlock(text);
   if (!block) return null;
   const keys = block.body.split(/\r?\n/).filter((l) => l.trim()).map((l) => (lineKey(l) || { key: '' }).key);
-  return { from: 0, to: block.end, onlyOpal: keys.length > 0 && keys.every((k) => k.startsWith('opal-')) };
+  return { from: 0, to: block.end, onlyOpal: keys.length > 0 && keys.every((k) => k.startsWith('opal-') || k === 'description') };
 }
 
 function stripFrontmatter(text) {
@@ -117,10 +117,33 @@ function setItemOrder(text, names) {
   return setProp(text, 'opal-order', names && names.length ? JSON.stringify(names) : null);
 }
 
+// A one-line description, shown under a note's or folder's title. Kept as the
+// standard `description` property (quoted, so any text is safe in it).
+function getDescription(text) {
+  const raw = getProp(text, 'description');
+  if (raw == null) return '';
+  const block = findBlock(text);
+  const line = block.body.split(/\r?\n/).map(lineKey).find((f) => f && f.key === 'description');
+  const value = line ? line.value : raw;
+  if (/^".*"$/.test(value)) {
+    try {
+      return String(JSON.parse(value));
+    } catch {
+      return value.slice(1, -1);
+    }
+  }
+  return value.replace(/^'(.*)'$/, '$1');
+}
+
+function setDescription(text, description) {
+  const clean = String(description || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 500);
+  return setProp(text, 'description', clean ? JSON.stringify(clean) : null);
+}
+
 function validColor(name) {
   return Object.prototype.hasOwnProperty.call(ITEM_COLORS, name) ? name : null;
 }
 
 module.exports = {
-  ITEM_COLORS, DEFAULT_COLOR, getProp, setProp, frontmatterRange, stripFrontmatter, fileColors, setFileColor, itemOrder, setItemOrder, validColor,
+  ITEM_COLORS, DEFAULT_COLOR, getProp, setProp, frontmatterRange, stripFrontmatter, fileColors, setFileColor, itemOrder, setItemOrder, validColor, getDescription, setDescription,
 };

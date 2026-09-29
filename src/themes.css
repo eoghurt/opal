@@ -36,7 +36,12 @@
   --event-strength: 26%;
   --lift: 0 8px 28px rgb(0 0 0 / 0.10), 0 1px 3px rgb(0 0 0 / 0.08);
   --lift-soft: 0 1px 3px rgb(0 0 0 / 0.06);
-  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  /* Minimal's own type: Geist, Geist Mono, and a thin pen for notes-to-self. */
+  --sans: "Geist", "Helvetica Neue", sans-serif;
+  --display: "Geist", "Helvetica Neue", sans-serif;
+  --serif: "Geist", "Helvetica Neue", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --hand: "Nanum Pen Script", "Bradley Hand", cursive;
 }
 
 :root[data-theme="minimal"][data-mode="dark"] {
@@ -102,9 +107,13 @@
   --event-strength: 22%;
   --lift: 0 8px 24px rgb(140 149 159 / 0.2), 0 0 0 1px var(--line);
   --lift-soft: 0 1px 0 rgb(31 35 40 / 0.04);
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
-  --display: var(--sans);
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  /* GitHub's type: Mona Sans headings, Helvetica / Arial text, Monaspace code.
+     No handwriting or serif. */
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --display: "Mona Sans Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --serif: var(--sans);
+  --hand: var(--sans);
+  --mono: "Monaspace Neon", ui-monospace, Menlo, monospace;
   --heat-0: #EBEDF0;
   --heat-1: #9BE9A8;
   --heat-2: #40C463;
@@ -783,3 +792,20 @@
 :root[data-theme="github"] .lb-tiles { margin: 16px 24px 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 :root:not([data-theme="scrapbook"]) :is(.tasks, .logbook) .home-head .cal-controls { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; max-width: 55%; }
 :root:not([data-theme="scrapbook"]) .logbook .cal-today { min-width: 0; }
+
+/* ============================================================
+   Type details per font set
+   ============================================================ */
+
+/* Nanum Pen Script runs small next to Caveat, so it's set larger. */
+:root[data-theme="minimal"] .hand { font-weight: 400; }
+:root[data-theme="minimal"] .cal .cal-hand { font-size: 26px; }
+:root[data-theme="minimal"] .cal-now-hand { font-size: 24px; }
+:root[data-theme="minimal"] .display { letter-spacing: -0.035em; }
+
+/* GitHub: handwriting spots read as plain small text; Mona Sans headings. */
+:root[data-theme="github"] .hand { font-family: var(--sans); font-weight: 500; font-size: 13px; color: var(--ink-3); transform: none; }
+:root[data-theme="github"] .display { font-weight: 650; letter-spacing: -0.01em; }
+:root[data-theme="github"] .home-h1 { font-family: var(--display); font-weight: 650; }
+:root:not([data-theme="scrapbook"]) .note-desc { font-family: var(--sans); font-style: normal; font-size: 16px; }
+:root:not([data-theme="scrapbook"]) .create-desc:focus { border-bottom-color: var(--accent); }

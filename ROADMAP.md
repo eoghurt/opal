@@ -70,6 +70,11 @@ their own Mac app with one click. File types live in file-types.json.
 - **Minimal** — quiet paper, pill buttons, frosted folders, an "ink" calendar.
 - **GitHub** — tabs, a file-tree sidebar, notes in a README box, folders as a
   file list, lists as project columns, green activity squares in the Logbook.
+- **Font sets** — Scrapbook: SF Pro, Instrument Serif, Caveat, JetBrains Mono.
+  Minimal: Geist, Geist Mono, Nanum Pen Script. GitHub: Mona Sans, Helvetica /
+  Arial, Monaspace Neon. All bundled, nothing loaded from the web.
+- **Descriptions** — a line under a note's or folder's title, edited in place
+  (Enter after the name opens it), saved as the `description` property.
 
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a

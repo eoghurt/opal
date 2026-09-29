@@ -10,13 +10,15 @@ import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../
 import { findFile, findFolder, countNotes } from '../tree.js';
 import { stripStickies } from '../../shared/stickies.js';
 import { Ribbon } from '../editors/ribbon.js';
+import { editableLine } from './folder-home.js';
+import { getDescription } from '../../shared/frontmatter.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe };
     this.tree = [];
     this.text = '';
 
@@ -25,12 +27,21 @@ export class NoteView {
     this.chips = h('div', { class: 'note-chips' });
     this.editorHost = h('div', { class: 'note-editor' });
     this.title = this.makeTitle();
+    // The line under the title: hidden until there's a description, or until
+    // you press Enter on the title. Enter there goes on into the note.
+    this.description = editableLine({
+      className: 'note-desc',
+      label: 'Note description',
+      value: '',
+      onSave: (text) => this.handlers.onDescribe(text),
+      onDone: () => this.focusEditor(),
+    });
     // The Word-style editing bar across the top (connected once the editor exists).
     this.ribbon = new Ribbon({
       onAddSticky: () => this.handlers.onAddSticky(),
       onInsertTable: (anchor) => this.tablePicker(anchor),
     });
-    const center = h('div', { class: 'note-center' }, this.ribbon.el, this.chips, this.title, this.editorHost);
+    const center = h('div', { class: 'note-center' }, this.ribbon.el, this.chips, this.title, this.description.el, this.editorHost);
     this.center = center; // stickies sit on top of this
 
     container.replaceChildren(h('div', { class: 'note-view' }, this.left, center, this.right));
@@ -61,16 +72,20 @@ export class NoteView {
       fit();
     });
     let done = false;
+    let describe = false; // Enter was pressed: open the description after
     const save = () => {
+      const then = describe;
+      describe = false;
       if (done) return;
       const next = title.value.trim();
       if (!next || next === name) {
         title.value = name;
         fit();
+        if (then) this.description.open();
         return;
       }
       done = true;
-      this.handlers.onRename(next).catch((err) => {
+      this.handlers.onRename(next, { describe: then }).catch((err) => {
         done = false;
         title.value = name;
         fit();
@@ -80,9 +95,8 @@ export class NoteView {
     title.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
+        describe = true;
         title.blur();
-        const editor = this.editorHost.querySelector('.cm-content');
-        if (editor) editor.focus();
       } else if (event.key === 'Escape') {
         title.value = name;
         fit();
@@ -91,6 +105,16 @@ export class NoteView {
     });
     title.addEventListener('blur', save);
     return title;
+  }
+
+  focusEditor() {
+    const editor = this.editorHost.querySelector('.cm-content');
+    if (editor) editor.focus();
+  }
+
+  // Opens the description line for typing (after a rename with Enter).
+  openDescription() {
+    this.description.open();
   }
 
   // Hooks the ribbon up to the note's editor (a CodeMirror view).
@@ -107,6 +131,7 @@ export class NoteView {
   }
 
   setText(text) {
+    this.description.set(getDescription(text));
     this.text = stripStickies(text);
     this.renderLeft();
     this.renderRight();
