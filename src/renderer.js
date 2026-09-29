@@ -49,7 +49,7 @@ import { applyPalette } from './palettes.js';
 import { applyTheme, currentLook } from './themes.js';
 import { askName, h, scribbleArrow } from './ui.js';
 import { findFile, findFolder, flattenFiles } from './tree.js';
-import { noteName, parentOf } from './format.js';
+import { noteName, parentOf, relativeDay } from './format.js';
 import { Reminders } from './reminders.js';
 import { openSearch } from './search.js';
 import { InboxView, INBOX_PATH } from './views/inbox-view.js';
@@ -65,7 +65,8 @@ import { inlineRuns } from './export/note-structure.js';
 import { ReviewView } from './views/review-view.js';
 import { countDue } from './flashcards/schedule.js';
 import { PrepTimer } from './timer.js';
-import { TabBar } from './tabs.js';
+import { TabBar, openPinPicker } from './tabs.js';
+import { ITEM_COLORS } from './item-colors.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -118,7 +119,7 @@ const tabBar = new TabBar(tabStrip, {
   onNew: () => newTab(),
   onMenu: (event, id) => tabMenu(event, id),
   onMove: (id, index) => moveTab(id, index),
-  onTogglePin: (id) => togglePin(id),
+  onPath: (id, place) => openFromTab(id, place),
 });
 
 // The prep timer lives in the top bar and keeps running across screens.
@@ -380,7 +381,7 @@ const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review'];
 const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review' };
 const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review' };
 
-let tabs = []; // [{ id, pinned, places: [place], at, scroll }]
+let tabs = []; // [{ id, pinned, pin: { emoji, color }, places: [place], at, scroll }]
 let activeTabId = null;
 let nextTabId = 1;
 // A page being drawn from a tab's history (or another tab): not a new visit.
@@ -400,8 +401,8 @@ function samePlace(a, b) {
   return Boolean(a && b && a.kind === b.kind && a.folderPath === b.folderPath && a.filePath === b.filePath);
 }
 
-function makeTab(place = null, pinned = false) {
-  return { id: nextTabId++, pinned, places: place ? [place] : [], at: place ? 0 : -1, scroll: 0 };
+function makeTab(place = null, pinned = false, pin = null) {
+  return { id: nextTabId++, pinned, pin: pinned ? pin : null, places: place ? [place] : [], at: place ? 0 : -1, scroll: 0 };
 }
 
 function activeTab() {
@@ -459,10 +460,32 @@ function remember() {
   saveWorkspace();
 }
 
+// Where a page is, for the tab's hover card: the vault, the folders on the
+// way (each one a link) and the page itself.
+function placePath(place) {
+  if (!place || !vault) return [];
+  const steps = [{ label: vault.name, icon: 'home', place: { kind: 'home', folderPath: '' } }];
+  if (place.kind === 'note' || place.kind === 'home') {
+    const folder = place.kind === 'note' ? parentOf(place.filePath) : place.folderPath;
+    const parts = folder ? folder.split('/') : [];
+    parts.forEach((part, i) => steps.push({ label: part, icon: 'folder', place: { kind: 'home', folderPath: parts.slice(0, i + 1).join('/') } }));
+    if (place.kind === 'note') steps.push({ label: noteName(place.filePath), icon: 'note', place });
+  } else {
+    steps.push({ label: placeTitle(place), icon: placeIcon(place), place });
+  }
+  return steps;
+}
+
+function placeDetail(place) {
+  if (!place || place.kind !== 'note') return '';
+  const node = findFile(tree, place.filePath);
+  return node && node.modified ? `Edited ${relativeDay(node.modified)} · ${place.filePath}` : place.filePath;
+}
+
 function drawTabs() {
   tabBar.render(tabs.map((t) => {
     const place = tabPlace(t);
-    return { id: t.id, pinned: t.pinned, title: placeTitle(place), icon: placeIcon(place), tooltip: place && place.filePath ? place.filePath : placeTitle(place) };
+    return { id: t.id, pinned: t.pinned, pin: t.pin, title: placeTitle(place), icon: placeIcon(place), path: placePath(place), detail: placeDetail(place) };
   }), activeTabId);
   const tab = activeTab();
   chrome.setHistory(Boolean(tab && tab.at > 0), Boolean(tab && tab.at < tab.places.length - 1));
@@ -570,12 +593,33 @@ function closeTabs(keep) {
   saveWorkspace();
 }
 
+// Pinning a tab asks for its emoji and colour; unpinning forgets them.
 function togglePin(id) {
   const tab = tabs.find((t) => t.id === id);
   if (!tab) return;
   tab.pinned = !tab.pinned;
+  tab.pin = tab.pinned ? { emoji: null, color: null } : null;
   drawTabs();
   saveWorkspace();
+  if (tab.pinned) choosePin(id);
+}
+
+function choosePin(id) {
+  const tab = tabs.find((t) => t.id === id);
+  const el = document.querySelector(`#tabbar .tab[data-id="${id}"]`);
+  if (!tab || !tab.pinned || !el) return;
+  openPinPicker(el, tab.pin || {}, (pin) => {
+    tab.pin = pin;
+    drawTabs();
+    saveWorkspace();
+  });
+}
+
+// A folder or page chosen on a tab's hover card: shown in that tab (a
+// pinned tab keeps its page, so it opens in a new tab instead).
+async function openFromTab(id, place) {
+  if (id !== activeTabId) await activateTab(id);
+  await goToPlace(place);
 }
 
 function moveTab(id, index) {
@@ -594,20 +638,21 @@ function tabMenu(event, id) {
   showMenu(event, {
     title: placeTitle(tabPlace(tab)),
     items: [
-      { label: tab.pinned ? 'Unpin' : 'Pin', hint: tab.pinned ? '' : 'keeps this page', onSelect: () => togglePin(id) },
+      { label: tab.pinned ? 'Unpin' : 'Pin', hint: tab.pinned ? '' : 'small, with an emoji', onSelect: () => togglePin(id) },
+      tab.pinned ? { label: 'Emoji and colour…', onSelect: () => choosePin(id) } : null,
       { label: 'Duplicate tab', onSelect: () => duplicateTab(id) },
       'separator',
       { label: 'Close', hint: '⌘W', onSelect: () => closeTab(id) },
       { label: 'Close others', hint: 'keeps pinned tabs', disabled: tabs.length < 2, onSelect: () => closeTabs((t) => t === tab || t.pinned) },
       { label: 'Close tabs to the right', disabled: index === tabs.length - 1, onSelect: () => closeTabs((t, i) => i <= index || t.pinned) },
-    ],
+    ].filter(Boolean),
   });
 }
 
 function duplicateTab(id) {
   const tab = tabs.find((t) => t.id === id);
   if (!tab) return;
-  const copy = { ...makeTab(), places: tab.places.slice(), at: tab.at, scroll: tab.scroll };
+  const copy = { ...makeTab(), places: tab.places.slice(), at: tab.at, scroll: tab.scroll }; // a copy isn't pinned
   tabs.splice(tabs.indexOf(tab) + 1, 0, copy);
   activateTab(copy.id);
 }
@@ -638,7 +683,7 @@ function saveWorkspace() {
   clearTimeout(workspaceTimer);
   workspaceTimer = setTimeout(() => {
     const data = {
-      tabs: tabs.map((t) => ({ place: tabPlace(t), pinned: t.pinned || undefined })).filter((t) => t.place),
+      tabs: tabs.map((t) => ({ place: tabPlace(t), pinned: t.pinned || undefined, pin: t.pinned && t.pin && (t.pin.emoji || t.pin.color) ? t.pin : undefined })).filter((t) => t.place),
       active: Math.max(0, tabs.filter((t) => tabPlace(t)).indexOf(activeTab())),
     };
     window.opal.writeOpalJson('workspace.json', data).catch(() => {});
@@ -661,7 +706,13 @@ async function restoreTabs() {
   };
   for (const t of Array.isArray(saved.tabs) ? saved.tabs.slice(0, 50) : []) {
     const place = clean(t && t.place);
-    if (place) tabs.push(makeTab(place, Boolean(t.pinned)));
+    if (!place) continue;
+    // A pinned tab's emoji (one short piece of text) and palette colour.
+    const pin = t.pin && typeof t.pin === 'object' ? {
+      emoji: typeof t.pin.emoji === 'string' && t.pin.emoji.length <= 16 ? t.pin.emoji : null,
+      color: typeof t.pin.color === 'string' && ITEM_COLORS[t.pin.color] ? t.pin.color : null,
+    } : { emoji: null, color: null };
+    tabs.push(makeTab(place, Boolean(t.pinned), pin));
   }
   if (!tabs.length) tabs.push(makeTab({ kind: 'home', folderPath: '' }));
   const tab = tabs[Math.min(Math.max(0, Number(saved.active) || 0), tabs.length - 1)];

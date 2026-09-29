@@ -148,7 +148,9 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Tabs like Obsidian** — in the top bar; each tab has its own back/forward;
   ⌘-click opens in a new tab; pinned tabs keep their page; drag to reorder;
   ⌘T, ⌘W, ⌃Tab, ⌘1–9; they squeeze to icons when there are many; reopened on
-  start from .opal/workspace.json.
+  start from .opal/workspace.json. Resting on a tab shows where it is, with
+  each folder on the way as a link; pinned tabs are small, with an emoji and
+  a colour you pick when pinning.
 - **One-row top bar** — logo (as wide as the sidebar), back/forward, tabs, then
   icons (Tabler Icons) for Search, Calendar, Tasks, Review, the Timer and
   Settings. No Recent strip at the bottom.
