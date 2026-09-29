@@ -97,7 +97,7 @@ export class TableEditor {
           'data-id': String(cell.id),
           colspan: cell.cs > 1 ? String(cell.cs) : null,
           rowspan: cell.rs > 1 ? String(cell.rs) : null,
-          style: cellStyle(t, cell),
+          style: cellStyle(t, cell, { forScreen: true }),
         });
         el.innerHTML = cell.html; // already cleaned: plain formatting tags only
         this.cellEls.set(cell.id, el);

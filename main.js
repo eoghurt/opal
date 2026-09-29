@@ -936,19 +936,24 @@ async function searchVault(query) {
     } catch {
       continue;
     }
+    // Sticky notes' hidden data isn't searched, and table lines are searched
+    // (and shown) as their words, without the HTML around them.
+    text = stripStickies(text);
     const lower = text.toLowerCase();
     if (!lower.includes(needle)) continue;
     const lines = text.split(/\r?\n/);
     const matches = [];
     let count = 0;
-    lines.forEach((line, index) => {
+    lines.forEach((raw, index) => {
+      const isHtml = /<\/?(table|tr|td|th|colgroup|col)\b/i.test(raw);
+      const line = isHtml ? raw.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : raw;
       let at = line.toLowerCase().indexOf(needle);
       if (at === -1) return;
       if (matches.length < 3) {
         // A window of the line around the match, so long lines stay readable.
         const from = Math.max(0, at - 50);
         const snippet = line.slice(from, at + needle.length + 90);
-        matches.push({ line: index + 1, text: (from ? '…' : '') + snippet, at: at - from + (from ? 1 : 0), length: needle.length, column: at });
+        matches.push({ line: index + 1, text: (from ? '…' : '') + snippet, at: at - from + (from ? 1 : 0), length: isHtml ? 0 : needle.length, column: isHtml ? 0 : at });
       }
       while (at !== -1) {
         count++;

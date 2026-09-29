@@ -856,3 +856,37 @@
 :root:not([data-theme="scrapbook"]) .bar-arrow { color: var(--ink-3); }
 :root:not([data-theme="scrapbook"]) .bar-arrow:hover:not(:disabled) { background: var(--fill); color: var(--ink); }
 :root[data-theme="github"] #topbar .bar-history { border: 0; }
+
+/* ---------- Tables: lines and text follow the theme ---------- */
+
+:root[data-theme="minimal"] { --table-line: #C7C7CC; }
+:root[data-theme="minimal"][data-mode="dark"] { --table-line: #48484A; }
+:root[data-theme="github"] { --table-line: var(--line); }
+
+/* ---------- Things with a light colour fill keep dark text (dark mode) ---------- */
+
+:root:not([data-theme="scrapbook"]) .search-row.is-active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .search-row.is-active * { color: inherit; }
+:root:not([data-theme="scrapbook"]) .search-kind { font-family: var(--sans); text-transform: none; letter-spacing: 0; }
+:root:not([data-theme="scrapbook"]) .search-count { border-radius: 999px; border-color: var(--line); }
+:root[data-mode="dark"] .cm-highlight,
+:root[data-mode="dark"] .sticky,
+:root[data-mode="dark"] .sticky-text,
+:root[data-mode="dark"] .tape,
+:root[data-mode="dark"] .type-block,
+:root[data-mode="dark"] .item-swatch,
+:root[data-mode="dark"] .otable-swatch { color: #1C1C1E; }
+:root[data-mode="dark"] .sticky-text::placeholder { color: rgb(28 28 30 / 0.5); }
+
+/* ---------- Find & replace bar (⌘F) ---------- */
+
+:root:not([data-theme="scrapbook"]) .cm-panels { background: var(--paper-2); color: var(--ink); font-family: var(--sans); font-size: 12.5px; }
+:root:not([data-theme="scrapbook"]) .cm-panels.cm-panels-bottom { border-top: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .cm-search input.cm-textfield { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-family: var(--sans); }
+:root:not([data-theme="scrapbook"]) .cm-search .cm-button { border: 0; border-radius: 999px; background: var(--fill); color: var(--ink); font-family: var(--sans); font-size: 12.5px; text-transform: none; letter-spacing: 0; padding: 4px 12px; }
+:root:not([data-theme="scrapbook"]) .cm-search .cm-button:hover { background: var(--line); }
+:root:not([data-theme="scrapbook"]) .cm-search label { text-transform: none; letter-spacing: 0; color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .cm-search input[type=checkbox] { accent-color: var(--accent); }
+:root[data-theme="github"] .cm-search .cm-button { border-radius: 6px; border: 1px solid var(--line); background: var(--subtle); }
+:root[data-mode="dark"] .cm-searchMatch { background-color: rgb(255 210 63 / 0.3); outline-color: transparent; }
+:root[data-mode="dark"] .cm-searchMatch.cm-searchMatch-selected { background-color: rgb(255 210 63 / 0.55); color: #1C1C1E; }

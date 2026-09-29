@@ -176,7 +176,18 @@ function borderSides(t, x) {
 }
 
 // The inline style of one cell (also used to draw it in the editor).
-export function cellStyle(t, x) {
+// forScreen: the style for drawing in Opal rather than saving. The default ink
+// colours become theme colours (so tables read in dark mode), and text on a
+// coloured cell stays dark. The note itself keeps the plain colours.
+export function cellStyle(t, x, { forScreen = false } = {}) {
+  if (forScreen) {
+    const ink = DEFAULTS.bc.toLowerCase();
+    const screenTable = t.bc.toLowerCase() === ink ? { ...t, bc: 'var(--table-line, #16140F)' } : t;
+    let color = x.color;
+    if (color && color.toLowerCase() === ink) color = 'var(--ink)';
+    else if (!color && x.bg) color = '#16140F';
+    return cellStyle(screenTable, { ...x, color });
+  }
   const sides = borderSides(t, x);
   const isHead = t.header && x.r === 0;
   if (isHead && t.border !== 'none' && x.r + x.rs < t.rows) sides.bottom = `${Math.max(2, t.bw + 1)}px solid ${t.bc}`;
