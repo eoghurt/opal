@@ -177,7 +177,6 @@
 :root:not([data-theme="scrapbook"]) .display { font-weight: 700; }
 :root:not([data-theme="scrapbook"]) .swatch { border: 0; border-radius: 50%; }
 :root:not([data-theme="scrapbook"]) .tape,
-:root:not([data-theme="scrapbook"]) .sticky-tape,
 :root:not([data-theme="scrapbook"]) .scribble-arrow { display: none; }
 :root:not([data-theme="scrapbook"]) button:focus-visible,
 :root:not([data-theme="scrapbook"]) input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
@@ -185,7 +184,6 @@
 /* No tilting. */
 :root:not([data-theme="scrapbook"]) .note-card,
 :root:not([data-theme="scrapbook"]) .photo-card,
-:root:not([data-theme="scrapbook"]) .sticky,
 :root:not([data-theme="scrapbook"]) .home-empty-text,
 :root:not([data-theme="scrapbook"]) .welcome-hint,
 :root:not([data-theme="scrapbook"]) .viewer-hand,
@@ -352,8 +350,6 @@
 :root:not([data-theme="scrapbook"]) .item-swatch.is-on,
 :root:not([data-theme="scrapbook"]) .cal-swatch.is-on { box-shadow: 0 0 0 2px var(--paper-2), 0 0 0 3.5px var(--ink); }
 
-/* Sticky notes stay colourful but lose the tape and the hard shadow. */
-:root:not([data-theme="scrapbook"]) .sticky { border: 0; border-radius: 4px; box-shadow: var(--lift-soft), 0 6px 16px rgb(0 0 0 / 0.08); }
 
 /* ---------- Theme picker (Theme & palettes screen) ---------- */
 
@@ -904,3 +900,28 @@
 :root:not([data-theme="scrapbook"]) .otable-style.is-on,
 :root:not([data-theme="scrapbook"]) .otable-align.is-on { outline: 2px solid var(--accent); background: var(--accent-soft); }
 :root:not([data-theme="scrapbook"]) .otable-swatch { border-color: transparent; border-radius: 50%; }
+
+/* ---------- Sticky notes: the Scrapbook sticky in every theme ---------- */
+/* Its fonts, ink, borders and hard shadow are Scrapbook's wherever it is. */
+.sticky {
+  --ink: #16140F;
+  --ink-rgb: 22 20 15;
+  --ink-2: #3B3830;
+  --ink-3: #6E685C;
+  --white: #FFFFFF;
+  --paper: #F7F4EE;
+  --rule: 1.5px solid #16140F;
+  --hair: 1px solid rgba(22, 20, 15, 0.15);
+  --radius: 2px;
+  --lift: initial;
+  --lift-soft: initial;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, sans-serif;
+  --hand: "Caveat", "Bradley Hand", cursive;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color: #16140F;
+}
+:root .sticky .sticky-tape { display: block; }
+:root .sticky .hand,
+:root .sticky .sticky-text { font-family: "Caveat", "Bradley Hand", cursive; font-weight: 700; color: #16140F; transform: none; }
+:root .sticky .sticky-text { font-size: calc(22px * var(--sticky-scale)); }
