@@ -1,4 +1,4 @@
-// Viewers for Office files: Word (via mammoth), Excel/CSV (via SheetJS),
+// Viewers for Office files: Word (via docx-preview, mammoth as a fallback), Excel/CSV (via SheetJS),
 // PowerPoint (via our own reader in pptx-reader.js).
 
 import mammoth from 'mammoth';
@@ -9,12 +9,101 @@ import { sanitizeHtml } from './sanitize.js';
 import { readPptx } from './pptx-reader.js';
 
 // ---------- Word ----------
+//
+// Word files are drawn as real pages, the way Word shows them: the paper
+// size and orientation (landscape stays landscape), margins, page breaks,
+// headers and footers, fonts, colours and tables (via docx-preview). The
+// pages live in a sealed-off part of the page (a shadow root) so Opal's
+// theme can't restyle the document; links in it can't be followed. Pages
+// wider than the window are shrunk to fit. If a file can't be laid out,
+// its text is shown the old way (via mammoth).
 
 export class DocxViewer extends Viewer {
   async render() {
     this.root.classList.add('viewer-doc');
     this.showLoading();
     const arrayBuffer = await this.fetchBytes();
+    try {
+      await this.renderPages(arrayBuffer);
+    } catch (err) {
+      console.warn('Word layout failed, showing the text instead:', err);
+      await this.renderText(arrayBuffer);
+    }
+  }
+
+  async renderPages(arrayBuffer) {
+    const { renderAsync } = await import('docx-preview');
+    const host = h('div', { class: 'doc-pages' });
+    const shadow = host.attachShadow({ mode: 'open' });
+    const styles = document.createElement('div');
+    const body = document.createElement('div');
+    const own = document.createElement('style');
+    own.textContent = PAGE_STYLE;
+    shadow.append(own, styles, body);
+    // Laid out off screen first, then swapped in.
+    host.style.cssText = 'position: absolute; visibility: hidden; left: -99999px';
+    document.body.append(host);
+    try {
+      await renderAsync(arrayBuffer, body, styles, {
+        className: 'docx',
+        inWrapper: true,
+        breakPages: true,
+        ignoreLastRenderedPageBreak: false,
+        ignoreWidth: false,
+        ignoreHeight: false,
+        renderHeaders: true,
+        renderFooters: true,
+        renderFootnotes: true,
+        renderEndnotes: true,
+        renderComments: false,
+        useBase64URL: true,
+        experimental: true,
+      });
+    } catch (err) {
+      host.remove();
+      throw err;
+    }
+    if (this.destroyed) {
+      host.remove();
+      return;
+    }
+    // Links stay readable but can't be followed.
+    for (const link of shadow.querySelectorAll('a')) {
+      const href = link.getAttribute('href');
+      if (href && !href.startsWith('#')) link.title = href;
+      link.removeAttribute('href');
+      link.classList.add('doc-link');
+    }
+    if (!shadow.querySelector('section.docx')) throw new Error('No pages in this document.');
+    // A file that doesn't say its page size gets Word's default: A4 portrait, 2.54 cm margins.
+    for (const section of shadow.querySelectorAll('section.docx')) {
+      if (!section.style.width) {
+        section.style.width = '21cm';
+        section.style.minHeight = '29.7cm';
+        section.style.padding = '2.54cm';
+        section.style.boxSizing = 'border-box';
+      }
+    }
+    host.style.cssText = '';
+    this.root.replaceChildren(host);
+    this.pages = { host, shadow };
+    this.fit();
+    this.resizer = new ResizeObserver(() => this.fit());
+    this.resizer.observe(this.root);
+  }
+
+  // Shrinks the pages if the widest is wider than the space (never enlarges).
+  fit() {
+    if (!this.pages) return;
+    const wrapper = this.pages.shadow.querySelector('.docx-wrapper');
+    if (!wrapper) return;
+    wrapper.style.zoom = '';
+    const widest = Math.max(...[...wrapper.querySelectorAll('section.docx')].map((s) => s.offsetWidth));
+    const space = this.root.clientWidth - 48;
+    if (widest > 0 && space > 0 && widest > space) wrapper.style.zoom = String(space / widest);
+  }
+
+  async renderText(arrayBuffer) {
     const result = await mammoth.convertToHtml({ arrayBuffer });
     if (this.destroyed) return;
     const page = h('article', { class: 'doc-page' });
@@ -24,7 +113,23 @@ export class DocxViewer extends Viewer {
     }
     this.root.replaceChildren(h('div', { class: 'doc-desk' }, page));
   }
+
+  cleanup() {
+    if (this.resizer) this.resizer.disconnect();
+    this.resizer = null;
+    this.pages = null;
+    if (super.cleanup) super.cleanup();
+  }
 }
+
+// Inside the sealed-off area: a light grey desk with white pages, like Word.
+const PAGE_STYLE = `
+  :host { all: initial; display: block; }
+  .docx-wrapper { background: #E9E9EB !important; padding: 28px 24px 40px !important; min-height: 100%; box-sizing: border-box; font-family: Calibri, Carlito, Arial, "Helvetica Neue", sans-serif; font-size: 11pt; color: #000; }
+  section.docx img { max-width: 100%; object-fit: contain; }
+  .docx-wrapper > section.docx { box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 6px 18px rgb(0 0 0 / 0.08) !important; margin-bottom: 28px !important; }
+  .doc-link { color: #0563C1; text-decoration: underline; cursor: default; }
+`;
 
 // ---------- Excel / CSV ----------
 

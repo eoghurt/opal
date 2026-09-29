@@ -26,6 +26,7 @@
     "@lezer/highlight": "^1.2.4",
     "@tabler/icons": "^3.48.0",
     "codemirror": "^6.0.2",
+    "docx-preview": "^0.4.1",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
