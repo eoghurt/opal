@@ -164,3 +164,29 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
+- **Checkboxes that work** — ticking `- [ ]` boxes in notes doesn't reliably
+  work at the moment; probably a bug. Look at this first.
+- **Heatmaps from notes** — turn data in .md files (movies watched, runs,
+  habits, journal entries…) into a heatmap, e.g. from dated notes or a
+  property, shown in a note and as a home page widget.
+- **A + button for new things** — + Note / + Folder / + Sticky move from the
+  top right of a folder or page to one + button fixed at the bottom right of
+  the window that opens out into those options.
+- **Tab double-click** — Show in Finder and Copy path.
+- **Bookmarks** — bookmark anything (notes, folders, files, pages), grouped
+  into sections; an icon next to Search and Calendar, and a home page widget.
+  (Obsidian's Bookmarks plugin keeps them in .obsidian/bookmarks.json — use
+  its format if possible.)
+- **Skipping in audio and video** — click left / right to go back / forward
+  5 seconds, double-click for 10.
+- **Plain exports** — PDF and Word exports that look like ordinary documents:
+  Arial 11pt by default, black text on white, no Opal styling.
+- **Opal on iPhone** — at least browsing notes, tasks and the calendar.
+  Options to weigh up:
+  - Free now: keep the vault in iCloud Drive and open it in the free Obsidian
+    iPhone app; notes, task lists and day notes are all plain markdown.
+  - A web version of Opal served from the Mac: free, but only on the same
+    Wi-Fi and while the Mac is on.
+  - A real iPhone app built from Opal's code (e.g. with Capacitor): needs
+    Xcode; free installs expire every 7 days, keeping it installed needs the
+    Apple Developer Program ($99 a year).
