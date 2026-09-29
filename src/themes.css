@@ -646,27 +646,73 @@
 :root:not([data-theme="scrapbook"]) .cal-navbtn { border: 1px solid var(--line); border-radius: 8px; background: var(--paper-2); color: var(--ink); }
 :root:not([data-theme="scrapbook"]) .cal-task-box { border-color: currentColor; }
 
-/* Minimal: the "Ink" calendar — outlined cards, typewriter text, blue ink. */
-:root[data-theme="minimal"] .cal .cal-hand,
-:root[data-theme="minimal"] .cal-now-hand,
-:root[data-theme="minimal"] .cal .hand { color: var(--accent); }
+/* Minimal: solid blocks — each item a deep block of its colour, white bold
+   title, the time in regular weight, its second colour as a stripe down the
+   left. The colour is painted on the block by the calendar; here it's made
+   full-strength and deepened (a layer behind the text) so white reads on it. */
+:root[data-theme="minimal"],
+:root[data-theme="minimal"][data-mode="dark"] { --event-strength: 100%; }
 :root[data-theme="minimal"] .cal .cal-event,
-:root[data-theme="minimal"] .cal .cal-task-block {
-  border: 1.5px solid color-mix(in srgb, var(--ink) 80%, transparent);
-  border-radius: 5px;
+:root[data-theme="minimal"] .cal .cal-task-block,
+:root[data-theme="minimal"] .cal .cal-chip,
+:root[data-theme="minimal"] .cal-draft {
+  isolation: isolate;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 4px;
   box-shadow: none;
+  color: #FFFFFF;
+  font-family: var(--sans);
 }
+:root[data-theme="minimal"] .cal .cal-chip { position: relative; }
+:root[data-theme="minimal"] .cal .cal-event::before,
+:root[data-theme="minimal"] .cal .cal-task-block::before,
+:root[data-theme="minimal"] .cal .cal-chip::before,
+:root[data-theme="minimal"] .cal-draft::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: inherit;
+  filter: saturate(1.7) brightness(0.68);
+}
+:root[data-theme="minimal"] .cal .cal-event:hover::before,
+:root[data-theme="minimal"] .cal .cal-chip:hover::before { filter: saturate(1.7) brightness(0.6); }
 :root[data-theme="minimal"] .cal .cal-event:hover { box-shadow: var(--lift-soft); }
-:root[data-theme="minimal"] .cal .cal-chip { border: 1.5px solid color-mix(in srgb, var(--ink) 80%, transparent); border-radius: 5px; box-shadow: none; }
 :root[data-theme="minimal"] .cal .cal-event-title,
-:root[data-theme="minimal"] .cal .cal-chip { font-family: var(--mono); font-weight: 500; font-size: 11.5px; letter-spacing: -0.01em; }
+:root[data-theme="minimal"] .cal .cal-chip,
+:root[data-theme="minimal"] .cal .cal-task-name { font-family: var(--sans); font-weight: 700; font-size: 12px; letter-spacing: -0.005em; color: #FFFFFF; }
 :root[data-theme="minimal"] .cal .cal-event-time,
-:root[data-theme="minimal"] .cal .cal-event-link { color: var(--ink-3); }
-:root[data-theme="minimal"] .cal .cal-colday,
+:root[data-theme="minimal"] .cal .cal-event-link { font-family: var(--sans); font-weight: 400; font-size: 11px; color: rgb(255 255 255 / 0.8); opacity: 1; }
+:root[data-theme="minimal"] .cal .cal-task-box,
+:root[data-theme="minimal"] .cal .cal-task-block .cal-task-box { border-color: #FFFFFF; border-radius: 4px; background: transparent; color: #FFFFFF; }
+:root[data-theme="minimal"] .cal .cal-task.is-done .cal-task-box,
+:root[data-theme="minimal"] .cal .cal-task-block.is-done .cal-task-box { background: #FFFFFF; color: #1C1C1E; }
+:root[data-theme="minimal"] .cal .cal-task.is-done,
+:root[data-theme="minimal"] .cal .cal-task-block.is-done { opacity: 0.55; }
+
+/* Plain labels and pill buttons, no handwriting or typewriter text. */
 :root[data-theme="minimal"] .cal .cal-gutter,
-:root[data-theme="minimal"] .cal .cal-hour { font-family: var(--mono); }
-:root[data-theme="minimal"] .cal-colday.is-today { color: var(--accent); }
-:root[data-theme="minimal"] .cal-top .cal-add { background: var(--accent); color: var(--on-accent); border-radius: 6px; font-family: var(--mono); font-weight: 500; }
+:root[data-theme="minimal"] .cal .cal-hour,
+:root[data-theme="minimal"] .cal-now-time,
+:root[data-theme="minimal"] .cal .cal-mini-wd,
+:root[data-theme="minimal"] .cal .cal-allday > .cal-gutter,
+:root[data-theme="minimal"] .cal .cal-mtime,
+:root[data-theme="minimal"] .cal .cal-mmore { font-family: var(--sans); letter-spacing: 0; }
+:root[data-theme="minimal"] .cal .cal-mtime { font-weight: 400; }
+:root[data-theme="minimal"] .cal .cal-hand { font-family: var(--sans); font-weight: 400; font-size: 13px; color: var(--ink-3); transform: none; }
+:root[data-theme="minimal"] .cal-now-hand { display: none; }
+:root[data-theme="minimal"] .cal .hand { font-family: var(--sans); font-weight: 400; font-size: 13px; color: var(--ink-3); transform: none; }
+:root[data-theme="minimal"] .cal-top .cal-segment { gap: 6px; }
+:root[data-theme="minimal"] .cal-top .cal-seg { padding: 0 16px; border: 0; border-radius: 999px; background: var(--fill); color: var(--ink); font-weight: 500; }
+:root[data-theme="minimal"] .cal-top .cal-seg.is-on { background: var(--strong); color: var(--on-strong); font-weight: 500; }
+:root[data-theme="minimal"] .cal-top .cal-seg:not(.is-on):hover { background: var(--line); }
+:root[data-theme="minimal"] .cal-top .cal-navbtn { border: 0; border-radius: 999px; background: var(--fill); }
+:root[data-theme="minimal"] .cal-top .cal-add { background: var(--accent); color: var(--on-accent); border-radius: 999px; font-weight: 600; }
+:root[data-theme="minimal"] .cal .cal-colday { color: var(--ink-3); }
+:root[data-theme="minimal"] .cal .cal-colnum { font-weight: 700; color: var(--ink); }
 
 /* GitHub: no handwriting; green primary button; square-ish cards. */
 :root[data-theme="github"] .cal .cal-hand,
@@ -799,8 +845,6 @@
 
 /* Nanum Pen Script runs small next to Caveat, so it's set larger. */
 :root[data-theme="minimal"] .hand { font-weight: 400; }
-:root[data-theme="minimal"] .cal .cal-hand { font-size: 26px; }
-:root[data-theme="minimal"] .cal-now-hand { font-size: 24px; }
 :root[data-theme="minimal"] .display { letter-spacing: -0.035em; }
 
 /* GitHub: handwriting spots read as plain small text; Mona Sans headings. */
