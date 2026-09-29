@@ -795,9 +795,69 @@ function joinRel(relFolder, name) {
   return relFolder ? `${relFolder}/${name}` : name;
 }
 
-// Creates an empty note in a folder (default: the vault root) and returns its path.
+// ---------- Templates ----------
+//
+// Notes in the vault's Templates folder are templates. {{title}}, {{date}} and
+// {{time}} (and {{date:DD/MM/YYYY}}-style formats) are filled in, as in
+// Obsidian's Templates plugin. A folder's default template is `opal-template`
+// in its .opal.md; daily notes use the Calendar folder's.
+
+const TEMPLATES_FOLDER = 'Templates';
+
+async function listTemplates() {
+  try {
+    return listNotePaths(await scanFolder(TEMPLATES_FOLDER)).filter(isNoteFile);
+  } catch {
+    return [];
+  }
+}
+
+function validTemplate(relPath) {
+  return typeof relPath === 'string' && relPath.startsWith(`${TEMPLATES_FOLDER}/`) && isNoteFile(relPath) && !relPath.includes('..');
+}
+
+async function folderTemplate(relFolder) {
+  const value = frontmatter.getProp(await readFolderSettings(relFolder || ''), 'opal-template');
+  return validTemplate(value) && fs.existsSync(path.join(vaultPath, value)) ? value : null;
+}
+
+async function templateInfo(relFolder) {
+  return { templates: await listTemplates(), default: await folderTemplate(relFolder) };
+}
+
+async function setFolderTemplate(relFolder, templatePath) {
+  if (templatePath != null && !validTemplate(templatePath)) throw new Error('Templates live in the Templates folder.');
+  await changeFolderSettings(relFolder || '', (text) => frontmatter.setProp(text, 'opal-template', templatePath ? JSON.stringify(templatePath) : null));
+}
+
+// Moment-style date formats (the common ones Obsidian templates use).
+function formatDate(date, format) {
+  const two = (n) => String(n).padStart(2, '0');
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const h12 = date.getHours() % 12 || 12;
+  const tokens = {
+    YYYY: String(date.getFullYear()), YY: String(date.getFullYear()).slice(-2),
+    MMMM: months[date.getMonth()], MMM: months[date.getMonth()].slice(0, 3), MM: two(date.getMonth() + 1), M: String(date.getMonth() + 1),
+    DD: two(date.getDate()), D: String(date.getDate()),
+    dddd: days[date.getDay()], ddd: days[date.getDay()].slice(0, 3),
+    HH: two(date.getHours()), H: String(date.getHours()), hh: two(h12), h: String(h12),
+    mm: two(date.getMinutes()), ss: two(date.getSeconds()), A: date.getHours() < 12 ? 'AM' : 'PM',
+  };
+  return format.replace(/\[([^\]]*)\]|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|HH|H|hh|h|mm|ss|A/g, (m, literal) => (literal !== undefined ? literal : tokens[m]));
+}
+
+function fillTemplate(text, title, when = new Date()) {
+  return text
+    .replace(/\{\{\s*title\s*\}\}/gi, title)
+    .replace(/\{\{\s*date(?::([^}]+))?\s*\}\}/gi, (_m, format) => formatDate(when, (format || 'YYYY-MM-DD').trim()))
+    .replace(/\{\{\s*time(?::([^}]+))?\s*\}\}/gi, (_m, format) => formatDate(when, (format || 'HH:mm').trim()));
+}
+
+// Creates a note in a folder (default: the vault root) and returns its path.
 // If a note with that name is already there, it is left untouched ('wx' never overwrites).
-async function createNote(rawName, relFolder = '') {
+// template: a Templates/… path, 'default' for the folder's default, or nothing (blank).
+async function createNote(rawName, relFolder = '', template = null) {
   const folderFull = resolveFolderPath(relFolder);
   const fileName = `${safeFileName(String(rawName).replace(/\.md$/i, ''))}.md`;
   const relPath = joinRel(relFolder, fileName);
@@ -805,8 +865,23 @@ async function createNote(rawName, relFolder = '') {
   const wanted = normalizeName(fileName);
   const existing = (await fs.promises.readdir(folderFull)).find((n) => isNoteFile(n) && normalizeName(n) === wanted);
   if (existing) return joinRel(relFolder, existing);
+  let content = '';
+  const templatePath = template === 'default' ? await folderTemplate(relFolder) : (validTemplate(template) ? template : null);
+  if (templatePath) {
+    try {
+      // A daily note (named YYYY-MM-DD) uses its own day for {{date}}, as in
+      // Obsidian's Daily notes plugin.
+      const title = fileName.replace(/\.md$/i, '');
+      const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(title);
+      const now = new Date();
+      const when = day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]), now.getHours(), now.getMinutes()) : now;
+      content = fillTemplate(stripStickies(await readNote(templatePath)), title, when);
+    } catch {
+      content = ''; // the template has gone: a blank note instead
+    }
+  }
   try {
-    await fs.promises.writeFile(resolveNotePath(relPath), '', { flag: 'wx' });
+    await fs.promises.writeFile(resolveNotePath(relPath), content, { flag: 'wx' });
     scheduleRefresh(); // don't rely on the watcher: a quick save could hide the new file from it
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
@@ -1148,7 +1223,9 @@ ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, co
 ipcMain.handle('link:resolve', (_event, target) => resolveLink(target));
 ipcMain.handle('link:find', (_event, target) => resolveLink(target, false));
 ipcMain.handle('link:web', (_event, url) => openWebLink(url));
-ipcMain.handle('note:create', (_event, name, folder) => createNote(name, folder));
+ipcMain.handle('note:create', (_event, name, folder, template) => createNote(name, folder, template));
+ipcMain.handle('templates:info', (_event, folder) => templateInfo(folder));
+ipcMain.handle('templates:set-default', (_event, folder, templatePath) => setFolderTemplate(folder, templatePath));
 ipcMain.handle('note:previews', (_event, paths) => notePreviews(paths));
 ipcMain.handle('file:open-external', (_event, relPath) => openInDefaultApp(relPath));
 ipcMain.handle('file:reveal', (_event, relPath) => revealInFinder(relPath));

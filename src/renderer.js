@@ -637,7 +637,13 @@ function showCalendar(date) {
       },
       writeDay: async (key, text) => {
         await window.opal.createFolder(CALENDAR_FOLDER, '');
-        const path = await window.opal.createNote(key, CALENDAR_FOLDER);
+        const isNew = !findFile(tree, dayPath(key));
+        const path = await window.opal.createNote(key, CALENDAR_FOLDER, 'default');
+        // A new day note starts from the daily template; the event goes below it.
+        if (isNew) {
+          const fromTemplate = await window.opal.readFile(path).catch(() => '');
+          if (fromTemplate.trim() && !text.startsWith(fromTemplate)) text = `${fromTemplate.replace(/\s*$/, '')}\n\n${text.replace(/^\s+/, '')}`;
+        }
         await window.opal.writeFile(path, text);
         reminders.refresh();
       },
@@ -652,7 +658,7 @@ function showCalendar(date) {
       },
       openDayNote: async (key) => {
         await window.opal.createFolder(CALENDAR_FOLDER, '');
-        const path = await window.opal.createNote(key, CALENDAR_FOLDER);
+        const path = await window.opal.createNote(key, CALENDAR_FOLDER, 'default');
         openFile(path);
       },
       readRepeats: async () => {
@@ -913,6 +919,8 @@ function colorMenu(event, node, kind) {
       { label: 'New note here…', onSelect: () => newNote(node.path, at) },
       { label: 'New folder inside…', onSelect: () => newFolder(node.path, at) },
       'separator',
+      { label: node.path === CALENDAR_FOLDER ? 'Daily note template…' : 'Default template…', onSelect: () => chooseDefaultTemplate(node.path, at) },
+      'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
       'separator',
@@ -936,6 +944,30 @@ function colorMenu(event, node, kind) {
         closeMenu();
         setItemColor(node.path, kind, color);
       })),
+  });
+}
+
+// Picks the template new notes in a folder start from (for the Calendar
+// folder, the one new daily notes start from).
+async function chooseDefaultTemplate(folderPath, at) {
+  const info = await window.opal.templateInfo(folderPath);
+  const pick = async (templatePath) => {
+    try {
+      await window.opal.setDefaultTemplate(folderPath, templatePath);
+    } catch (err) {
+      alert(`Couldn't set the template.\n\n${err.message}`);
+    }
+  };
+  const name = (p) => p.replace(/^Templates\//, '').replace(/\.md$/i, '');
+  showMenu({ clientX: at.clientX, clientY: at.clientY, preventDefault() {}, stopPropagation() {} }, {
+    title: folderPath === CALENDAR_FOLDER ? 'Daily note template' : 'Default template',
+    items: info.templates.length
+      ? [
+        { label: 'None (blank notes)', hint: info.default ? '' : '✓', onSelect: () => pick(null) },
+        'separator',
+        ...info.templates.map((p) => ({ label: name(p), hint: p === info.default ? '✓' : '', onSelect: () => pick(p) })),
+      ]
+      : [{ label: 'Make a Templates folder with notes in it first', disabled: true, onSelect: () => {} }],
   });
 }
 
@@ -1183,7 +1215,8 @@ function createItem(kind, folder = currentFolder(), at = null) {
     kind,
     folder,
     folders: folderChoices(),
-    onCreate: async ({ kind: made, name, folder: where, color, description }) => {
+    loadTemplates: (where) => window.opal.templateInfo(where),
+    onCreate: async ({ kind: made, name, folder: where, color, description, template }) => {
       try {
         if (made === 'folder') {
           const folderPath = await window.opal.createFolder(name, where);
@@ -1194,7 +1227,7 @@ function createItem(kind, folder = currentFolder(), at = null) {
             showHome(folderPath);
           });
         } else {
-          const filePath = await window.opal.createNote(name, where);
+          const filePath = await window.opal.createNote(name, where, template);
           if (color) await setItemColor(filePath, 'file', color);
           if (description) await window.opal.setDescription(filePath, 'file', description);
           await openFile(filePath);
