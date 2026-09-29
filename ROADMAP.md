@@ -108,6 +108,37 @@ their own Mac app with one click. File types live in file-types.json.
 - **Dark mode fixes** — tables, search results, highlights, stickies and the
   find bar all read properly; search skips sticky data and reads table text.
 
+## Study, writing and debate tools (done)
+Everything lives in the notes, in properties, in `.opal.md` folder settings or
+in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
+- **Backlinks** — "Linked from" and "Unlinked mentions" under each note, with a
+  Link button that turns a mention into a [[link]].
+- **Templates** — notes in `Templates/` with {{title}}, {{date}}, {{time}} and
+  {{date:FORMAT}}; each folder can have a default template, plus a daily-note one.
+- **Version history** — snapshots in `.opal/history` (at most every 10 minutes
+  while editing, and on leaving a note); all kept for 7 days, then one a day up
+  to 90 days. History shows the differences and restores (saving the current
+  version first).
+- **Pasting and dropping pictures** — copied into `Attachments/`, named after
+  the note plus date and time, inserted as ![[name]].
+- **Scrapbook sticky notes** in every theme.
+- **Folder databases** — table and cards views, each with its own sort, filter
+  and group; text, number, date, checkbox, select and link columns; editing a
+  cell writes the note's property; new rows use the folder's template; assignment
+  tracker and reading list starters.
+- **Manuscript compile** — drag chapters into order, leave some out, and save
+  one .docx with chapter headings and page breaks (no properties, stickies or
+  comments).
+- **Word counts and targets** — note and selection count in the status bar,
+  folder totals, `word-target` progress bars, words written per day in the Logbook.
+- **Flashcards** — Question::Answer cards in the Spaced Repetition plugin's
+  format (with its <!--SR:--> schedule); Review with Again/Hard/Good/Easy; folder
+  and tag decks; due counts on the Review link and on the calendar's today.
+- **Prep timer** — 15/30/60/custom countdown in the top bar, a Mac notification
+  when time's up, and the session saved in the Logbook linked to the open note.
+- **Flow sheets** — `opal-type: flow` notes as speaker columns (Australs 3v3,
+  World Schools, BP or your own), Tab between columns, export as a Word table.
+
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
