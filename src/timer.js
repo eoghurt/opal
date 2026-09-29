@@ -37,6 +37,11 @@ export class PrepTimer {
     if (this.running) this.tick();
   }
 
+  // Pomodoro lengths from Settings: { focus, short, long, rounds, autoStart }.
+  setPomodoro(settings) {
+    this.pomodoro = settings;
+  }
+
   remember() {
     try {
       if (this.running) localStorage.setItem(STORE, JSON.stringify(this.running));

@@ -1,7 +1,7 @@
 // Window code: decides what's on screen and moves between screens.
 // Bundled into dist/renderer.js (+ dist/renderer.css) by esbuild (`npm run build`).
 //
-// Screens: 'welcome' (no vault), 'home' (a folder's home page), 'note', 'palettes'.
+// Screens: 'welcome' (no vault), 'home' (a folder's home page), 'note', 'settings', 'calendar', 'tasks', 'review'.
 
 import '@fontsource/caveat/latin-500.css';
 import '@fontsource/caveat/latin-700.css';
@@ -43,11 +43,11 @@ import { TasksView } from './views/tasks-view.js';
 import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, todayKey } from './tasks/tasks.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences } from './calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
-import { renderPalettes } from './views/palettes-view.js';
+import { renderSettings, withDefaults } from './views/settings-view.js';
 import { applyPalette } from './palettes.js';
 import { applyTheme, currentLook } from './themes.js';
 import { askName, h, scribbleArrow } from './ui.js';
-import { findFile, findFolder, recentFiles, flattenFiles } from './tree.js';
+import { findFile, findFolder, flattenFiles } from './tree.js';
 import { noteName, parentOf } from './format.js';
 import { Reminders } from './reminders.js';
 import { openSearch } from './search.js';
@@ -97,11 +97,10 @@ const sidebar = new Sidebar(sidebarPanel, {
 
 const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
   onHome: () => vault && openFolder(''),
-  onPalettes: () => showPalettes(),
+  onSettings: () => showSettings(),
   onBack: () => goHistory(-1),
   onForward: () => goHistory(1),
   onReview: () => showReview(),
-  onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
   onInbox: INBOX_ENABLED ? () => showInbox() : null,
@@ -189,7 +188,6 @@ function navigate(task) {
 async function reloadTree() {
   tree = await window.opal.listFiles();
   sidebar.setTree(tree);
-  chrome.setRecent(recentFiles(tree, 6));
   reminders.refresh();
   updateCardsDue();
   updateInboxCount();
@@ -358,7 +356,7 @@ function currentPlace() {
   if (!screen) return null;
   if (screen.kind === 'home') return { kind: 'home', folderPath: screen.folderPath };
   if (screen.kind === 'note') return { kind: 'note', filePath: screen.filePath };
-  if (['calendar', 'tasks', 'logbook', 'palettes', 'inbox', 'review'].includes(screen.kind)) return { kind: screen.kind };
+  if (['calendar', 'tasks', 'logbook', 'settings', 'inbox', 'review'].includes(screen.kind)) return { kind: screen.kind };
   return null;
 }
 
@@ -383,7 +381,7 @@ function goToPlace(place) {
   if (place.kind === 'calendar') return showCalendar();
   if (place.kind === 'tasks') return showTasks();
   if (place.kind === 'logbook') return showLogbook();
-  if (place.kind === 'palettes') return showPalettes();
+  if (place.kind === 'settings') return showSettings();
   if (place.kind === 'inbox') return showInbox();
   if (place.kind === 'review') return showReview();
   return Promise.resolve();
@@ -567,7 +565,7 @@ async function showNote(filePath) {
     onOpenFolder: (p) => openFolder(p),
     onOpenLink: (target) => openLink(target),
     onNewNoteHere: (at) => newNote(parentOf(filePath), at),
-    onPalettes: () => showPalettes(),
+    onPalettes: () => showSettings('appearance'),
     onGoToLine: (line) => current && current.editor.goToLine && current.editor.goToLine(line),
     onAddSticky: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - noteView.center.offsetTop),
     onInsertTable: (rows, cols) => current && current.editor.insertTable && current.editor.insertTable(rows, cols),
@@ -701,38 +699,83 @@ function openFile(filePath) {
   return navigate(() => showNote(filePath));
 }
 
-function showPalettes() {
+// ---------- Settings ----------
+
+// This vault's settings (.opal/settings.json), with defaults filled in.
+let vaultSettings = withDefaults({});
+let settingsSection = 'appearance';
+
+async function loadVaultSettings() {
+  vaultSettings = withDefaults(vault ? await window.opal.readOpalJson('settings.json').catch(() => ({})) : {});
+  settingsChanged();
+}
+
+// Changes some of this vault's settings and saves them.
+async function saveVaultSettings(patch) {
+  vaultSettings = withDefaults({ ...vaultSettings, ...patch });
+  settingsChanged();
+  try {
+    await window.opal.writeOpalJson('settings.json', vaultSettings);
+  } catch (err) {
+    alert(`Couldn't save the settings.\n\n${err.message}`);
+  }
+  drawSettings();
+}
+
+// Everything that uses a setting picks up the new values.
+function settingsChanged() {
+  prepTimer.setPomodoro(vaultSettings.pomodoro);
+}
+
+function showSettings(section) {
   if (!vault) return Promise.resolve();
+  if (section) settingsSection = section;
   return navigate(async () => {
     homeStickies = null;
     leaveCalendar();
-    screen = { kind: 'palettes' };
-    setTitle('Theme & palettes');
+    screen = { kind: 'settings' };
+    setTitle('Settings');
     sidebar.setActive(null, null);
-    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Theme & palettes' }]);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Settings' }]);
     viewEl.scrollTop = 0;
-    drawPalettes();
+    appInfo = appInfo || await window.opal.appInfo().catch(() => null);
+    drawSettings();
   });
 }
 
-function drawPalettes() {
-  if (screen.kind !== 'palettes') return;
+let appInfo = null;
+function drawSettings() {
+  if (screen.kind !== 'settings') return;
   const scrollTop = viewEl.scrollTop;
-  renderPalettes(viewEl, {
-    active: paletteName,
+  renderSettings(viewEl, {
+    section: settingsSection,
     look: currentLook(),
-    onLook: async (change) => {
-      try {
-        applyTheme(await window.opal.setLook(change));
-      } catch (err) {
-        alert(`Couldn't change the theme.\n\n${err.message}`);
-      }
-      drawPalettes();
-    },
-    onUse: async (name) => {
-      paletteName = await window.opal.setPalette(name);
-      chrome.setPalette(applyPalette(paletteName));
-      drawPalettes();
+    palette: paletteName,
+    settings: vaultSettings,
+    info: appInfo,
+    extraSections: [],
+    io: {
+      setSection: (id) => {
+        settingsSection = id;
+        viewEl.scrollTop = 0;
+        drawSettings();
+      },
+      setLook: async (change) => {
+        try {
+          applyTheme(await window.opal.setLook(change));
+        } catch (err) {
+          alert(`Couldn't change the theme.\n\n${err.message}`);
+        }
+        drawSettings();
+      },
+      setPalette: async (name) => {
+        paletteName = await window.opal.setPalette(name);
+        applyPalette(paletteName);
+        drawSettings();
+      },
+      saveSettings: (patch) => saveVaultSettings(patch),
+      switchVault: () => window.opal.chooseVault(),
+      revealVault: () => window.opal.revealFolder(''),
     },
   });
   viewEl.scrollTop = scrollTop;
@@ -1599,7 +1642,6 @@ function noteSaved(filePath) {
   const node = findFile(tree, filePath);
   if (node) {
     node.modified = Date.now();
-    chrome.setRecent(recentFiles(tree, 6));
     if (current && current.filePath === filePath) current.noteView.setTree(tree);
   } else {
     // The save recreated a file that had been deleted outside Opal.
@@ -1616,7 +1658,6 @@ function vaultWentMissing() {
   }
   tree = [];
   sidebar.setTree([]);
-  chrome.setRecent([]);
   showWelcome(`Can't find your vault folder “${vault.name}” any more — it may have been moved, renamed or deleted. Choose it again (or another folder).`);
 }
 
@@ -1631,12 +1672,12 @@ function loadVault(newVault) {
     vault = newVault;
     tree = [];
     sidebar.setVault(vault);
-    chrome.setRecent([]);
-    if (!vault) {
+      if (!vault) {
       showWelcome();
       return;
     }
     await reloadTree();
+    await loadVaultSettings();
     showHome('');
   });
 }
@@ -1674,7 +1715,7 @@ window.addEventListener('mouseup', (event) => {
     goHistory(event.button === 3 ? -1 : 1);
   }
 });
-window.opal.onShowPalettes(showPalettes);
+window.opal.onShowPalettes(() => showSettings());
 window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggle());
 window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => showLogbook());
@@ -1687,6 +1728,6 @@ window.opal.onFilesChanged(refreshFiles);
 
 window.opal.getPalette().then((name) => {
   paletteName = name;
-  chrome.setPalette(applyPalette(name));
+  applyPalette(name);
 });
 window.opal.getVault().then(loadVault);

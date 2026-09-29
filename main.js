@@ -1233,6 +1233,45 @@ function addSession(session) {
   return changeLogbook((data) => { data.sessions.push({ day: s.day, time: s.time, minutes, note }); });
 }
 
+// ---------- Vault settings and open tabs (.opal/settings.json, .opal/workspace.json) ----------
+//
+// Settings that belong to this vault (timer lengths, …) and the tabs that were
+// open, kept in the vault's hidden .opal folder — like Obsidian's
+// .obsidian/workspace.json — so nothing lives outside the vault.
+
+const OPAL_FILES = new Set(['settings.json', 'workspace.json']);
+
+function opalFile(name) {
+  if (!vaultPath) throw new Error('No vault is open.');
+  if (!OPAL_FILES.has(name)) throw new Error('Unknown Opal file.');
+  return path.join(vaultPath, '.opal', name);
+}
+
+async function readOpalJson(name) {
+  try {
+    const data = JSON.parse(await fs.promises.readFile(opalFile(name), 'utf8'));
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+const opalJsonQueues = {};
+function writeOpalJson(name, data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return Promise.reject(new Error('Invalid settings.'));
+  const text = `${JSON.stringify(data, null, 2)}\n`;
+  if (text.length > 200000) return Promise.reject(new Error('Too much to save.'));
+  const full = opalFile(name);
+  const run = (opalJsonQueues[name] || Promise.resolve()).then(async () => {
+    await fs.promises.mkdir(path.dirname(full), { recursive: true });
+    const temp = `${full}.opal-saving`;
+    await fs.promises.writeFile(temp, text, 'utf8');
+    await fs.promises.rename(temp, full);
+  });
+  opalJsonQueues[name] = run.catch(() => {});
+  return run;
+}
+
 // Total words in the notes of a folder (and the folders inside it).
 async function folderWords(relFolder) {
   resolveFolderPath(relFolder || '');
@@ -1627,6 +1666,9 @@ ipcMain.handle('db:set-cell', (_event, relPath, key, value, type) => setDatabase
 ipcMain.handle('db:read', (_event, folder) => readDatabase(folder));
 ipcMain.handle('db:write', (_event, folder, on, settings) => writeDatabase(folder, on, settings));
 ipcMain.handle('logbook:read', () => readLogbook());
+ipcMain.handle('opal-json:read', (_event, name) => readOpalJson(name));
+ipcMain.handle('opal-json:write', (_event, name, data) => writeOpalJson(name, data));
+ipcMain.handle('app:info', () => ({ version: app.getVersion(), vault: vaultInfo() }));
 ipcMain.handle('logbook:add-words', (_event, day, count) => addWords(day, count));
 ipcMain.handle('logbook:add-session', (_event, session) => addSession(session));
 ipcMain.handle('words:folder', (_event, folder) => folderWords(folder));
@@ -1677,7 +1719,22 @@ ipcMain.handle('look:set', (_event, look) => setLook(look));
 
 function buildMenu() {
   const template = [
-    { role: 'appMenu' },
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
     {
       label: 'File',
       submenu: [
@@ -1709,7 +1766,6 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Vault Home', accelerator: 'CmdOrCtrl+Shift+H', click: () => { if (win) win.webContents.send('ui:go-home'); } },
         { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+\\', click: () => { if (win) win.webContents.send('ui:toggle-sidebar'); } },
-        { label: 'Theme & Palettes…', click: () => { if (win) win.webContents.send('ui:show-palettes'); } },
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
         { label: 'Logbook', accelerator: 'CmdOrCtrl+Shift+L', click: () => { if (win) win.webContents.send('ui:show-logbook'); } },
         // Inbox is switched off for now: { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', … 'ui:show-inbox' }

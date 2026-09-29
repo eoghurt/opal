@@ -1,8 +1,9 @@
-// The window's frame: the top bar (logo, breadcrumb, date, palette) and the
-// bottom bar (recent notes and save status).
+// The window's frame: the top bar (logo, back/forward, breadcrumb, the
+// sections with their icons, the timer, the date and Settings) and the bottom
+// bar (word count and save status).
 
-import { h } from './ui.js';
-import { noteName, todayStamp } from './format.js';
+import { h, icon } from './ui.js';
+import { todayStamp } from './format.js';
 
 const STATUS_TEXT = {
   Saved: 'All saved',
@@ -29,20 +30,18 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onPalettes, onBack, onForward, onOpenFile, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onTimer }) {
+  constructor(topbar, footer, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
-    this.onPalettes = onPalettes;
+    this.onSettings = onSettings;
     this.onBack = onBack;
     this.onForward = onForward;
     this.canBack = false;
     this.canForward = false;
-    this.onOpenFile = onOpenFile;
     this.onCalendar = onCalendar;
     this.onLogbook = onLogbook;
     this.onReview = onReview;
-    this.onTimer = onTimer;
     this.cardsDue = 0;
     this.timerSlot = null; // the prep timer's own element (see timer.js)
     this.onTasks = onTasks;
@@ -50,8 +49,6 @@ export class Chrome {
     this.onInbox = onInbox;
     this.inboxCount = 0;
     this.crumbs = [];
-    this.palette = null;
-    this.recent = [];
     this.status = 'Saved';
     this.words = null; // { words, selected, target } for the open note
     this.render();
@@ -85,16 +82,6 @@ export class Chrome {
     this.renderTop();
   }
 
-  setPalette(palette) {
-    this.palette = palette;
-    this.renderTop();
-  }
-
-  setRecent(files) {
-    this.recent = files;
-    this.renderFooter();
-  }
-
   // The open note's word count (and selection), or null off a note.
   setWords(words) {
     const same = JSON.stringify(words) === JSON.stringify(this.words);
@@ -122,11 +109,15 @@ export class Chrome {
         : h('button', { class: 'crumb', onclick: crumb.onClick }, crumb.label));
     });
 
-    const paletteCell = this.palette
-      ? h('button', { class: 'bar-cell palette-chip', onclick: this.onPalettes, title: 'Change palette' },
-        h('span', { class: 'chip-bars' }, this.palette.colors.map((c) => h('span', { style: `background: ${c}` }))),
-        this.palette.name)
-      : null;
+    // A section link: its icon, then its name (the name hides when the window is narrow).
+    const link = (section, iconName, label, onclick, extra = {}) => h('button', {
+      class: `bar-cell bar-link${extra.class ? ` ${extra.class}` : ''}`,
+      'data-section': section,
+      onclick,
+      title: extra.title || label,
+      'aria-label': extra.ariaLabel || label,
+    }, icon(iconName, 15), h('span', { class: 'bar-label' }, label), extra.badge || null);
+    const badge = (n, max) => (n ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, n > max ? `${max}+` : String(n)) : null);
 
     this.topbar.replaceChildren(...[
       h('button', { class: 'bar-cell wordmark', onclick: this.onHome, title: 'Vault home' },
@@ -136,35 +127,30 @@ export class Chrome {
         h('button', { class: 'bar-arrow', 'aria-label': 'Back', title: 'Back (⌘[)', disabled: !this.canBack || null, onclick: () => this.onBack() }, '‹'),
         h('button', { class: 'bar-arrow', 'aria-label': 'Forward', title: 'Forward (⌘])', disabled: !this.canForward || null, onclick: () => this.onForward() }, '›')),
       crumbs,
-      h('button', { class: 'bar-cell bar-link bar-search', onclick: () => this.onSearch(), title: 'Search (⌘O names · ⌘⇧F text)' }, 'Search'),
-      !this.onInbox ? null : h('button', {
-        class: 'bar-cell bar-link bar-inbox',
-        onclick: () => this.onInbox(),
+      link('home', 'home', 'Home', () => this.onHome(), { title: 'Vault home (⌘⇧H)' }),
+      link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
+      !this.onInbox ? null : link('inbox', 'tasks', 'Inbox', () => this.onInbox(), {
+        class: 'bar-inbox',
         title: 'Inbox (⌘⇧I)',
-        'aria-label': this.inboxCount ? `Inbox, ${this.inboxCount} waiting` : 'Inbox',
-      }, 'Inbox', this.inboxCount ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, this.inboxCount > 99 ? '99+' : String(this.inboxCount)) : null),
-      h('button', { class: 'bar-cell bar-link', 'data-section': 'calendar', onclick: () => this.onCalendar() }, 'Calendar'),
-      h('button', { class: 'bar-cell bar-link', 'data-section': 'tasks', onclick: () => this.onTasks() }, 'Tasks'),
-      h('button', { class: 'bar-cell bar-link', 'data-section': 'logbook', onclick: () => this.onLogbook() }, 'Logbook'),
-      !this.onReview ? null : h('button', {
-        class: 'bar-cell bar-link bar-review',
-        'data-section': 'review',
-        onclick: () => this.onReview(),
+        ariaLabel: this.inboxCount ? `Inbox, ${this.inboxCount} waiting` : 'Inbox',
+        badge: badge(this.inboxCount, 99),
+      }),
+      link('calendar', 'calendar', 'Calendar', () => this.onCalendar(), { title: 'Calendar (⌘⇧D)' }),
+      link('tasks', 'tasks', 'Tasks', () => this.onTasks(), { title: 'Tasks (⌘⇧T)' }),
+      !this.onLogbook ? null : link('logbook', 'activity', 'Logbook', () => this.onLogbook()),
+      !this.onReview ? null : link('review', 'review', 'Review', () => this.onReview(), {
+        class: 'bar-review',
         title: 'Review flashcards',
-        'aria-label': this.cardsDue ? `Review, ${this.cardsDue} cards due` : 'Review',
-      }, 'Review', this.cardsDue ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, this.cardsDue > 999 ? '999+' : String(this.cardsDue)) : null),
+        ariaLabel: this.cardsDue ? `Review, ${this.cardsDue} cards due` : 'Review',
+        badge: badge(this.cardsDue, 999),
+      }),
       this.timerSlot,
       h('button', { class: 'bar-cell bar-date', onclick: () => this.onCalendar(new Date()), title: 'Today in the calendar' }, todayStamp()),
-      paletteCell,
+      h('button', { class: 'bar-cell bar-link bar-settings', 'data-section': 'settings', onclick: () => this.onSettings(), title: 'Settings (⌘,)', 'aria-label': 'Settings' }, icon('settings', 16)),
     ].filter(Boolean));
   }
 
   renderFooter() {
-    const list = h('div', { class: 'recent-list' });
-    this.recent.forEach((file, i) => {
-      if (i > 0) list.append(h('span', { 'aria-hidden': 'true' }, '/'));
-      list.append(h('button', { class: 'recent-item', title: file.path, onclick: () => this.onOpenFile(file.path) }, noteName(file.path)));
-    });
     const failed = this.status === 'Save failed';
     const w = this.words;
     const count = w ? h('span', { class: 'word-count', role: 'status', title: w.target ? `Target: ${w.target.toLocaleString()} words` : 'Words in this note' },
@@ -172,8 +158,7 @@ export class Chrome {
       `${w.words.toLocaleString()} word${w.words === 1 ? '' : 's'}${w.target ? ` / ${w.target.toLocaleString()}` : ''}`,
       w.selected ? h('span', { class: 'word-count-sel' }, ` · ${w.selected.toLocaleString()} selected`) : null) : null;
     this.footer.replaceChildren(
-      h('span', { class: 'recent-label' }, 'Recent'),
-      list,
+      h('span', { class: 'grow' }),
       count || '',
       h('span', { class: `save-status${failed ? ' is-failed' : ''}`, role: 'status' },
         h('span', { class: 'save-dot' }),

@@ -1,5 +1,5 @@
-// Theme & palettes: pick the app's look (theme, light or dark) and the
-// colours folders, pages and events use.
+// Theme & palettes, shown in Settings → Appearance: the app's look (theme,
+// light or dark) and the colours folders, pages and events use.
 
 import { h, icon } from '../ui.js';
 import { PALETTES } from '../palettes.js';
@@ -12,21 +12,10 @@ function strip(colors, className) {
     colors.map((color, i) => h('span', { style: `flex-grow: ${STRIP_WEIGHTS[i]}; background: ${color}` })));
 }
 
-export function renderPalettes(container, { active, onUse, look, onLook }) {
+// The palette cards. onUse(name).
+export function paletteGrid(active, onUse) {
   const current = PALETTES.find((p) => p.name === active) || PALETTES[0];
-
-  const head = h('section', { class: 'home-head' },
-    h('div', { class: 'home-title' },
-      h('span', { class: 'mono-label' }, `${THEMES.length} themes · ${PALETTES.length} palettes · all built in`),
-      h('h1', { class: 'display home-h1' }, 'Theme & palettes.'),
-      h('p', { class: 'home-desc' }, 'The theme is the look of the whole app; the palette colours your folders, pages and events.')),
-    h('div', { class: 'now-using' },
-      h('span', { class: 'mono-label' }, 'Now using'),
-      h('span', { class: 'display now-using-name' }, current.name),
-      strip(current.colors, 'now-using-strip')),
-  );
-
-  const grid = h('section', { class: 'palette-grid', 'aria-label': 'Palettes' },
+  return h('section', { class: 'palette-grid', 'aria-label': 'Palettes' },
     PALETTES.map((p) => {
       const inUse = p.name === current.name;
       return h('article', { class: `palette-card${inUse ? ' is-active' : ''}` },
@@ -41,9 +30,21 @@ export function renderPalettes(container, { active, onUse, look, onLook }) {
           h('span', { class: 'palette-installed' }, icon('check', 12), 'Installed'),
           h('button', { class: 'palette-use', disabled: inUse, onclick: () => onUse(p.name) }, inUse ? 'Using' : 'Use')));
     }));
+}
 
+// The palette in use, as a strip.
+export function paletteNow(active) {
+  const current = PALETTES.find((p) => p.name === active) || PALETTES[0];
+  return h('div', { class: 'now-using' },
+    h('span', { class: 'mono-label' }, 'Now using'),
+    h('span', { class: 'display now-using-name' }, current.name),
+    strip(current.colors, 'now-using-strip'));
+}
+
+// The theme cards and light / dark. onLook({ theme } | { mode }).
+export function themePicker(look, onLook) {
   const theme = THEMES.find((t) => t.id === look.theme) || THEMES[0];
-  const themes = h('section', { class: 'theme-picker', 'aria-label': 'Theme' },
+  return h('section', { class: 'theme-picker', 'aria-label': 'Theme' },
     h('div', { class: 'theme-row' },
       THEMES.map((t) => {
         const on = t.id === theme.id;
@@ -68,6 +69,4 @@ export function renderPalettes(container, { active, onUse, look, onLook }) {
         onclick: () => onLook({ mode: m.id }),
       }, m.name)),
       theme.dark ? null : h('span', { class: 'theme-mode-note' }, 'Scrapbook is light only')));
-
-  container.replaceChildren(h('div', { class: 'home' }, head, themes, grid));
 }
