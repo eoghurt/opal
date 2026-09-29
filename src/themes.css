@@ -968,3 +968,10 @@
 :root:not([data-theme="scrapbook"]) .ms-item.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 :root:not([data-theme="scrapbook"]) .ms-item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 :root[data-theme="github"] .ms-compile { background: var(--success); color: #FFFFFF; border-radius: 6px; }
+:root:not([data-theme="scrapbook"]) .flow-grid { border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); }
+:root:not([data-theme="scrapbook"]) .flow-col { border-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .flow-speaker { background: var(--paper-3); border-bottom: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .flow-text:focus { box-shadow: inset 0 0 0 2px var(--accent); }
+:root:not([data-theme="scrapbook"]) .flow-format,
+:root:not([data-theme="scrapbook"]) .flow-btn { border: 1px solid var(--line); border-radius: 999px; background: var(--paper-2); }
+:root:not([data-theme="scrapbook"]) .flow-btn.is-primary { background: var(--strong); color: var(--on-strong); border-color: transparent; }

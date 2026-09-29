@@ -57,7 +57,9 @@ import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './views/database-view.js';
 import { ManuscriptView } from './views/manuscript-view.js';
 import { noteStructure } from './export/note-structure.js';
-import { docxFromChapters } from './export/docx.js';
+import { docxFromChapters, docxFromTable } from './export/docx.js';
+import { FlowEditor, isFlowNote, newFlowText } from './editors/flow-editor.js';
+import { inlineRuns } from './export/note-structure.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -517,7 +519,7 @@ function folderHomeStickies(folderPath, folder, home) {
 async function showNote(filePath) {
   homeStickies = null;
   leaveCalendar();
-  const EditorType = await editorForFile(filePath);
+  let EditorType = await editorForFile(filePath);
   if (!EditorType) {
     showHome(parentOf(filePath), `Opal can't open this kind of file yet: ${filePath}`);
     return;
@@ -535,6 +537,8 @@ async function showNote(filePath) {
     return;
   }
   if (!findFile(tree, filePath)) await reloadTree();
+  // A flow sheet (opal-type: flow) opens as speaker columns.
+  if (isFlowNote(content)) EditorType = FlowEditor;
 
   screen = { kind: 'note', filePath };
   viewEl.scrollTop = 0;
@@ -600,6 +604,7 @@ async function showNote(filePath) {
     linkTargets: () => linkTargets(),
     findLink: (target) => window.opal.findLink(target),
     saveImage: (ext, bytes) => window.opal.saveAttachment(filePath, ext, bytes),
+    onExport: (data) => exportFlow(noteName(filePath), data),
     onCursor: () => {
       noteView.ribbon.refresh();
       showWordCount();
@@ -1089,6 +1094,23 @@ async function compileManuscript(title, paths) {
   return window.opal.saveDocx(title, docxFromChapters(chapters));
 }
 
+// ---------- Flow sheets ----------
+
+// A flow sheet → a Word table, one column per speaker.
+async function exportFlow(title, data) {
+  try {
+    const saved = await window.opal.saveDocx(title, docxFromTable({
+      title,
+      subtitle: data.format,
+      headers: data.columns,
+      columns: data.lines.map((lines) => lines.map((line) => inlineRuns(line))),
+    }));
+    if (saved) chrome.setStatus(`Exported ${saved.split('/').pop()}`);
+  } catch (err) {
+    alert(`Couldn't export the flow sheet.\n\n${err.message}`);
+  }
+}
+
 // Shows a folder as a database (starting from a preset), or back as a page.
 async function chooseDatabase(folderPath, at) {
   const db = await window.opal.readDatabase(folderPath);
@@ -1395,8 +1417,15 @@ function createItem(kind, folder = currentFolder(), at = null) {
     folder,
     folders: folderChoices(),
     loadTemplates: (where) => window.opal.templateInfo(where),
-    onCreate: async ({ kind: made, name, folder: where, color, description, template }) => {
+    onCreate: async ({ kind: made, name, folder: where, color, description, template, flowFormat }) => {
       try {
+        if (made === 'flow') {
+          const filePath = await window.opal.createNote(name, where);
+          await window.opal.writeFile(filePath, newFlowText(flowFormat || 'australs', ['Speaker 1', 'Speaker 2']));
+          if (color) await setItemColor(filePath, 'file', color);
+          await openFile(filePath);
+          return;
+        }
         if (made === 'folder') {
           const folderPath = await window.opal.createFolder(name, where);
           if (color) await setItemColor(folderPath, 'folder', color);

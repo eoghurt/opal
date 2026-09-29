@@ -28,7 +28,15 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
     'data-kind': value,
     onclick: () => { state.kind = value; sync(); title.focus(); },
   }, label);
-  const kinds = h('div', { class: 'cal-new-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('note', 'Note'), kindBtn('folder', 'Folder'));
+  const kinds = h('div', { class: 'cal-new-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('note', 'Note'), kindBtn('folder', 'Folder'), kindBtn('flow', 'Flow sheet'));
+  // A debate flow sheet's format.
+  const flowSelect = h('select', { class: 'cal-pop-select create-where', 'aria-label': 'Flow format' },
+    h('option', { value: 'australs' }, 'Australs 3v3'),
+    h('option', { value: 'world-schools' }, 'World Schools'),
+    h('option', { value: 'bp' }, 'British Parliamentary'),
+    h('option', { value: 'custom' }, 'Custom (name the columns)'));
+  const flowRow = h('div', { class: 'cal-new-when create-flow' }, h('span', { class: 'mono-label' }, 'Format'), flowSelect);
+  flowRow.hidden = true;
   const where = h('select', { class: 'cal-pop-select create-where', 'aria-label': 'In folder' },
     folders.map((f) => h('option', { value: f.path, selected: f.path === folder || null }, `${'  '.repeat(f.depth)}${f.label}`)));
   where.addEventListener('change', () => { state.folder = where.value; fillTemplates(); });
@@ -67,8 +75,10 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
     });
     title.placeholder = state.kind === 'folder' ? 'Folder name' : 'Note name';
     templateRow.hidden = state.kind !== 'note' || !templateCount;
+    flowRow.hidden = state.kind !== 'flow';
+    if (state.kind === 'flow') title.placeholder = 'Debate (e.g. Round 3 — social media ban)';
     pop.setAttribute('aria-label', state.kind === 'folder' ? 'New folder' : 'New note');
-    save.textContent = state.kind === 'folder' ? 'Create folder' : 'Create note';
+    save.textContent = state.kind === 'folder' ? 'Create folder' : state.kind === 'flow' ? 'Create flow sheet' : 'Create note';
   };
 
   const submit = () => {
@@ -79,7 +89,7 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
       return;
     }
     close();
-    onCreate({ kind: state.kind, name, folder: state.folder, color: state.color, description: describe.value.trim(), template: state.kind === 'note' ? state.template : null });
+    onCreate({ kind: state.kind, name, folder: state.folder, color: state.color, description: describe.value.trim(), template: state.kind === 'note' ? state.template : null, flowFormat: flowSelect.value });
   };
   title.addEventListener('input', () => title.classList.remove('is-empty'));
   title.addEventListener('keydown', (e) => {
@@ -108,6 +118,7 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
     kinds,
     h('div', { class: 'cal-new-when' }, h('span', { class: 'mono-label' }, 'In'), where),
     templateRow,
+    flowRow,
     h('div', { class: 'cal-picker' }, h('span', { class: 'mono-label' }, 'Colour'), colours),
     h('div', { class: 'cal-pop-actions' }, save, h('button', { class: 'cal-pop-btn', onclick: () => close() }, 'Cancel')));
   drawColours();
