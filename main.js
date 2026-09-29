@@ -965,6 +965,32 @@ async function searchVault(query) {
   return results.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path)).slice(0, 60);
 }
 
+// ---------- Pasted and dropped pictures ----------
+
+const ATTACHMENTS = 'Attachments';
+const PICTURE_TYPES = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp']; // the ones Opal can show
+
+// Saves a picture pasted or dropped into a note as
+// Attachments/<note name> <YYYY-MM-DD HHMMSS>.<ext> and returns its file name.
+async function saveAttachment(notePath, ext, bytes) {
+  if (!vaultPath) throw new Error('No vault is open.');
+  const type = String(ext || '').toLowerCase().replace(/^\./, '');
+  if (!PICTURE_TYPES.includes(type)) throw new Error('Only pictures can be pasted in.');
+  const data = Buffer.from(bytes);
+  if (!data.length || data.length > 60 * 1024 * 1024) throw new Error('That picture is empty or too big (60 MB at most).');
+  const folder = resolveFolderPath(ATTACHMENTS);
+  await fs.promises.mkdir(folder, { recursive: true });
+  const note = safeFileName(path.posix.basename(String(notePath || 'Note')).replace(/\.md$/i, ''));
+  const now = new Date();
+  const two = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`;
+  let name = `${note} ${stamp}.${type === 'jpeg' ? 'jpg' : type}`;
+  for (let n = 2; fs.existsSync(path.join(folder, name)); n++) name = `${note} ${stamp} ${n}.${type === 'jpeg' ? 'jpg' : type}`;
+  await fs.promises.writeFile(path.join(folder, name), data, { flag: 'wx' });
+  scheduleRefresh();
+  return name;
+}
+
 // ---------- Backlinks ----------
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1109,6 +1135,7 @@ function showNotification(payload) {
 }
 
 ipcMain.handle('vault:checkboxes', () => openCheckboxes());
+ipcMain.handle('attachment:save', (_event, notePath, ext, bytes) => saveAttachment(notePath, ext, bytes));
 ipcMain.handle('links:backlinks', (_event, relPath) => findBacklinks(relPath));
 ipcMain.handle('links:link-mention', (_event, notePath, line, column, target) => linkMention(notePath, line, column, target));
 ipcMain.handle('vault:search', (_event, query) => searchVault(query));

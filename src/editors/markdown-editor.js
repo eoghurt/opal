@@ -132,7 +132,8 @@ export class MarkdownEditor {
 
   // onOpenHref(address) opens a [text](address) link; linkTargets() lists notes
   // and files for [[ suggestions; findLink(name) finds a file without creating it.
-  constructor({ parent, content, save, onStatus, onOpenLink, onOpenHref, onChange, onCursor, linkTargets, findLink }) {
+  constructor({ parent, content, save, onStatus, onOpenLink, onOpenHref, onChange, onCursor, linkTargets, findLink, saveImage }) {
+    this.saveImage = saveImage;
     this.linkTargets = linkTargets || (() => []);
     this.save = save;
     this.onStatus = onStatus;
@@ -198,6 +199,13 @@ export class MarkdownEditor {
             else if (onOpenHref) onOpenHref(link.dataset.href);
             return true;
           },
+          // Pictures pasted or dropped in are copied into Attachments and
+          // linked where they land, as ![[file name]].
+          paste: (event, view) => this.takePictures(view, event.clipboardData && event.clipboardData.files, null, event),
+          drop: (event, view) => {
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            return this.takePictures(view, event.dataTransfer && event.dataTransfer.files, pos, event);
+          },
           // Show a pointer over links while Cmd is held.
           keydown: (event, view) => { view.dom.classList.toggle('cmd-held', event.metaKey); },
           keyup: (event, view) => { view.dom.classList.toggle('cmd-held', event.metaKey); },
@@ -212,6 +220,33 @@ export class MarkdownEditor {
       ],
     });
     this.view.focus();
+  }
+
+  // Handles the picture files among `files`; returns true if there were any.
+  takePictures(view, files, pos, event) {
+    const pictures = [...(files || [])].filter((f) => /^image\//.test(f.type));
+    if (!pictures.length || !this.saveImage) return false;
+    event.preventDefault();
+    const at = pos ?? view.state.selection.main.head;
+    (async () => {
+      const links = [];
+      for (const file of pictures) {
+        try {
+          const ext = (file.name.match(/\.([a-z0-9]+)$/i) || [])[1] || file.type.split('/')[1] || 'png';
+          links.push(`![[${await this.saveImage(ext.replace('jpeg', 'jpg').replace('svg+xml', 'svg'), await file.arrayBuffer())}]]`);
+        } catch (err) {
+          alert(`Couldn't add that picture.\n\n${err.message}`);
+        }
+      }
+      if (!links.length) return;
+      const insert = links.join('\n');
+      const from = Math.min(at, view.state.doc.length);
+      const sel = view.state.selection.main;
+      const replace = pos == null && !sel.empty ? { from: sel.from, to: sel.to } : { from, to: from };
+      view.dispatch({ changes: { ...replace, insert }, selection: { anchor: replace.from + insert.length }, userEvent: 'input.paste' });
+      view.focus();
+    })();
+    return true;
   }
 
   get isDirty() {

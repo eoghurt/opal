@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('opal', {
   notify: (payload) => call('notify:show', payload),
   search: (query) => call('vault:search', query),
   backlinks: (relPath) => call('links:backlinks', relPath),
+  saveAttachment: (notePath, ext, bytes) => call('attachment:save', notePath, ext, bytes),
   linkMention: (notePath, line, column, target) => call('links:link-mention', notePath, line, column, target),
   openCheckboxes: () => call('vault:checkboxes'),
 

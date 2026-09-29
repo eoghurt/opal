@@ -499,6 +499,7 @@ async function showNote(filePath) {
     onOpenHref: (href) => openHref(href, filePath),
     linkTargets: () => linkTargets(),
     findLink: (target) => window.opal.findLink(target),
+    saveImage: (ext, bytes) => window.opal.saveAttachment(filePath, ext, bytes),
     onCursor: () => noteView.ribbon.refresh(),
     onChange: () => {
       clearTimeout(changeTimer);
