@@ -1,6 +1,7 @@
 // Folder home: the page you see when you open a folder (or the vault itself).
 // Big title, the folder's subfolders as coloured folder tiles, and its notes
-// as scrapbook cards.
+// as scrapbook cards. The vault's own page also has the home widgets
+// (mountWidgets, see home-widgets.js) between the title and the folders.
 
 import { h, scribbleArrow } from '../ui.js';
 import { progressBar } from './note-view.js';
@@ -14,7 +15,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase, loadManuscript, mountManuscript }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase, loadManuscript, mountManuscript, mountWidgets }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -76,6 +77,8 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
 
   const sections = [head];
   if (notice) sections.unshift(h('div', { class: 'home-notice' }, notice));
+  const widgetSlot = mountWidgets ? h('section', { class: 'home-widgets', 'aria-label': 'Home widgets' }) : null;
+  if (widgetSlot) sections.push(widgetSlot);
 
   const previewSlots = new Map(); // note path → elements waiting for its preview text
   const wantPreview = (path, el) => {
@@ -139,11 +142,12 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   const scrollTop = container.scrollTop;
   const home = h('div', { class: 'home' }, sections);
   container.replaceChildren(home);
+  if (widgetSlot) mountWidgets(widgetSlot);
   container.scrollTop = scrollTop;
 
   // Right-click or double-click on empty space: make a new note or folder here.
   const onBlank = (event) => {
-    if (event.target.closest('button, a, input, textarea, select, [draggable="true"], [contenteditable], .sticky-layer > *')) return;
+    if (event.target.closest('button, a, input, textarea, select, [draggable="true"], [contenteditable], .sticky-layer > *, .home-widgets')) return;
     event.preventDefault();
     onCreateHere(event);
   };

@@ -1041,3 +1041,27 @@
 :root:not([data-theme="scrapbook"]) .tab.drop-after .tab-inner { box-shadow: 3px 0 0 var(--accent); }
 :root[data-theme="github"] #topbar .bar-search { border: 0; border-radius: 0; height: auto; align-self: stretch; margin: 0; padding: 0; color: var(--ink-3); }
 :root[data-theme="github"] #topbar .bar-icon::after { left: 9px; right: 9px; }
+
+/* ---------- Home page widgets ---------- */
+
+:root:not([data-theme="scrapbook"]) .home-widgets { border-bottom: 0; padding-top: 8px; }
+:root:not([data-theme="scrapbook"]) .widget { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+:root:not([data-theme="scrapbook"]) .widget-head { background: none; border-bottom: 0; font-family: var(--sans); font-size: 12.5px; letter-spacing: 0; text-transform: none; padding-bottom: 0; min-height: 38px; }
+:root:not([data-theme="scrapbook"]) .widget-name { font-weight: 600; }
+:root:not([data-theme="scrapbook"]) .widget-row + .widget-row { border-top: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .widget-row:hover { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .widget-chip { border: 0; background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .widgets-btn,
+:root:not([data-theme="scrapbook"]) .set-select { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .widgets-btn:hover { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .widgets-btn.is-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+:root:not([data-theme="scrapbook"]) .widget-timer-bar { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .widget-timer-bar span { background: var(--accent); }
+:root:not([data-theme="scrapbook"]) .widget-check { accent-color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .lb-activity .lb-detail { border-left: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .widget.drop-before { box-shadow: -6px 0 0 var(--accent); }
+:root:not([data-theme="scrapbook"]) .widget.drop-after { box-shadow: 6px 0 0 var(--accent); }
+:root:not([data-theme="scrapbook"]) .widgets.is-editing .widget { outline-color: var(--line); }
+:root:not([data-theme="scrapbook"]) .widget-size.is-on { background: var(--accent); color: var(--on-accent); }
+:root:not([data-theme="scrapbook"]) .widgets-add-btn { border: 1px dashed var(--line); border-radius: 8px; }
+:root:not([data-theme="scrapbook"]) .widgets-add-btn:hover { background: var(--fill); border-style: solid; }

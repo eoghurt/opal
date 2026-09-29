@@ -1,6 +1,7 @@
 // Logbook: an overview of a week, month or year — headline numbers, an
 // activity heatmap, where you worked, and your busiest days. Click a day to
 // see exactly what happened; everything in that list opens.
+// It's shown in pieces as the home page's widgets (see `slots`).
 
 import { h } from '../ui.js';
 import { makePanel } from '../panel.js';
@@ -27,15 +28,19 @@ function fmtChange(now, before, unit) {
 
 export class LogbookView {
   // getFiles() → every file node; readFile(path) → text.
-  constructor(container, { kind, date, getFiles, readFile, readLogbook, openFile, openCalendarDay, openTasks, onChange }) {
+  // slots: { controls, tiles, activity, places, busiest } — elements to draw just
+  // those parts into (the home page's widgets) instead of a whole page.
+  constructor(container, { kind, date, getFiles, readFile, readLogbook, openFile, openCalendarDay, openTasks, onChange, slots }) {
     this.container = container;
+    this.slots = slots || null;
     this.kind = kind || 'month';
     this.date = date || new Date();
     this.io = { getFiles, readFile, readLogbook, openFile, openCalendarDay, openTasks: openTasks || (() => {}), onChange: onChange || (() => {}) };
     this.selected = null;
     this.root = h('div', { class: 'logbook' });
-    this.tooltip = h('div', { class: 'lb-tip', role: 'tooltip', hidden: true });
-    container.replaceChildren(this.root);
+    this.tooltip = h('div', { class: `lb-tip${this.slots ? ' is-fixed' : ''}`, role: 'tooltip', hidden: true });
+    if (this.slots) document.body.append(this.tooltip);
+    else container.replaceChildren(this.root);
     this.load();
   }
 
@@ -88,29 +93,26 @@ export class LogbookView {
     return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${last.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
   }
 
-  render() {
-    this.hideTip();
+  // Week / Month / Year and ‹ This … ›.
+  periodControls() {
+    const unit = this.kind;
+    return h('div', { class: 'cal-controls' },
+      h('div', { class: 'cal-segment', role: 'group', 'aria-label': 'Period' },
+        ['week', 'month', 'year'].map((k) => h('button', {
+          class: `cal-seg${this.kind === k ? ' is-on' : ''}`,
+          'aria-pressed': String(this.kind === k),
+          onclick: () => this.go(k, this.date),
+        }, k[0].toUpperCase() + k.slice(1)))),
+      h('div', { class: 'cal-nav' },
+        h('button', { class: 'cal-navbtn', 'aria-label': `Previous ${unit}`, onclick: () => this.go(this.kind, shiftPeriod(this.kind, this.date, -1)) }, '‹'),
+        h('button', { class: 'cal-navbtn cal-today', onclick: () => this.go(this.kind, new Date()) }, `This ${unit}`),
+        h('button', { class: 'cal-navbtn', 'aria-label': `Next ${unit}`, onclick: () => this.go(this.kind, shiftPeriod(this.kind, this.date, 1)) }, '›')));
+  }
+
+  tilesEl() {
     const unit = this.kind;
     const t = this.data.totals;
     const p = this.previous.totals;
-
-    const head = h('section', { class: 'home-head' },
-      h('div', { class: 'home-title' },
-        h('span', { class: 'mono-label' }, `Logbook · ${unit}`),
-        h('h1', { class: 'display home-h1' }, 'Logbook.'),
-        h('p', { class: 'home-desc' }, this.periodTitle())),
-      h('div', { class: 'cal-controls' },
-        h('div', { class: 'cal-segment', role: 'group', 'aria-label': 'Period' },
-          ['week', 'month', 'year'].map((k) => h('button', {
-            class: `cal-seg${this.kind === k ? ' is-on' : ''}`,
-            'aria-pressed': String(this.kind === k),
-            onclick: () => this.go(k, this.date),
-          }, k[0].toUpperCase() + k.slice(1)))),
-        h('div', { class: 'cal-nav' },
-          h('button', { class: 'cal-navbtn', 'aria-label': `Previous ${unit}`, onclick: () => this.go(this.kind, shiftPeriod(this.kind, this.date, -1)) }, '‹'),
-          h('button', { class: 'cal-navbtn cal-today', onclick: () => this.go(this.kind, new Date()) }, `This ${unit}`),
-          h('button', { class: 'cal-navbtn', 'aria-label': `Next ${unit}`, onclick: () => this.go(this.kind, shiftPeriod(this.kind, this.date, 1)) }, '›'))),
-    );
 
     const tile = (label, now, before, hint, shown) => h('div', { class: 'lb-tile' },
       h('span', { class: 'mono-label' }, label),
@@ -126,6 +128,36 @@ export class LogbookView {
       tile('Words written', t.words, p.words, 'added while writing in Opal', t.words.toLocaleString()),
       tile('Timer time', t.prep, p.prep, 'prep countdowns and Pomodoro focus', fmtMinutes(t.prep)),
       tile('Files added', t.added, p.added, 'PDFs, pictures, Office…'));
+    return tiles;
+  }
+
+  // Just the parts, into the home page's widgets.
+  renderSlots() {
+    const s = this.slots;
+    if (s.controls && s.controls.isConnected) s.controls.replaceChildren(h('span', { class: 'lb-period' }, this.periodTitle()), this.periodControls());
+    if (s.tiles && s.tiles.isConnected) s.tiles.replaceChildren(this.tilesEl());
+    if (s.activity && s.activity.isConnected) {
+      s.activity.replaceChildren(h('div', { class: 'lb-activity' },
+        h('div', { class: 'lb-activity-main' }, this.legend(), this.kind === 'year' ? this.yearHeatmap() : this.calendarHeatmap()),
+        this.dayDetail()));
+    }
+    if (s.places && s.places.isConnected) s.places.replaceChildren(this.folderBars());
+    if (s.busiest && s.busiest.isConnected) s.busiest.replaceChildren(this.timeBars());
+  }
+
+  render() {
+    this.hideTip();
+    if (this.slots) {
+      this.renderSlots();
+      return;
+    }
+    const head = h('section', { class: 'home-head' },
+      h('div', { class: 'home-title' },
+        h('span', { class: 'mono-label' }, `Logbook · ${this.kind}`),
+        h('h1', { class: 'display home-h1' }, 'Logbook.'),
+        h('p', { class: 'home-desc' }, this.periodTitle())),
+      this.periodControls());
+    const tiles = this.tilesEl();
 
     const main = h('div', { class: 'lb-main' },
       h('section', { class: 'lb-panel', 'aria-label': 'Activity' },
@@ -331,6 +363,15 @@ export class LogbookView {
 
   showTip(anchor, text) {
     const box = anchor.getBoundingClientRect();
+    if (this.slots) {
+      // On the home page the tip floats over everything.
+      this.tooltip.textContent = text;
+      this.tooltip.hidden = false;
+      const width = this.tooltip.offsetWidth;
+      this.tooltip.style.left = `${Math.min(Math.max(8, box.left + box.width / 2 - width / 2), window.innerWidth - width - 8)}px`;
+      this.tooltip.style.top = `${box.top - 34}px`;
+      return;
+    }
     const host = this.root.getBoundingClientRect();
     this.tooltip.textContent = text;
     this.tooltip.hidden = false;

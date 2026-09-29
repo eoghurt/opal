@@ -38,7 +38,8 @@ import { countWords, countSelected } from '../shared/words.js';
 import { dayKey } from './calendar/events.js';
 import { kindOf } from './file-types.js';
 import { CalendarView } from './views/calendar-view.js';
-import { LogbookView } from './views/logbook-view.js';
+import { HomeWidgets, WIDGETS, parseLayout, formatLayout } from './views/home-widgets.js';
+import { readProperties, writeProperty } from '../shared/properties.js';
 import { TasksView } from './views/tasks-view.js';
 import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, todayKey } from './tasks/tasks.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences } from './calendar/events.js';
@@ -106,7 +107,6 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
   onInbox: INBOX_ENABLED ? () => showInbox() : null,
-  onLogbook: () => showLogbook(),
   onTasks: () => showTasks(),
 });
 
@@ -125,7 +125,7 @@ const tabBar = new TabBar(tabStrip, {
 const prepTimer = new PrepTimer({
   openNote: () => (current && screen && screen.kind === 'note' ? current.filePath : null),
   notify: (payload) => window.opal.notify(payload).catch(() => {}),
-  record: (session) => window.opal.addSession(session).then(() => { if (logbook) logbook.reload(); }).catch(() => {}),
+  record: (session) => window.opal.addSession(session).then(() => { if (homeWidgets) homeWidgets.reload(); }).catch(() => {}),
   openSettings: () => showSettings('timer'),
 });
 chrome.timerSlot = prepTimer.el;
@@ -167,9 +167,9 @@ let homeStickies = null;
 let calendar = null;
 let calendarState = { date: new Date(), mode: 'day' };
 
-// The logbook on screen (and where it was last left).
-let logbook = null;
-let logbookState = { kind: 'month', date: new Date() };
+// The home page's widgets on screen, and whether they're being arranged.
+let homeWidgets = null;
+let homeEditing = false;
 
 let tasksView = null;
 let reviewView = null;
@@ -183,8 +183,8 @@ function leaveCalendar() {
   inboxView = null;
   if (calendar) calendar.destroy();
   calendar = null;
-  if (logbook) logbook.destroy();
-  logbook = null;
+  if (homeWidgets) homeWidgets.destroy();
+  homeWidgets = null;
 }
 
 async function flushHomeStickies() {
@@ -376,9 +376,9 @@ function loadBacklinks() {
 // anything opened from it goes to a new tab. The tabs are saved in the
 // vault's .opal/workspace.json so they come back next time.
 
-const PLACE_KINDS = ['calendar', 'tasks', 'logbook', 'settings', 'inbox', 'review'];
-const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', logbook: 'Logbook', settings: 'Settings', inbox: 'Inbox', review: 'Review' };
-const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', logbook: 'activity', settings: 'settings', inbox: 'tasks', review: 'review' };
+const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review'];
+const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review' };
+const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review' };
 
 let tabs = []; // [{ id, pinned, places: [place], at, scroll }]
 let activeTabId = null;
@@ -473,7 +473,7 @@ function goToPlace(place) {
   if (place.kind === 'note') return openFile(place.filePath);
   if (place.kind === 'calendar') return showCalendar();
   if (place.kind === 'tasks') return showTasks();
-  if (place.kind === 'logbook') return showLogbook();
+  if (place.kind === 'logbook') return openFolder(''); // the Logbook is on the home page now
   if (place.kind === 'settings') return showSettings();
   if (place.kind === 'inbox') return showInbox();
   if (place.kind === 'review') return showReview();
@@ -655,6 +655,7 @@ async function restoreTabs() {
     if (!place || typeof place !== 'object') return null;
     if (place.kind === 'note' && typeof place.filePath === 'string' && findFile(tree, place.filePath)) return { kind: 'note', filePath: place.filePath };
     if (place.kind === 'home' && typeof (place.folderPath ?? '') === 'string' && findFolder(tree, place.folderPath || '', vault.name)) return { kind: 'home', folderPath: place.folderPath || '' };
+    if (place.kind === 'logbook') return { kind: 'home', folderPath: '' }; // now on the home page
     if (PLACE_KINDS.includes(place.kind) && (place.kind !== 'inbox' || INBOX_ENABLED)) return { kind: place.kind };
     return null;
   };
@@ -764,9 +765,108 @@ function showHome(folderPath, notice) {
       },
     }),
     loadWordTarget: async () => parseInt(String(getProp(await window.opal.readFolderSettings(folderPath), 'word-target') || ''), 10) || null,
+    mountWidgets: folderPath ? null : (slot) => mountHomeWidgets(slot),
   });
   describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
+}
+
+// ---------- Home page widgets ----------
+//
+// The vault's own page has widgets (home-widgets.js). Which ones, in what
+// order and size, is the `opal-home` list in the vault's hidden .opal.md.
+
+async function readHomeLayout() {
+  const text = await window.opal.readFolderSettings('').catch(() => '');
+  return readProperties(text)['opal-home'] || null;
+}
+
+async function saveHomeLayout(items) {
+  try {
+    const text = await window.opal.readFolderSettings('');
+    await window.opal.writeFolderSettings('', writeProperty(text, 'opal-home', formatLayout(items), 'text'));
+  } catch (err) {
+    alert(`Couldn't save the home page layout.\n\n${err.message}`);
+  }
+}
+
+async function mountHomeWidgets(slot) {
+  const layout = await readHomeLayout();
+  if (!slot.isConnected) return;
+  if (homeWidgets) homeWidgets.destroy();
+  homeWidgets = new HomeWidgets(slot, {
+    layout,
+    editing: homeEditing,
+    io: {
+      saveLayout: (items) => saveHomeLayout(items),
+      onEditing: (on) => { homeEditing = on; },
+      files: () => flattenFiles(tree),
+      openFile: (path) => openFile(path),
+      openFolder: (path) => openFolder(path),
+      openCalendarDay: (key) => {
+        calendarState = { ...calendarState, mode: 'day' };
+        showCalendar(keyToDate(key));
+      },
+      openTasks: () => showTasks(),
+      openReview: () => showReview(),
+      openSettings: (section) => showSettings(section),
+      loadDayEvents,
+      loadTasks: loadAllTasks,
+      toggleTask: toggleTaskDone,
+      listCards: () => window.opal.listCards(),
+      readLogbook: () => window.opal.readLogbook(),
+      readFile: (path) => window.opal.readFile(path),
+      timer: prepTimer,
+    },
+  });
+}
+
+// Settings → Home page: every widget with a switch and a size.
+let homeLayoutForSettings = [];
+function homeSettingsSection() {
+  return {
+    id: 'home',
+    label: 'Home page',
+    icon: 'grid',
+    title: 'Home page.',
+    desc: 'The widgets on your vault’s home page. You can also arrange them there with Customize (drag to reorder).',
+    render: () => {
+      const items = homeLayoutForSettings;
+      const save = async () => {
+        await saveHomeLayout(items);
+        drawSettings();
+      };
+      const rows = WIDGETS.map((w) => {
+        const item = items.find((i) => i.id === w.id);
+        const size = h('select', { class: 'set-select', 'aria-label': `${w.name} size`, disabled: !item || null },
+          [['small', 'Small'], ['wide', 'Wide'], ['full', 'Full width']].map(([v, label]) => h('option', { value: v, selected: (item ? item.size : w.size) === v || null }, label)));
+        size.addEventListener('change', () => {
+          if (item) item.size = size.value;
+          save();
+        });
+        const on = h('button', {
+          class: `set-toggle${item ? ' is-on' : ''}`,
+          role: 'switch',
+          'aria-checked': String(Boolean(item)),
+          'aria-label': `Show ${w.name}`,
+          onclick: () => {
+            if (item) items.splice(items.indexOf(item), 1);
+            else items.push({ id: w.id, size: size.value });
+            save();
+          },
+        }, h('span', { class: 'set-toggle-knob' }));
+        return h('div', { class: 'set-row' },
+          h('div', { class: 'set-info' }, h('span', { class: 'set-name' }, w.name), h('span', { class: 'set-desc' }, w.desc)),
+          h('div', { class: 'set-control' }, size, on));
+      });
+      return [
+        ...rows,
+        h('div', { class: 'set-buttons', style: 'margin-top: 18px' },
+          h('button', { class: 'set-btn', onclick: () => openFolder('') }, 'Open the home page'),
+          h('button', { class: 'set-btn', onclick: () => { homeLayoutForSettings = parseLayout(null); save(); } }, 'Reset to the default widgets')),
+      ];
+    },
+  };
 }
 
 // A folder home's stickies are kept in the folder's hidden settings file
@@ -1010,6 +1110,7 @@ function showSettings(section) {
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Settings' }]);
     viewEl.scrollTop = 0;
     appInfo = appInfo || await window.opal.appInfo().catch(() => null);
+    homeLayoutForSettings = parseLayout(await readHomeLayout());
     drawSettings();
   });
 }
@@ -1024,7 +1125,7 @@ function drawSettings() {
     palette: paletteName,
     settings: vaultSettings,
     info: appInfo,
-    extraSections: [],
+    extraSections: [homeSettingsSection()],
     io: {
       setSection: (id) => {
         settingsSection = id;
@@ -1321,8 +1422,6 @@ function showInbox() {
   });
 }
 
-// ---------- Logbook ----------
-
 // ---------- Flashcards ----------
 
 function showReview() {
@@ -1361,33 +1460,6 @@ function updateCardsDue() {
     chrome.setCardsDue(cardsDueCount);
     if (calendar) calendar.setCardsDue(cardsDueCount);
   }, 400);
-}
-
-function showLogbook() {
-  if (!vault) return Promise.resolve();
-  return navigate(async () => {
-    homeStickies = null;
-    leaveCalendar();
-    screen = { kind: 'logbook' };
-    setTitle('Logbook');
-    sidebar.setActive(null, null);
-    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Logbook' }]);
-    viewEl.scrollTop = 0;
-    logbook = new LogbookView(viewEl, {
-      kind: logbookState.kind,
-      date: logbookState.date,
-      getFiles: () => flattenFiles(tree),
-      readFile: (path) => window.opal.readFile(path),
-      readLogbook: () => window.opal.readLogbook(),
-      openFile: (path) => openFile(path),
-      openCalendarDay: (key) => {
-        calendarState = { ...calendarState, mode: 'day' };
-        showCalendar(keyToDate(key));
-      },
-      openTasks: () => showTasks(),
-      onChange: (state) => { logbookState = state; },
-    });
-  });
 }
 
 // ---------- Folder & page colours ----------
@@ -1915,8 +1987,6 @@ function refreshFiles() {
 
     if (screen.kind === 'calendar' && calendar) {
       calendar.reload();
-    } else if (screen.kind === 'logbook' && logbook) {
-      logbook.reload();
     } else if (screen.kind === 'tasks' && tasksView) {
       tasksView.reload();
     } else if (screen.kind === 'inbox' && inboxView) {
@@ -2097,7 +2167,7 @@ window.addEventListener('mouseup', (event) => {
 window.opal.onShowPalettes(() => showSettings());
 window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggle());
 window.opal.onShowCalendar(() => showCalendar());
-window.opal.onShowLogbook(() => showLogbook());
+window.opal.onShowLogbook(() => vault && openFolder('')); // the Logbook is on the home page now
 window.opal.onShowTasks(() => showTasks());
 window.opal.onShowInbox(() => showInbox());
 window.opal.onOpenReminder(openReminder);
