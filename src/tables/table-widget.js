@@ -4,6 +4,7 @@
 
 import { EditorView, WidgetType, Decoration } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
+import { undo, redo } from '@codemirror/commands';
 import { TableEditor } from './table-editor.js';
 import { findTableBlocks, blankTable, serializeTable } from './table-model.js';
 
@@ -20,6 +21,7 @@ class TableWidget extends WidgetType {
   toDOM(view) {
     const editor = new TableEditor(this.source, {
       onCommit: (next) => writeBack(view, editor.root, next),
+      onHistory: (direction) => (direction < 0 ? undo(view) : redo(view)),
     });
     editor.root.opalTable = editor;
     return editor.root;

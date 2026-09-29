@@ -30,8 +30,10 @@ const BORDER_NAMES = [['all', 'All borders'], ['outer', 'Outside only'], ['rows'
 
 export class TableEditor {
   // onCommit(html) saves the table into the note; onCommit('') removes it.
-  constructor(source, { onCommit }) {
+  // onHistory(-1 | 1) undoes / redoes through the note's own history.
+  constructor(source, { onCommit, onHistory }) {
     this.onCommit = onCommit;
+    this.onHistory = onHistory || (() => {});
     this.anchor = null; // { r, c } where a cell selection started
     this.focusSlot = null;
     this.timer = null;
@@ -237,6 +239,28 @@ export class TableEditor {
     root.addEventListener('keydown', (event) => {
       const cell = this.cellOf(event.target);
       if (!cell) return;
+      // Undo / redo (⌘Z or Ctrl+Z; ⌘Y, Ctrl+Y or ⌘⇧Z) go through the note's
+      // history, so they undo table changes like any other typing.
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && (key === 'z' || key === 'y')) {
+        event.preventDefault();
+        event.stopPropagation();
+        const at = { r: cell.r, c: cell.c };
+        this.flush();
+        this.onHistory(key === 'y' || event.shiftKey ? 1 : -1);
+        // The table has redrawn from the note: back into the same cell.
+        requestAnimationFrame(() => {
+          const r = Math.min(at.r, this.model.rows - 1);
+          const c = Math.min(at.c, this.model.cols - 1);
+          if (this.root.isConnected && r >= 0 && c >= 0) {
+            this.anchor = { r, c };
+            this.focusSlot = null;
+            this.paintSelection();
+            this.focusCell(r, c);
+          }
+        });
+        return;
+      }
       if (event.key === 'Tab') {
         event.preventDefault();
         this.flush();

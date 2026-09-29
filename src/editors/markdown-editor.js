@@ -2,7 +2,7 @@
 
 import { EditorView } from 'codemirror';
 import { highlightSpecialChars, highlightActiveLine, dropCursor, keymap as viewKeymap } from '@codemirror/view';
-import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands';
+import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from '@codemirror/commands';
 import { indentOnInput, bracketMatching, defaultHighlightStyle } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { searchKeymap } from '@codemirror/search';
@@ -152,7 +152,14 @@ export class MarkdownEditor {
       doc: content,
       extensions: [
         Prec.high(formatKeymap),
-        Prec.high(keymap.of([{ key: 'Mod-Alt-t', run: (view) => { insertTable(view, 3, 3); return true; } }])),
+        Prec.high(keymap.of([
+          { key: 'Mod-Alt-t', run: (view) => { insertTable(view, 3, 3); return true; } },
+          // Ctrl+Z / Ctrl+Y as well as ⌘Z / ⌘⇧Z, and ⌘Y for redo.
+          { key: 'Ctrl-z', run: undo, preventDefault: true },
+          { key: 'Ctrl-y', run: redo, preventDefault: true },
+          { key: 'Ctrl-Shift-z', run: redo, preventDefault: true },
+          { key: 'Mod-y', run: redo, preventDefault: true },
+        ])),
         // CodeMirror's usual setup, minus the parts that don't suit writing:
         // no line numbers or folding, and the Mac's own text selection (it
         // highlights only the text) instead of CodeMirror's drawn blocks.
