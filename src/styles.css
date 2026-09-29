@@ -2980,3 +2980,30 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .flow-speaker { margin: 0; padding: 8px 10px; font-size: 12.5px; font-weight: 700; border-bottom: var(--rule); background: var(--paper); position: sticky; top: 0; }
 .flow-text { flex: 1 1 auto; min-height: 55vh; resize: none; border: 0; outline: none; padding: 8px 10px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; line-height: 1.55; }
 .flow-text:focus { box-shadow: inset 0 0 0 2px var(--c3); }
+
+/* ---------- Flashcards ---------- */
+
+.cal-cards-due { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--c5); color: #16140F; font-family: var(--sans); font-size: 10.5px; font-weight: 700; letter-spacing: 0; text-transform: none; cursor: pointer; vertical-align: middle; }
+.cal-mcell .cal-cards-due { margin: 0 0 3px 4px; }
+.review { display: flex; flex-direction: column; min-height: 100%; }
+.review-decks { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px; border-bottom: var(--hair); }
+.review-deck { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: var(--rule); border-radius: var(--radius); background: var(--white); font-size: 12.5px; }
+.review-deck.is-on { background: var(--c2); font-weight: 700; }
+.review-deck-count { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.review-card { margin: 28px auto; width: min(680px, calc(100% - 40px)); display: flex; flex-direction: column; gap: 18px; padding: 26px 30px; background: var(--white); border: var(--rule); box-shadow: var(--lift, 5px 5px 0 var(--ink)); border-radius: var(--radius); }
+.review-card.is-done { align-items: center; text-align: center; }
+.review-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--ink-3); }
+.review-source { color: var(--link); font-size: 12px; }
+.review-q { margin: 0; font-family: var(--display); font-size: 26px; font-weight: 700; line-height: 1.25; }
+.review-a { margin: 0; padding-top: 16px; border-top: var(--rule); font-size: 20px; line-height: 1.4; }
+.review-show { align-self: center; display: inline-flex; gap: 10px; align-items: center; padding: 10px 22px; background: var(--ink); color: var(--paper); border-radius: var(--radius); font-weight: 700; }
+.review-key { font-family: var(--mono); font-size: 10.5px; opacity: 0.7; }
+.review-grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.review-grade { display: flex; flex-direction: column; gap: 2px; padding: 9px 6px; border: var(--rule); border-radius: var(--radius); background: var(--white); }
+.review-grade-name { font-weight: 700; font-size: 14px; }
+.review-grade-when { font-size: 11px; color: var(--ink-3); }
+.review-grade.is-again:hover { background: #FAD4CF; }
+.review-grade.is-hard:hover { background: #FBE7C2; }
+.review-grade.is-good:hover { background: #D5ECDC; }
+.review-grade.is-easy:hover { background: #CFE3FA; }
+.review-empty { padding: 30px; color: var(--ink-3); }

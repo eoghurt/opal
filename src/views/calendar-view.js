@@ -42,7 +42,7 @@ export class CalendarView {
   // noteDays() → Set of day keys that have a note. openDayNote(key), openLink(target).
   // readRepeats() → text of Calendar/Repeating.md ('' if none). writeRepeats(text).
   // updateTask(task, patch) changes a task's date/time (dragging it in the grid).
-  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, deleteTask, openTasks }) {
+  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, deleteTask, openTasks, openReview }) {
     this.container = container;
     this.date = date || new Date();
     this.mode = mode || 'day';
@@ -52,7 +52,9 @@ export class CalendarView {
       writeRepeats,
       onChange: onChange || (() => {}),
       loadTasks: loadTasks || (async () => []),
+      openReview: openReview || (() => {}),
     };
+    this.cardsDue = 0; // flashcards due today (a badge on today)
     this.series = [];
     this.tasks = [];
     this.days = {};
@@ -132,6 +134,31 @@ export class CalendarView {
     const d = this.date;
     if (this.mode === 'month') this.go(new Date(d.getFullYear(), d.getMonth() + direction, 1));
     else this.go(addDays(d, direction * (this.mode === 'day' ? 1 : 7)));
+  }
+
+  // Flashcards due today, shown on today's header.
+  setCardsDue(count) {
+    if (count === this.cardsDue) return;
+    this.cardsDue = count;
+    this.render();
+  }
+
+  cardsBadge() {
+    if (!this.cardsDue) return null;
+    const badge = h('span', {
+      class: 'cal-cards-due',
+      role: 'button',
+      tabindex: '0',
+      title: 'Review your flashcards',
+    }, `${this.cardsDue} card${this.cardsDue === 1 ? '' : 's'} due`);
+    const open = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.io.openReview();
+    };
+    badge.addEventListener('click', open);
+    badge.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); });
+    return badge;
   }
 
   go(date, mode = this.mode) {
@@ -316,7 +343,8 @@ export class CalendarView {
           title: this.mode === 'week' ? 'Show this day' : 'Open this day’s note',
         },
         h('span', { class: 'mono-label' }, weekday(date, 'short')),
-        h('span', { class: 'display cal-colnum' }, String(date.getDate())));
+        h('span', { class: 'display cal-colnum' }, String(date.getDate())),
+        key === today ? this.cardsBadge() : null);
       }));
 
     const allDayRow = this.renderAllDayRow(keys);
@@ -658,6 +686,7 @@ export class CalendarView {
         'aria-label': `Show ${longDate(date)}`,
         onclick: () => this.go(date, 'day'),
       }, date.getDate() === 1 ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : String(date.getDate())),
+      key === today ? this.cardsBadge() : null,
       items.slice(0, extra > 0 ? MONTH_ITEMS - 1 : MONTH_ITEMS),
       extra > 0 ? h('button', { class: 'cal-mmore', onclick: () => this.go(date, 'day') }, `+${extra + 1} more`) : null);
       cell.addEventListener('click', (event) => {

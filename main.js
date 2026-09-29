@@ -11,6 +11,7 @@ const { stripStickies, parseStickies, writeStickies } = require('./shared/sticki
 const { relinkText, resolve: resolveTarget, joinPath, folderOf } = require('./shared/relink.js');
 const { countWords } = require('./shared/words.js');
 const { readProperties, writeProperty } = require('./shared/properties.js');
+const { stripFrontmatter } = frontmatter;
 
 app.setName('Opal');
 // Lets automated tests use a throwaway settings folder instead of the real one.
@@ -1309,6 +1310,79 @@ async function writeDatabase(relFolder, on, settings) {
   });
 }
 
+// ---------- Flashcards (Obsidian Spaced Repetition plugin format) ----------
+//
+// A line "Question::Answer" is a card ("Question:::Answer" works both ways).
+// Its review schedule is the plugin's hidden comment at the end of the line:
+//   Capital of France::Paris <!--SR:!2026-10-04,3,250-->
+// (next review date, interval in days, ease; a two-way card has two).
+// Each folder is a deck; a note's tags make extra decks.
+
+const CARD = /^(\s*(?:[-*+]\s+|\d+[.)]\s+)?)(.*?\S)\s*(:::|::)\s*(\S.*?)\s*(<!--SR:((?:![0-9-]+,\d+,\d+)+)-->)?\s*$/;
+
+function parseCardLine(line) {
+  if (!line.includes('::')) return null;
+  const m = CARD.exec(line);
+  if (!m) return null;
+  // Not a card: "::" inside inline code, or a web address.
+  if (/`[^`]*::[^`]*`/.test(line) || /\w+:\/\//.test(m[2] + m[3])) return null;
+  const schedule = m[6] ? m[6].split('!').filter(Boolean).map((part) => {
+    const [due, interval, ease] = part.split(',');
+    return { due, interval: Number(interval), ease: Number(ease) };
+  }) : [];
+  return { prefix: m[1], question: m[2].trim(), answer: m[4].trim(), reversed: m[3] === ':::', schedule };
+}
+
+function tagsOf(text) {
+  const tags = new Set();
+  const props = readProperties(text);
+  const list = props.tags || props.tag;
+  for (const t of Array.isArray(list) ? list : String(list || '').split(/[,\s]+/)) if (t) tags.add(String(t).replace(/^#/, ''));
+  for (const m of stripFrontmatter(text).matchAll(/(?:^|\s)#([\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/gu)) tags.add(m[1]);
+  return [...tags].filter((t) => !/^(color|accent)\//.test(t));
+}
+
+// Every card in the vault: [{ path, line, raw, question, answer, reversed, schedule, decks }]
+async function listCards() {
+  if (!vaultPath) return [];
+  const cards = [];
+  for (const notePath of await listNotes('')) {
+    let text;
+    try {
+      text = await noteText(notePath);
+    } catch {
+      continue;
+    }
+    if (!text.includes('::')) continue;
+    const folder = notePath.includes('/') ? notePath.slice(0, notePath.lastIndexOf('/')) : '';
+    const decks = [folder || path.basename(vaultPath), ...tagsOf(text).map((t) => `#${t}`)];
+    for (const { index, text: line } of readableLines(text)) {
+      const card = parseCardLine(line);
+      if (card) cards.push({ path: notePath, line: index + 1, raw: line, ...card, decks });
+    }
+  }
+  return cards;
+}
+
+// Writes a card's new schedule into its hidden comment (finding the line again
+// if the note changed since the card was shown).
+async function reviewCard(notePath, lineNumber, raw, schedule) {
+  if (!Array.isArray(schedule) || !schedule.length || schedule.length > 2) throw new Error('Invalid schedule.');
+  const clean = schedule.map((s) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.due)) throw new Error('Invalid date.');
+    return `!${s.due},${Math.max(0, Math.round(s.interval))},${Math.max(130, Math.round(s.ease))}`;
+  }).join('');
+  const text = await readNote(notePath);
+  const nl = /\r\n/.test(text) ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  let at = lineNumber - 1;
+  if (lines[at] !== raw) at = lines.indexOf(raw);
+  if (at < 0) throw new Error('That card has changed in its note.');
+  lines[at] = lines[at].replace(/\s*<!--SR:[^>]*-->\s*$/, '') + ` <!--SR:${clean}-->`;
+  await writeNote(notePath, lines.join(nl));
+  return lines[at];
+}
+
 // ---------- Manuscripts and saving Word files ----------
 //
 // A folder marked as a manuscript keeps its chapter order and the notes left
@@ -1542,6 +1616,8 @@ function showNotification(payload) {
 }
 
 ipcMain.handle('vault:checkboxes', () => openCheckboxes());
+ipcMain.handle('cards:list', () => listCards());
+ipcMain.handle('cards:review', (_event, notePath, line, raw, schedule) => reviewCard(notePath, line, raw, schedule));
 ipcMain.handle('manuscript:read', (_event, folder) => readManuscript(folder));
 ipcMain.handle('manuscript:write', (_event, folder, settings) => writeManuscript(folder, settings || {}));
 ipcMain.handle('export:save-docx', (_event, name, bytes) => saveDocx(name, bytes));

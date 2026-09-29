@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('opal', {
   notify: (payload) => call('notify:show', payload),
   search: (query) => call('vault:search', query),
   backlinks: (relPath) => call('links:backlinks', relPath),
+  listCards: () => call('cards:list'),
+  reviewCard: (notePath, line, raw, schedule) => call('cards:review', notePath, line, raw, schedule),
   readManuscript: (folder) => call('manuscript:read', folder),
   writeManuscript: (folder, settings) => call('manuscript:write', folder, settings),
   saveDocx: (name, bytes) => call('export:save-docx', name, bytes),

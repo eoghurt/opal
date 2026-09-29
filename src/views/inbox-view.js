@@ -43,12 +43,14 @@ export class InboxView {
 
   async load() {
     const today = todayKey();
-    const [inboxText, tasks, events, checklists] = await Promise.all([
+    const [inboxText, tasks, events, checklists, cardsDue] = await Promise.all([
       this.io.readInbox(),
       this.io.loadTasks(),
       this.io.loadEvents(today),
       this.io.loadChecklists().catch(() => []),
+      this.io.cardsDue ? this.io.cardsDue().catch(() => 0) : 0,
     ]);
+    this.cardsDue = cardsDue;
     this.inboxText = inboxText || '';
     this.captured = parseTasks(this.inboxText, INBOX_LIST);
     this.tasks = tasks;
@@ -150,6 +152,13 @@ export class InboxView {
       ? open.map((item) => this.capturedRow(item))
       : [h('p', { class: 'hand inbox-empty' }, 'nothing jotted down')], 'is-captured'));
     if (overdue.length) sections.push(this.section('Overdue', overdue.length, overdue.map((t) => this.taskRow(t, { overdue: true })), 'is-overdue'));
+    if (this.cardsDue) {
+      sections.push(this.section('Flashcards', this.cardsDue, [h('div', { class: 'inbox-row' },
+        h('div', { class: 'inbox-line' },
+          h('span', { class: 'inbox-dot', style: 'background: var(--c5)', 'aria-hidden': 'true' }),
+          h('button', { class: 'inbox-text inbox-link', onclick: () => this.io.openReview() }, `${this.cardsDue} card${this.cardsDue === 1 ? '' : 's'} due for review`),
+          h('span', { class: 'inbox-tag' }, 'Review')))]));
+    }
     sections.push(this.section('Today', events.length + dueToday.length, [
       ...events.map((e) => this.eventRow(e)),
       ...dueToday.map((t) => this.taskRow(t)),

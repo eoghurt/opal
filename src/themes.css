@@ -975,3 +975,13 @@
 :root:not([data-theme="scrapbook"]) .flow-format,
 :root:not([data-theme="scrapbook"]) .flow-btn { border: 1px solid var(--line); border-radius: 999px; background: var(--paper-2); }
 :root:not([data-theme="scrapbook"]) .flow-btn.is-primary { background: var(--strong); color: var(--on-strong); border-color: transparent; }
+:root:not([data-theme="scrapbook"]) .cal-cards-due { background: var(--accent-soft); color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .review-deck { border: 0; border-radius: 999px; background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .review-deck.is-on { background: var(--strong); color: var(--on-strong); }
+:root:not([data-theme="scrapbook"]) .review-deck.is-on .review-deck-count { color: inherit; opacity: 0.7; }
+:root:not([data-theme="scrapbook"]) .review-card { border: 1px solid var(--line); border-radius: 16px; background: var(--paper-2); box-shadow: var(--lift); }
+:root:not([data-theme="scrapbook"]) .review-a { border-top: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .review-show { background: var(--strong); color: var(--on-strong); border-radius: 999px; }
+:root:not([data-theme="scrapbook"]) .review-grade { border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); }
+:root[data-mode="dark"] .review-grade:hover { color: #16140F; }
+:root[data-mode="dark"] .review-grade:hover .review-grade-when { color: #3B3830; }

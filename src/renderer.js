@@ -60,6 +60,8 @@ import { noteStructure } from './export/note-structure.js';
 import { docxFromChapters, docxFromTable } from './export/docx.js';
 import { FlowEditor, isFlowNote, newFlowText } from './editors/flow-editor.js';
 import { inlineRuns } from './export/note-structure.js';
+import { ReviewView } from './views/review-view.js';
+import { countDue } from './flashcards/schedule.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -97,6 +99,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onPalettes: () => showPalettes(),
   onBack: () => goHistory(-1),
   onForward: () => goHistory(1),
+  onReview: () => showReview(),
   onOpenFile: (p) => openFile(p),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
@@ -139,10 +142,13 @@ let logbook = null;
 let logbookState = { kind: 'month', date: new Date() };
 
 let tasksView = null;
+let reviewView = null;
 let inboxView = null;
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
+  if (reviewView) reviewView.destroy();
+  reviewView = null;
   tasksView = null;
   inboxView = null;
   if (calendar) calendar.destroy();
@@ -175,6 +181,7 @@ async function reloadTree() {
   sidebar.setTree(tree);
   chrome.setRecent(recentFiles(tree, 6));
   reminders.refresh();
+  updateCardsDue();
   updateInboxCount();
 }
 
@@ -341,7 +348,7 @@ function currentPlace() {
   if (!screen) return null;
   if (screen.kind === 'home') return { kind: 'home', folderPath: screen.folderPath };
   if (screen.kind === 'note') return { kind: 'note', filePath: screen.filePath };
-  if (['calendar', 'tasks', 'logbook', 'palettes', 'inbox'].includes(screen.kind)) return { kind: screen.kind };
+  if (['calendar', 'tasks', 'logbook', 'palettes', 'inbox', 'review'].includes(screen.kind)) return { kind: screen.kind };
   return null;
 }
 
@@ -368,6 +375,7 @@ function goToPlace(place) {
   if (place.kind === 'logbook') return showLogbook();
   if (place.kind === 'palettes') return showPalettes();
   if (place.kind === 'inbox') return showInbox();
+  if (place.kind === 'review') return showReview();
   return Promise.resolve();
 }
 
@@ -736,6 +744,7 @@ function showCalendar(date) {
     calendar = new CalendarView(viewEl, {
       date: calendarState.date,
       mode: calendarState.mode,
+      openReview: () => showReview(),
       readDay: async (key) => {
         try {
           return await window.opal.readFile(dayPath(key));
@@ -802,6 +811,7 @@ function showCalendar(date) {
       openTasks: () => showTasks(),
       onChange: (state) => { calendarState = state; },
     });
+    calendar.setCardsDue(cardsDueCount);
   });
 }
 
@@ -942,6 +952,8 @@ function showInbox() {
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Inbox' }]);
     viewEl.scrollTop = 0;
     inboxView = new InboxView(viewEl, {
+      cardsDue: async () => countDue(await window.opal.listCards()),
+      openReview: () => showReview(),
       readInbox: () => readNoteOrNull(INBOX_PATH),
       writeInbox,
       loadTasks: loadAllTasks,
@@ -986,6 +998,46 @@ function showInbox() {
 }
 
 // ---------- Logbook ----------
+
+// ---------- Flashcards ----------
+
+function showReview() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'review' };
+    setTitle('Review');
+    sidebar.setActive(null, null);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Review' }]);
+    viewEl.scrollTop = 0;
+    reviewView = new ReviewView(viewEl, {
+      io: {
+        listCards: () => window.opal.listCards(),
+        reviewCard: (path, line, raw, schedule) => window.opal.reviewCard(path, line, raw, schedule),
+        openFile: (path) => openFile(path),
+        onReviewed: () => updateCardsDue(),
+      },
+    });
+  });
+}
+
+// How many cards are due today: on Review, the calendar's today and the Inbox.
+let cardsDueTimer = null;
+let cardsDueCount = 0;
+function updateCardsDue() {
+  clearTimeout(cardsDueTimer);
+  cardsDueTimer = setTimeout(async () => {
+    if (!vault) return;
+    try {
+      cardsDueCount = countDue(await window.opal.listCards());
+    } catch {
+      return;
+    }
+    chrome.setCardsDue(cardsDueCount);
+    if (calendar) calendar.setCardsDue(cardsDueCount);
+  }, 400);
+}
 
 function showLogbook() {
   if (!vault) return Promise.resolve();

@@ -29,7 +29,7 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onPalettes, onBack, onForward, onOpenFile, onCalendar, onLogbook, onTasks, onSearch, onInbox }) {
+  constructor(topbar, footer, { onHome, onPalettes, onBack, onForward, onOpenFile, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onTimer }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
@@ -41,6 +41,10 @@ export class Chrome {
     this.onOpenFile = onOpenFile;
     this.onCalendar = onCalendar;
     this.onLogbook = onLogbook;
+    this.onReview = onReview;
+    this.onTimer = onTimer;
+    this.cardsDue = 0;
+    this.timerSlot = null; // the prep timer's own element (see timer.js)
     this.onTasks = onTasks;
     this.onSearch = onSearch;
     this.onInbox = onInbox;
@@ -56,6 +60,13 @@ export class Chrome {
   // crumbs: [{ label, onClick }] — the last one is where you are.
   setCrumbs(crumbs) {
     this.crumbs = crumbs;
+    this.renderTop();
+  }
+
+  // Flashcards due (the badge on Review).
+  setCardsDue(count) {
+    if (count === this.cardsDue) return;
+    this.cardsDue = count;
     this.renderTop();
   }
 
@@ -135,6 +146,14 @@ export class Chrome {
       h('button', { class: 'bar-cell bar-link', 'data-section': 'calendar', onclick: () => this.onCalendar() }, 'Calendar'),
       h('button', { class: 'bar-cell bar-link', 'data-section': 'tasks', onclick: () => this.onTasks() }, 'Tasks'),
       h('button', { class: 'bar-cell bar-link', 'data-section': 'logbook', onclick: () => this.onLogbook() }, 'Logbook'),
+      !this.onReview ? null : h('button', {
+        class: 'bar-cell bar-link bar-review',
+        'data-section': 'review',
+        onclick: () => this.onReview(),
+        title: 'Review flashcards',
+        'aria-label': this.cardsDue ? `Review, ${this.cardsDue} cards due` : 'Review',
+      }, 'Review', this.cardsDue ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, this.cardsDue > 999 ? '999+' : String(this.cardsDue)) : null),
+      this.timerSlot,
       h('button', { class: 'bar-cell bar-date', onclick: () => this.onCalendar(new Date()), title: 'Today in the calendar' }, todayStamp()),
       paletteCell,
     ].filter(Boolean));
