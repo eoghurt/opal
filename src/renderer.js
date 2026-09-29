@@ -110,7 +110,9 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onTasks: () => showTasks(),
 });
 
-const tabBar = new TabBar(document.getElementById('tabbar'), {
+// The tabs sit in the top bar (Chrome places this element).
+const tabStrip = h('div', { id: 'tabbar' });
+const tabBar = new TabBar(tabStrip, {
   onActivate: (id) => activateTab(id),
   onClose: (id) => closeTab(id),
   onNew: () => newTab(),
@@ -127,7 +129,14 @@ const prepTimer = new PrepTimer({
   openSettings: () => showSettings('timer'),
 });
 chrome.timerSlot = prepTimer.el;
+chrome.tabSlot = tabStrip;
 chrome.renderTop();
+
+// The logo's cell is as wide as the sidebar, so back / forward and the tabs
+// start exactly where the sidebar ends (also when it's resized or closed).
+new ResizeObserver(() => {
+  document.documentElement.style.setProperty('--sidebar-w', `${document.getElementById('sidebar').offsetWidth}px`);
+}).observe(document.getElementById('sidebar'));
 
 // ---------- Everything happens one step at a time ----------
 

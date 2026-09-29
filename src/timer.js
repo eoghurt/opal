@@ -39,7 +39,7 @@ export class PrepTimer {
     // phase, ready to start — no countdown running.
     this.running = null;
     this.listeners = new Set();
-    this.el = h('div', { class: 'bar-cell bar-timer' });
+    this.el = h('div', { class: 'bar-timer' });
     try {
       const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
       if (saved && (saved.end || saved.waiting)) this.running = { mode: 'prep', ...saved };
@@ -221,33 +221,33 @@ export class PrepTimer {
     this.el.classList.toggle('is-break', Boolean(run && run.mode === 'pomodoro' && (run.waiting || run.phase) !== 'focus'));
     if (run && run.waiting) {
       this.el.replaceChildren(h('button', {
-        class: 'bar-link timer-running timer-waiting',
+        class: 'bar-icon bar-link timer-running timer-waiting',
         title: `Start the ${PHASE_NAMES[run.waiting].toLowerCase()}`,
         onclick: (e) => this.openMenu(e.currentTarget),
-      }, icon('tomato', 15), h('span', { class: 'timer-phase' }, `${PHASE_NAMES[run.waiting]} next`)));
+      }, icon('tomato', 17), h('span', { class: 'timer-phase' }, `${PHASE_NAMES[run.waiting]} next`)));
     } else if (run && run.mode === 'pomodoro') {
       const text = this.countdownText();
       this.el.replaceChildren(h('button', {
-        class: 'bar-link timer-running timer-pomodoro',
+        class: 'bar-icon bar-link timer-running timer-pomodoro',
         title: 'Pomodoro — click for options',
         'aria-label': `Pomodoro, ${PHASE_NAMES[run.phase]}, ${text} left. Click for options.`,
         onclick: (e) => this.openMenu(e.currentTarget),
-      }, icon('tomato', 15), h('span', { class: 'timer-phase' }, run.phase === 'focus' ? `Focus ${run.round}/${this.pomodoro.rounds}` : 'Break'), h('span', { class: 'timer-clock' }, text)));
+      }, icon('tomato', 17), h('span', { class: 'timer-phase' }, run.phase === 'focus' ? `Focus ${run.round}/${this.pomodoro.rounds}` : 'Break'), h('span', { class: 'timer-clock' }, text)));
     } else if (run) {
       const text = this.countdownText();
       this.el.replaceChildren(h('button', {
-        class: 'bar-link timer-running',
+        class: 'bar-icon bar-link timer-running',
         title: 'Prep timer — click to stop',
         'aria-label': `Prep timer, ${text} left. Click to stop.`,
         onclick: (e) => this.openMenu(e.currentTarget),
       }, h('span', { class: 'timer-dot', 'aria-hidden': 'true' }), text));
     } else {
       this.el.replaceChildren(h('button', {
-        class: 'bar-link timer-idle',
+        class: 'bar-icon bar-link timer-idle',
         'data-section': 'timer',
         title: 'Start a prep timer or a Pomodoro',
         onclick: (e) => this.openMenu(e.currentTarget),
-      }, icon('timer', 15), h('span', { class: 'bar-label' }, 'Timer')));
+      }, icon('timer', 17), h('span', { class: 'bar-label sr-only' }, 'Timer')));
     }
     for (const listener of this.listeners) listener(this.state());
   }

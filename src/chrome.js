@@ -1,9 +1,10 @@
-// The window's frame: the top bar (logo, back/forward, breadcrumb, the
-// sections with their icons, the timer, the date and Settings) and the bottom
-// bar (word count and save status).
+// The window's frame. The top bar is one row: the logo (as wide as the
+// sidebar below it), back / forward, the tabs, then the sections as icons, the
+// timer (which widens while it runs) and Settings. The bottom bar has the word
+// count and save status. Where you are (the breadcrumb) is kept for screen
+// readers only — the tab says it.
 
 import { h, icon } from './ui.js';
-import { todayStamp } from './format.js';
 
 const STATUS_TEXT = {
   Saved: 'All saved',
@@ -44,6 +45,7 @@ export class Chrome {
     this.onReview = onReview;
     this.cardsDue = 0;
     this.timerSlot = null; // the prep timer's own element (see timer.js)
+    this.tabSlot = null; // the tab strip (see tabs.js)
     this.onTasks = onTasks;
     this.onSearch = onSearch;
     this.onInbox = onInbox;
@@ -109,44 +111,46 @@ export class Chrome {
         : h('button', { class: 'crumb', onclick: crumb.onClick }, crumb.label));
     });
 
-    // A section link: its icon, then its name (the name hides when the window is narrow).
+    // A section: an icon button (its name is in the tooltip, and read out).
     const link = (section, iconName, label, onclick, extra = {}) => h('button', {
-      class: `bar-cell bar-link${extra.class ? ` ${extra.class}` : ''}`,
+      class: `bar-icon bar-link${extra.class ? ` ${extra.class}` : ''}`,
       'data-section': section,
       onclick,
       title: extra.title || label,
       'aria-label': extra.ariaLabel || label,
-    }, icon(iconName, 15), h('span', { class: 'bar-label' }, label), extra.badge || null);
+    }, icon(iconName, 17), h('span', { class: 'bar-label sr-only' }, label), extra.badge || null);
     const badge = (n, max) => (n ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, n > max ? `${max}+` : String(n)) : null);
 
+    crumbs.classList.add('sr-only');
     this.topbar.replaceChildren(...[
-      h('button', { class: 'bar-cell wordmark', onclick: this.onHome, title: 'Vault home' },
+      h('button', { class: 'bar-cell wordmark', onclick: this.onHome, title: 'Vault home (⌘⇧H)' },
         opalMark(),
         h('span', { class: 'wordmark-text' }, 'opal')),
-      h('div', { class: 'bar-cell bar-history' },
+      h('div', { class: 'bar-history' },
         h('button', { class: 'bar-arrow', 'aria-label': 'Back', title: 'Back (⌘[)', disabled: !this.canBack || null, onclick: () => this.onBack() }, '‹'),
         h('button', { class: 'bar-arrow', 'aria-label': 'Forward', title: 'Forward (⌘])', disabled: !this.canForward || null, onclick: () => this.onForward() }, '›')),
       crumbs,
-      link('home', 'home', 'Home', () => this.onHome(), { title: 'Vault home (⌘⇧H)' }),
-      link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
-      !this.onInbox ? null : link('inbox', 'tasks', 'Inbox', () => this.onInbox(), {
-        class: 'bar-inbox',
-        title: 'Inbox (⌘⇧I)',
-        ariaLabel: this.inboxCount ? `Inbox, ${this.inboxCount} waiting` : 'Inbox',
-        badge: badge(this.inboxCount, 99),
-      }),
-      link('calendar', 'calendar', 'Calendar', () => this.onCalendar(), { title: 'Calendar (⌘⇧D)' }),
-      link('tasks', 'tasks', 'Tasks', () => this.onTasks(), { title: 'Tasks (⌘⇧T)' }),
-      !this.onLogbook ? null : link('logbook', 'activity', 'Logbook', () => this.onLogbook()),
-      !this.onReview ? null : link('review', 'review', 'Review', () => this.onReview(), {
-        class: 'bar-review',
-        title: 'Review flashcards',
-        ariaLabel: this.cardsDue ? `Review, ${this.cardsDue} cards due` : 'Review',
-        badge: badge(this.cardsDue, 999),
-      }),
-      this.timerSlot,
-      h('button', { class: 'bar-cell bar-date', onclick: () => this.onCalendar(new Date()), title: 'Today in the calendar' }, todayStamp()),
-      h('button', { class: 'bar-cell bar-link bar-settings', 'data-section': 'settings', onclick: () => this.onSettings(), title: 'Settings (⌘,)', 'aria-label': 'Settings' }, icon('settings', 16)),
+      this.tabSlot,
+      h('div', { class: 'bar-tools' }, ...[
+        link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
+        !this.onInbox ? null : link('inbox', 'tasks', 'Inbox', () => this.onInbox(), {
+          class: 'bar-inbox',
+          title: 'Inbox (⌘⇧I)',
+          ariaLabel: this.inboxCount ? `Inbox, ${this.inboxCount} waiting` : 'Inbox',
+          badge: badge(this.inboxCount, 99),
+        }),
+        link('calendar', 'calendar', 'Calendar', () => this.onCalendar(), { title: 'Calendar (⌘⇧D)' }),
+        link('tasks', 'tasks', 'Tasks', () => this.onTasks(), { title: 'Tasks (⌘⇧T)' }),
+        !this.onLogbook ? null : link('logbook', 'activity', 'Logbook', () => this.onLogbook()),
+        !this.onReview ? null : link('review', 'review', 'Review', () => this.onReview(), {
+          class: 'bar-review',
+          title: this.cardsDue ? `Review flashcards — ${this.cardsDue} due` : 'Review flashcards',
+          ariaLabel: this.cardsDue ? `Review, ${this.cardsDue} cards due` : 'Review',
+          badge: badge(this.cardsDue, 999),
+        }),
+        this.timerSlot,
+        link('settings', 'settings', 'Settings', () => this.onSettings(), { class: 'bar-settings', title: 'Settings (⌘,)' }),
+      ].filter(Boolean)),
     ].filter(Boolean));
   }
 

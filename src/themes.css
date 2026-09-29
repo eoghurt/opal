@@ -1024,14 +1024,20 @@
 :root:not([data-theme="scrapbook"]) .flow-notes { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
 :root:not([data-theme="scrapbook"]) .flow-notes:focus { box-shadow: 0 0 0 2px var(--accent); }
 
-/* ---------- Tabs ---------- */
+/* ---------- Top bar tabs and icons ---------- */
 
-:root:not([data-theme="scrapbook"]) .tabbar { border-bottom: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) #topbar { --bar-rule-w: 1px; }
+:root:not([data-theme="scrapbook"]) #tabbar { --tab-page: var(--ground); }
+:root:not([data-theme="scrapbook"]) #topbar .bar-icon { padding: 0; color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) #topbar .bar-icon:hover { color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .tab { color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .tab:hover:not(.is-active) .tab-inner { background: var(--fill); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .tab.is-active { color: var(--ink); box-shadow: 0 0 0 1px var(--line); clip-path: inset(-2px -2px 0 -2px); }
+:root:not([data-theme="scrapbook"]) .tab::before { background: var(--line); }
+:root:not([data-theme="scrapbook"]) .tab-new { color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .tab-new:hover { background: var(--fill); color: var(--ink); }
 :root:not([data-theme="scrapbook"]) .tab:focus-visible .tab-inner { box-shadow: 0 0 0 2px var(--accent); }
 :root:not([data-theme="scrapbook"]) .tab.drop-before .tab-inner { box-shadow: -3px 0 0 var(--accent); }
 :root:not([data-theme="scrapbook"]) .tab.drop-after .tab-inner { box-shadow: 3px 0 0 var(--accent); }
-/* Scrapbook: the page's paper colour, an ink rule under the strip. */
-:root[data-theme="scrapbook"] .tabbar { --tab-page: var(--paper); --tab-strip: var(--paper-3); border-bottom: var(--rule); }
-:root[data-theme="scrapbook"] .tab.is-active { margin-bottom: -1.5px; height: 35.5px; }
-/* Minimal and GitHub: a quieter strip, closer to Obsidian's. */
-:root:not([data-theme="scrapbook"]) .tabbar { --tab-strip: color-mix(in srgb, var(--ground) 95%, var(--ink)); }
+:root[data-theme="github"] #topbar .bar-search { border: 0; border-radius: 0; height: auto; align-self: stretch; margin: 0; padding: 0; color: var(--ink-3); }
+:root[data-theme="github"] #topbar .bar-icon::after { left: 9px; right: 9px; }

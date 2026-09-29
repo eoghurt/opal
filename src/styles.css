@@ -3025,16 +3025,6 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .timer-stop { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; border: var(--rule); border-radius: var(--radius); background: var(--paper); font-weight: 700; }
 .timer-note { font-size: 11.5px; font-weight: 400; color: var(--ink-3); }
 
-/* ---------- Top bar icons ---------- */
-
-.bar-link { gap: 7px; }
-.bar-link .icon { flex-shrink: 0; opacity: 0.9; }
-.bar-settings { border-right: 0; padding: 0 16px; }
-@media (max-width: 1320px) {
-  #topbar .bar-link .bar-label { display: none; }
-  #topbar .bar-link { padding: 0 12px; }
-}
-
 /* ---------- Settings ---------- */
 
 .settings { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: 100%; }
@@ -3095,50 +3085,49 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .flow-notes { width: 100%; resize: vertical; border: var(--rule); border-radius: var(--radius); background: var(--white); color: var(--ink); font: inherit; font-size: 13.5px; line-height: 1.5; padding: 8px 12px; margin: 12px 0 4px; outline: none; }
 .flow-notes:focus { box-shadow: 0 0 0 2px var(--c2); }
 
-/* ---------- Tabs (drawn like Obsidian's) ---------- */
+/* ---------- Top bar: logo, arrows, tabs, icons (one row) ---------- */
 
-#workspace { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
-#workspace > #view { min-height: 0; }
-.tabbar {
-  --tab-page: var(--ground);
-  --tab-strip: color-mix(in srgb, var(--ground) 90%, var(--ink));
-  --tab-sep: rgb(var(--ink-rgb) / 0.16);
-  flex-shrink: 0;
-  height: 40px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: flex-end;
-  padding: 0 6px 0 8px;
-  background: var(--tab-strip);
-  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.12);
-  font-family: var(--sans);
-}
-.tabbar:empty { display: none; }
-.tab-list { display: flex; align-items: flex-end; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 0 8px; }
-.tab-list::-webkit-scrollbar { display: none; }
-.tab { position: relative; flex: 0 1 200px; min-width: 64px; max-width: 200px; height: 34px; display: flex; color: var(--ink-3); cursor: default; user-select: none; outline: none; }
-.tab-inner { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; margin: 2px 3px 6px; padding: 0 4px 0 9px; border-radius: 6px; font-size: 13px; line-height: 1; }
-.tab-inner > .icon { flex-shrink: 0; opacity: 0.8; }
-.tab:hover:not(.is-active) .tab-inner { background: rgb(var(--ink-rgb) / 0.07); color: var(--ink); }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+#topbar { --bar-rule-w: 1.5px; align-items: stretch; }
+#topbar .wordmark { width: var(--sidebar-w, 240px); min-width: max-content; box-sizing: border-box; flex-shrink: 0; }
+.bar-history { display: flex; align-items: center; gap: 2px; padding: 0 6px; flex-shrink: 0; }
+.bar-tools { display: flex; align-items: stretch; flex-shrink: 0; margin-left: auto; padding: 0 6px 0 4px; }
+.bar-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; padding: 0; border: 0; color: inherit; }
+.bar-icon .icon { opacity: 0.85; }
+.bar-icon:hover .icon { opacity: 1; }
+.bar-icon .bar-badge { position: absolute; top: 5px; right: 1px; height: 15px; min-width: 15px; padding: 0 4px; font-size: 9px; border-radius: 8px; }
+/* The timer: an icon while idle; running, it widens to show the time and pushes the icons along. */
+.bar-timer { display: flex; align-items: stretch; padding: 0; border: 0; }
+.bar-timer .timer-running { width: auto; gap: 7px; padding: 0 12px 0 10px; white-space: nowrap; }
+
+/* Tabs, drawn like Obsidian's: rounded tabs, the active one joined to the page below. */
+#tabbar { --tab-page: var(--paper); flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-end; font-family: var(--sans); font-size: 13px; letter-spacing: 0; text-transform: none; }
+.tab-list { display: flex; align-items: flex-end; min-width: 0; flex: 0 1 auto; overflow: hidden; height: calc(100% + var(--bar-rule-w)); margin-bottom: calc(-1 * var(--bar-rule-w)); padding: 0 8px; }
+.tab { position: relative; flex: 0 1 200px; width: 200px; min-width: 38px; max-width: 200px; height: 31px; display: flex; color: rgb(var(--paper-rgb) / 0.62); cursor: default; user-select: none; outline: none; container-type: inline-size; margin-bottom: var(--bar-rule-w); }
+.tab-inner { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; margin: 2px 3px 5px; padding: 0 4px 0 9px; border-radius: 6px; line-height: 1; }
+.tab-inner > .icon { flex-shrink: 0; opacity: 0.85; }
+.tab:hover:not(.is-active) .tab-inner { background: rgb(var(--paper-rgb) / 0.12); color: var(--paper); }
 .tab-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 2px 0; }
-/* Thin lines between tabs, hidden next to the active or hovered tab. */
-.tab::before { content: ''; position: absolute; left: 0; top: 9px; height: 16px; width: 1px; background: var(--tab-sep); }
+/* Squeezed tabs: just the icon (the name is in the tooltip). */
+@container (max-width: 84px) {
+  .tab-title, .tab-close { display: none; }
+  .tab-inner { justify-content: center; padding: 0; }
+}
+.tab::before { content: ''; position: absolute; left: 0; top: 9px; height: 14px; width: 1px; background: rgb(var(--paper-rgb) / 0.2); }
 .tab:first-child::before, .tab.is-active::before, .tab.is-active + .tab::before, .tab:hover::before, .tab:hover + .tab::before { display: none; }
-/* The active tab is the page's colour and runs into it, with curved feet. */
-.tab.is-active { background: var(--tab-page); color: var(--ink); border-radius: 8px 8px 0 0; height: 35px; margin-bottom: -1px; z-index: 1; }
-.tab.is-active .tab-inner { margin-bottom: 7px; }
+.tab.is-active { background: var(--tab-page); color: var(--ink); border-radius: 8px 8px 0 0; height: calc(31px + var(--bar-rule-w)); margin-bottom: 0; z-index: 1; }
+.tab.is-active .tab-inner { margin-bottom: calc(5px + var(--bar-rule-w)); }
 .tab.is-active::after, .tab.is-active .tab-inner::after { content: ''; position: absolute; bottom: 0; width: 8px; height: 8px; pointer-events: none; }
 .tab.is-active::after { left: -8px; background: radial-gradient(circle at 0 0, transparent 8px, var(--tab-page) 8.5px); }
 .tab.is-active .tab-inner::after { right: -8px; background: radial-gradient(circle at 100% 0, transparent 8px, var(--tab-page) 8.5px); }
 .tab:focus-visible .tab-inner { box-shadow: 0 0 0 2px var(--c3); }
-.tab-close, .tab-pin { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--ink-3); }
+.tab-close, .tab-pin { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; color: inherit; opacity: 0.75; }
 .tab-close { opacity: 0; }
-.tab:hover .tab-close, .tab.is-active .tab-close, .tab-close:focus-visible { opacity: 1; }
-.tab-close:hover, .tab-pin:hover { background: rgb(var(--ink-rgb) / 0.1); color: var(--ink); }
-.tab.is-pinned { flex: 0 1 170px; }
+.tab:hover .tab-close, .tab.is-active .tab-close, .tab-close:focus-visible { opacity: 0.75; }
+.tab-close:hover, .tab-pin:hover { background: rgb(var(--ink-rgb) / 0.1); opacity: 1; }
 .tab.is-dragging { opacity: 0.45; }
 .tab.drop-before .tab-inner { box-shadow: -3px 0 0 var(--c3); }
 .tab.drop-after .tab-inner { box-shadow: 3px 0 0 var(--c3); }
-.tab-new { flex-shrink: 0; width: 28px; height: 28px; margin: 0 2px 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--ink-3); }
-.tab-new:hover { background: rgb(var(--ink-rgb) / 0.08); color: var(--ink); }
+.tab-new { flex-shrink: 0; align-self: center; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: rgb(var(--paper-rgb) / 0.7); }
+.tab-new:hover { background: rgb(var(--paper-rgb) / 0.12); color: var(--paper); }
 .tab-fill { flex-grow: 1; }
