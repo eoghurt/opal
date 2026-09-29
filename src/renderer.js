@@ -54,6 +54,7 @@ import { openSearch } from './search.js';
 import { InboxView, INBOX_PATH } from './views/inbox-view.js';
 import { openCreateItem } from './create-popover.js';
 import { openHistory } from './history-view.js';
+import { DatabaseView, PRESETS } from './views/database-view.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -445,6 +446,20 @@ function showHome(folderPath, notice) {
     describeNow: describeAfterOpen === '*',
     loadDescription: async () => getDescription(await window.opal.readFolderSettings(folderPath)),
     loadWords: () => window.opal.folderWords(folderPath),
+    loadDatabase: () => window.opal.readDatabase(folderPath),
+    mountDatabase: (slot, settings) => new DatabaseView(slot, {
+      folderName: folderLabel(folderPath),
+      settings,
+      io: {
+        rows: () => window.opal.databaseRows(folderPath),
+        setCell: (path, key, value, type) => window.opal.setDatabaseCell(path, key, value, type),
+        save: (next) => window.opal.writeDatabase(folderPath, true, next).catch((err) => alert(`Couldn't save the database settings.\n\n${err.message}`)),
+        addRow: (name) => window.opal.createNote(name, folderPath, 'default'),
+        openFile: (path) => openFile(path),
+        openLink: (target) => openLink(target),
+        turnOff: () => showAsDatabase(folderPath, null),
+      },
+    }),
     loadWordTarget: async () => parseInt(String(getProp(await window.opal.readFolderSettings(folderPath), 'word-target') || ''), 10) || null,
   });
   describeAfterOpen = null;
@@ -994,6 +1009,7 @@ function colorMenu(event, node, kind) {
       'separator',
       { label: node.path === CALENDAR_FOLDER ? 'Daily note template…' : 'Default template…', onSelect: () => chooseDefaultTemplate(node.path, at) },
       { label: 'Word target…', hint: node.wordTarget ? node.wordTarget.toLocaleString() : '', onSelect: () => setFolderTarget(node) },
+      { label: 'Show as database…', onSelect: () => chooseDatabase(node.path, at) },
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
@@ -1019,6 +1035,31 @@ function colorMenu(event, node, kind) {
         setItemColor(node.path, kind, color);
       })),
   });
+}
+
+// Shows a folder as a database (starting from a preset), or back as a page.
+async function chooseDatabase(folderPath, at) {
+  const db = await window.opal.readDatabase(folderPath);
+  showMenu({ clientX: at.clientX, clientY: at.clientY, preventDefault() {}, stopPropagation() {} }, {
+    title: 'Show as a database',
+    items: [
+      db.on ? { label: 'Show as a folder page again', onSelect: () => showAsDatabase(folderPath, null) } : null,
+      db.settings && !db.on ? { label: 'The database it had before', onSelect: () => showAsDatabase(folderPath, db.settings) } : null,
+      db.on || db.settings ? 'separator' : null,
+      { label: 'Blank database', hint: 'columns from your notes', onSelect: () => showAsDatabase(folderPath, PRESETS.blank) },
+      { label: 'Assignment tracker', hint: 'subject · due · status · mark', onSelect: () => showAsDatabase(folderPath, PRESETS.assignments) },
+      { label: 'Reading list', hint: 'author · status · rating', onSelect: () => showAsDatabase(folderPath, PRESETS.reading) },
+    ],
+  });
+}
+
+async function showAsDatabase(folderPath, settings) {
+  try {
+    await window.opal.writeDatabase(folderPath, Boolean(settings), settings || undefined);
+    await openFolder(folderPath);
+  } catch (err) {
+    alert(`Couldn't change how the folder is shown.\n\n${err.message}`);
+  }
 }
 
 async function setFolderTarget(node) {
@@ -1357,7 +1398,7 @@ function refreshFiles() {
     } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
       // Typing the folder's name or description: redraw once that's finished.
-      const typing = viewEl.querySelector('.home-h1-text:focus, .home .editable-line:focus');
+      const typing = viewEl.querySelector('.home-h1-text:focus, .home .editable-line:focus, .db input:focus, .db select:focus');
       if (typing) {
         typing.addEventListener('blur', () => setTimeout(refreshFiles, 0), { once: true });
         return;

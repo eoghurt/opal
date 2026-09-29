@@ -14,7 +14,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -108,6 +108,19 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
     sections.push(h('section', { class: 'home-empty' },
       h('p', { class: 'hand home-empty-text' }, subfolders.length ? 'no loose notes in here' : 'nothing here yet — start a note!'),
       scribbleArrow({ width: 120, height: 80, d: 'M10 70 C 40 60, 80 40, 104 10', head: 'M92 12 L105 9 L104 23' })));
+  }
+
+  // Shown as a database? Then the database takes the place of the note cards.
+  const dbSlot = h('div', { class: 'home-db' });
+  dbSlot.hidden = true;
+  sections.push(dbSlot);
+  if (loadDatabase) {
+    loadDatabase().then((db) => {
+      if (!db || !db.on || !dbSlot.isConnected) return;
+      for (const section of home.querySelectorAll('.home-cards, .home-empty')) section.style.display = 'none';
+      dbSlot.hidden = false;
+      mountDatabase(dbSlot, db.settings);
+    }).catch(() => {});
   }
 
   const scrollTop = container.scrollTop;

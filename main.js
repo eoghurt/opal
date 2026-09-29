@@ -10,6 +10,7 @@ const frontmatter = require('./shared/frontmatter.js');
 const { stripStickies, parseStickies, writeStickies } = require('./shared/stickies.js');
 const { relinkText, resolve: resolveTarget, joinPath, folderOf } = require('./shared/relink.js');
 const { countWords } = require('./shared/words.js');
+const { readProperties, writeProperty } = require('./shared/properties.js');
 
 app.setName('Opal');
 // Lets automated tests use a throwaway settings folder instead of the real one.
@@ -1250,6 +1251,64 @@ async function setFolderWordTarget(relFolder, target) {
   await changeFolderSettings(relFolder || '', (text) => frontmatter.setProp(text, 'word-target', n ? String(n) : null));
 }
 
+// ---------- Folder databases ----------
+//
+// A folder shown as a database: each note in it is a row, each property a
+// column. The settings (columns, views, sort, filter, group) are JSON in the
+// folder's .opal.md as `opal-database`, with `opal-view: database`.
+
+const DB_TYPES = ['text', 'number', 'date', 'checkbox', 'select', 'link'];
+
+async function databaseRows(relFolder) {
+  const folderFull = resolveFolderPath(relFolder || '');
+  const folderName = relFolder ? path.posix.basename(relFolder) : path.basename(vaultPath);
+  const rows = [];
+  for (const entry of await fs.promises.readdir(folderFull, { withFileTypes: true })) {
+    if (!entry.isFile() || isHidden(entry.name) || !isNoteFile(entry.name)) continue;
+    if (entry.name.toLowerCase() === `${folderName.toLowerCase()}.md`) continue; // the folder's own note
+    const relPath = joinRel(relFolder || '', entry.name);
+    try {
+      const stat = await fs.promises.stat(path.join(folderFull, entry.name));
+      const props = readProperties(await noteText(relPath));
+      for (const key of Object.keys(props)) if (key.startsWith('opal-')) delete props[key];
+      rows.push({ path: relPath, name: entry.name.replace(/\.md$/i, ''), props, created: stat.birthtimeMs, modified: stat.mtimeMs });
+    } catch {
+      // Unreadable: leave it out this time.
+    }
+  }
+  return rows;
+}
+
+async function setDatabaseCell(relPath, key, value, type) {
+  if (typeof key !== 'string' || !/^[^:\n#][^:\n]*$/.test(key) || key.startsWith('opal-')) throw new Error('That column name can’t be a property.');
+  if (!DB_TYPES.includes(type)) throw new Error('Unknown column type.');
+  const text = await readNote(relPath);
+  const next = writeProperty(text, key.trim(), value, type);
+  if (next !== text) await writeNote(relPath, next); // the database redraws itself
+  return true;
+}
+
+async function readDatabase(relFolder) {
+  const text = await readFolderSettings(relFolder || '');
+  let settings = null;
+  try {
+    settings = JSON.parse(frontmatter.getProp(text, 'opal-database') || 'null');
+  } catch {
+    settings = null;
+  }
+  return { on: frontmatter.getProp(text, 'opal-view') === 'database', settings };
+}
+
+async function writeDatabase(relFolder, on, settings) {
+  const json = settings ? JSON.stringify(settings) : null;
+  if (json && json.length > 200000) throw new Error('Those settings are too big.');
+  await changeFolderSettings(relFolder || '', (text) => {
+    let next = frontmatter.setProp(text, 'opal-view', on ? 'database' : null);
+    if (settings !== undefined) next = frontmatter.setProp(next, 'opal-database', json);
+    return next;
+  });
+}
+
 // ---------- Pasted and dropped pictures ----------
 
 const ATTACHMENTS = 'Attachments';
@@ -1420,6 +1479,10 @@ function showNotification(payload) {
 }
 
 ipcMain.handle('vault:checkboxes', () => openCheckboxes());
+ipcMain.handle('db:rows', (_event, folder) => databaseRows(folder));
+ipcMain.handle('db:set-cell', (_event, relPath, key, value, type) => setDatabaseCell(relPath, key, value, type));
+ipcMain.handle('db:read', (_event, folder) => readDatabase(folder));
+ipcMain.handle('db:write', (_event, folder, on, settings) => writeDatabase(folder, on, settings));
 ipcMain.handle('logbook:read', () => readLogbook());
 ipcMain.handle('logbook:add-words', (_event, day, count) => addWords(day, count));
 ipcMain.handle('logbook:add-session', (_event, session) => addSession(session));
