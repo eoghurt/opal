@@ -51,6 +51,7 @@ import { Reminders } from './reminders.js';
 import { openSearch } from './search.js';
 import { InboxView, INBOX_PATH } from './views/inbox-view.js';
 import { openCreateItem } from './create-popover.js';
+import { openHistory } from './history-view.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -111,6 +112,10 @@ function enqueue(task) {
 async function closeCurrent() {
   if (!current) return;
   await current.editor.flush();
+  // Leaving an edited note: one more snapshot for its history.
+  if (current.edited && current.editor.getText) {
+    await window.opal.saveSnapshot(current.filePath, current.editor.getText(), 'leave').catch(() => {});
+  }
   current.editor.destroy();
   current = null;
 }
@@ -257,6 +262,26 @@ function showCrumbs(crumbs) {
   document.documentElement.dataset.screen = screen ? screen.kind : '';
   chrome.setCrumbs(crumbs);
   remember();
+}
+
+// ---------- Version history ----------
+
+async function showHistory(filePath) {
+  if (!current || current.filePath !== filePath) return;
+  await current.editor.flush();
+  openHistory({
+    title: noteName(filePath),
+    list: () => window.opal.listSnapshots(filePath),
+    read: (id) => window.opal.readSnapshot(filePath, id),
+    current: () => current.editor.getText(),
+    restore: async (text) => {
+      // The version being replaced becomes a snapshot first, so this can be undone.
+      await window.opal.saveSnapshot(filePath, current.editor.getText(), 'restore').catch(() => {});
+      current.editor.replaceText(text);
+      await current.editor.flush();
+      current.edited = true;
+    },
+  });
 }
 
 // ---------- Backlinks ----------
@@ -471,6 +496,7 @@ async function showNote(filePath) {
     onInsertTable: (rows, cols) => current && current.editor.insertTable && current.editor.insertTable(rows, cols),
     onRename: (newName, options) => renameOpenNote(filePath, newName, options),
     onDescribe: (text) => describeOpenNote(filePath, text),
+    onHistory: () => showHistory(filePath),
     onOpenAt: async (path, line) => {
       await openFile(path);
       if (current && current.filePath === path && current.editor.goToLine) current.editor.goToLine(line);
@@ -487,12 +513,21 @@ async function showNote(filePath) {
   });
 
   let changeTimer = null;
+  let keptOriginal = false;
   const editor = new EditorType({
     parent: noteView.editorHost,
     content,
     save: async (text) => {
+      // Version history: the note as it was before this visit's first edit,
+      // then at most one snapshot every 10 minutes (main decides).
+      if (!keptOriginal) {
+        keptOriginal = true;
+        await window.opal.saveSnapshot(filePath, content, 'auto').catch(() => {});
+      }
       await window.opal.writeFile(filePath, text);
+      if (current && current.editor === editor) current.edited = true;
       noteSaved(filePath);
+      window.opal.saveSnapshot(filePath, text, 'auto').catch(() => {});
     },
     onStatus: (status) => chrome.setStatus(status),
     onOpenLink: (target) => openLink(target),

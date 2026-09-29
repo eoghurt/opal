@@ -585,6 +585,11 @@ async function withRelink(relPath, kind, change) {
   } catch (err) {
     console.error('Could not update links:', err); // the rename itself still worked
   }
+  try {
+    if (kind === 'folder' || isNoteFile(relPath)) await moveHistory(relPath, newRel);
+  } catch (err) {
+    console.error('Could not move the version history:', err);
+  }
   return newRel;
 }
 
@@ -1040,6 +1045,109 @@ async function searchVault(query) {
   return results.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path)).slice(0, 60);
 }
 
+// ---------- Version history (.opal/history) ----------
+//
+// Snapshots of a note are plain copies in the vault's hidden .opal folder:
+//   .opal/history/<note path without .md>/<YYYY-MM-DD HH-mm-ss>.md
+// While editing, at most one every 10 minutes (plus one when leaving the
+// note). Everything is kept for 7 days, then the last of each day for 90.
+
+const HISTORY_GAP_MS = 10 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function historyDir(relPath) {
+  resolveNotePath(relPath); // inside the vault, and a note
+  return path.join(vaultPath, '.opal', 'history', ...relPath.replace(/\.md$/i, '').split('/'));
+}
+
+function snapshotId(date) {
+  const two = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())} ${two(date.getHours())}-${two(date.getMinutes())}-${two(date.getSeconds())}`;
+}
+
+function idTime(id) {
+  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2})-(\d{2})-(\d{2})/.exec(id);
+  return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : 0;
+}
+
+async function snapshotIds(relPath) {
+  try {
+    const names = await fs.promises.readdir(historyDir(relPath));
+    return names.filter((n) => /^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}( \d+)?\.md$/.test(n)).map((n) => n.slice(0, -3)).sort().reverse();
+  } catch {
+    return [];
+  }
+}
+
+// Saves a snapshot. reason: 'auto' (skipped if one was made in the last 10
+// minutes), 'leave' or 'restore' (always). Never saves a copy identical to the last.
+async function saveSnapshot(relPath, text, reason = 'auto') {
+  if (!vaultPath || typeof text !== 'string') return false;
+  const dir = historyDir(relPath);
+  const ids = await snapshotIds(relPath);
+  if (ids.length) {
+    if (reason === 'auto' && Date.now() - idTime(ids[0]) < HISTORY_GAP_MS) return false;
+    try {
+      if ((await fs.promises.readFile(path.join(dir, `${ids[0]}.md`), 'utf8')) === text) return false;
+    } catch {
+      // Unreadable: just save a new one.
+    }
+  }
+  await fs.promises.mkdir(dir, { recursive: true });
+  let id = snapshotId(new Date());
+  for (let n = 2; fs.existsSync(path.join(dir, `${id}.md`)); n++) id = `${snapshotId(new Date())} ${n}`;
+  await fs.promises.writeFile(path.join(dir, `${id}.md`), text, 'utf8');
+  await pruneSnapshots(relPath);
+  return true;
+}
+
+async function pruneSnapshots(relPath) {
+  const dir = historyDir(relPath);
+  const now = Date.now();
+  const keptDays = new Set();
+  for (const id of await snapshotIds(relPath)) { // newest first
+    const age = now - idTime(id);
+    let keep = age <= 7 * DAY_MS;
+    if (!keep && age <= 90 * DAY_MS) {
+      const day = id.slice(0, 10);
+      keep = !keptDays.has(day); // the newest of each day
+      keptDays.add(day);
+    }
+    if (!keep) await fs.promises.rm(path.join(dir, `${id}.md`), { force: true });
+  }
+}
+
+async function listSnapshots(relPath) {
+  const dir = historyDir(relPath);
+  await pruneSnapshots(relPath);
+  const out = [];
+  for (const id of await snapshotIds(relPath)) {
+    try {
+      const { size } = await fs.promises.stat(path.join(dir, `${id}.md`));
+      out.push({ id, time: idTime(id), size });
+    } catch {
+      // Gone meanwhile.
+    }
+  }
+  return out;
+}
+
+async function readSnapshot(relPath, id) {
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}( \d+)?$/.test(String(id))) throw new Error('No such snapshot.');
+  return fs.promises.readFile(path.join(historyDir(relPath), `${id}.md`), 'utf8');
+}
+
+// A note or folder was renamed or moved: its history goes with it.
+async function moveHistory(fromRel, toRel) {
+  if (!vaultPath) return;
+  const base = path.join(vaultPath, '.opal', 'history');
+  const from = path.join(base, ...fromRel.replace(/\.md$/i, '').split('/'));
+  const to = path.join(base, ...toRel.replace(/\.md$/i, '').split('/'));
+  if (!fs.existsSync(from) || fs.existsSync(to)) return;
+  await fs.promises.mkdir(path.dirname(to), { recursive: true });
+  await fs.promises.rename(from, to);
+}
+
 // ---------- Pasted and dropped pictures ----------
 
 const ATTACHMENTS = 'Attachments';
@@ -1210,6 +1318,9 @@ function showNotification(payload) {
 }
 
 ipcMain.handle('vault:checkboxes', () => openCheckboxes());
+ipcMain.handle('history:save', (_event, relPath, text, reason) => saveSnapshot(relPath, text, reason));
+ipcMain.handle('history:list', (_event, relPath) => listSnapshots(relPath));
+ipcMain.handle('history:read', (_event, relPath, id) => readSnapshot(relPath, id));
 ipcMain.handle('attachment:save', (_event, notePath, ext, bytes) => saveAttachment(notePath, ext, bytes));
 ipcMain.handle('links:backlinks', (_event, relPath) => findBacklinks(relPath));
 ipcMain.handle('links:link-mention', (_event, notePath, line, column, target) => linkMention(notePath, line, column, target));

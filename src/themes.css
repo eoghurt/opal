@@ -929,3 +929,11 @@
 :root:not([data-theme="scrapbook"]) .backlink-open:hover { border-color: var(--line); }
 :root:not([data-theme="scrapbook"]) .backlink-link { border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
 :root:not([data-theme="scrapbook"]) .backlink-mark { background: rgb(255 210 63 / 0.55); }
+:root:not([data-theme="scrapbook"]) .history { border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--lift); }
+:root:not([data-theme="scrapbook"]) .history-head,
+:root:not([data-theme="scrapbook"]) .history-foot { border-color: var(--line); }
+:root:not([data-theme="scrapbook"]) .history-list { border-color: var(--line); }
+:root:not([data-theme="scrapbook"]) .history-item { border-color: var(--line-soft); }
+:root:not([data-theme="scrapbook"]) .history-item.is-on { background: var(--accent-soft); color: var(--ink); }
+:root:not([data-theme="scrapbook"]) .history-item.is-on .history-size { color: var(--ink-3); }
+:root:not([data-theme="scrapbook"]) .history-restore { background: var(--strong); color: var(--on-strong); border-radius: 999px; }
