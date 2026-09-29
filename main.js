@@ -1309,6 +1309,69 @@ async function writeDatabase(relFolder, on, settings) {
   });
 }
 
+// ---------- Manuscripts and saving Word files ----------
+//
+// A folder marked as a manuscript keeps its chapter order and the notes left
+// out of the compile in its .opal.md: opal-manuscript, opal-chapters,
+// opal-exclude (note file names). The .docx itself is built in the window
+// (src/export) and saved here, where the person picks.
+
+function nameList(value) {
+  try {
+    const list = JSON.parse(value || '[]');
+    return Array.isArray(list) ? list.filter((n) => typeof n === 'string' && !n.includes('/')).slice(0, 2000) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function readManuscript(relFolder) {
+  const text = await readFolderSettings(relFolder || '');
+  return {
+    on: frontmatter.getProp(text, 'opal-manuscript') === 'true',
+    chapters: nameList(frontmatter.getProp(text, 'opal-chapters')),
+    exclude: nameList(frontmatter.getProp(text, 'opal-exclude')),
+  };
+}
+
+async function writeManuscript(relFolder, { on, chapters, exclude }) {
+  await changeFolderSettings(relFolder || '', (text) => {
+    let next = frontmatter.setProp(text, 'opal-manuscript', on ? 'true' : null);
+    if (chapters) next = frontmatter.setProp(next, 'opal-chapters', chapters.length ? JSON.stringify(nameList(JSON.stringify(chapters))) : null);
+    if (exclude) next = frontmatter.setProp(next, 'opal-exclude', exclude.length ? JSON.stringify(nameList(JSON.stringify(exclude))) : null);
+    return next;
+  });
+}
+
+let lastSavedExport = null;
+
+// Asks where to save a Word file the window made, then writes it there.
+async function saveDocx(suggestedName, bytes) {
+  const data = Buffer.from(bytes || []);
+  if (!data.length || data.length > 200 * 1024 * 1024) throw new Error('Nothing to save.');
+  const name = `${safeFileName(String(suggestedName || 'Opal export')).replace(/\.docx$/i, '')}.docx`;
+  if (process.env.OPAL_EXPORT_DIR) {
+    // Automated tests save without the dialog.
+    const target = path.join(process.env.OPAL_EXPORT_DIR, name);
+    await fs.promises.writeFile(target, data);
+    lastSavedExport = target;
+    return target;
+  }
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Save as a Word document',
+    defaultPath: path.join(app.getPath('documents'), name),
+    filters: [{ name: 'Word document', extensions: ['docx'] }],
+  });
+  if (canceled || !filePath) return null;
+  await fs.promises.writeFile(filePath, data);
+  lastSavedExport = filePath;
+  return filePath;
+}
+
+function revealExport() {
+  if (lastSavedExport) shell.showItemInFolder(lastSavedExport);
+}
+
 // ---------- Pasted and dropped pictures ----------
 
 const ATTACHMENTS = 'Attachments';
@@ -1479,6 +1542,10 @@ function showNotification(payload) {
 }
 
 ipcMain.handle('vault:checkboxes', () => openCheckboxes());
+ipcMain.handle('manuscript:read', (_event, folder) => readManuscript(folder));
+ipcMain.handle('manuscript:write', (_event, folder, settings) => writeManuscript(folder, settings || {}));
+ipcMain.handle('export:save-docx', (_event, name, bytes) => saveDocx(name, bytes));
+ipcMain.handle('export:reveal', () => revealExport());
 ipcMain.handle('db:rows', (_event, folder) => databaseRows(folder));
 ipcMain.handle('db:set-cell', (_event, relPath, key, value, type) => setDatabaseCell(relPath, key, value, type));
 ipcMain.handle('db:read', (_event, folder) => readDatabase(folder));

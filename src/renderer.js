@@ -55,6 +55,9 @@ import { InboxView, INBOX_PATH } from './views/inbox-view.js';
 import { openCreateItem } from './create-popover.js';
 import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './views/database-view.js';
+import { ManuscriptView } from './views/manuscript-view.js';
+import { noteStructure } from './export/note-structure.js';
+import { docxFromChapters } from './export/docx.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
 const INBOX_ENABLED = false;
@@ -446,6 +449,19 @@ function showHome(folderPath, notice) {
     describeNow: describeAfterOpen === '*',
     loadDescription: async () => getDescription(await window.opal.readFolderSettings(folderPath)),
     loadWords: () => window.opal.folderWords(folderPath),
+    loadManuscript: () => window.opal.readManuscript(folderPath),
+    mountManuscript: (slot, settings, notes) => new ManuscriptView(slot, {
+      folderName: folderLabel(folderPath),
+      notes,
+      settings,
+      io: {
+        save: (next) => window.opal.writeManuscript(folderPath, { on: true, ...next }).catch((err) => alert(`Couldn't save the chapter order.\n\n${err.message}`)),
+        words: async (path) => countWords(await window.opal.readFile(path)),
+        openFile: (path) => openFile(path),
+        compile: (paths) => compileManuscript(folderLabel(folderPath), paths),
+        reveal: () => window.opal.revealExport(),
+      },
+    }),
     loadDatabase: () => window.opal.readDatabase(folderPath),
     mountDatabase: (slot, settings) => new DatabaseView(slot, {
       folderName: folderLabel(folderPath),
@@ -1010,6 +1026,7 @@ function colorMenu(event, node, kind) {
       { label: node.path === CALENDAR_FOLDER ? 'Daily note template…' : 'Default template…', onSelect: () => chooseDefaultTemplate(node.path, at) },
       { label: 'Word target…', hint: node.wordTarget ? node.wordTarget.toLocaleString() : '', onSelect: () => setFolderTarget(node) },
       { label: 'Show as database…', onSelect: () => chooseDatabase(node.path, at) },
+      { label: 'Manuscript…', onSelect: () => toggleManuscript(node.path, at) },
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
@@ -1035,6 +1052,41 @@ function colorMenu(event, node, kind) {
         setItemColor(node.path, kind, color);
       })),
   });
+}
+
+// ---------- Manuscripts ----------
+
+async function toggleManuscript(folderPath, at) {
+  const ms = await window.opal.readManuscript(folderPath);
+  showMenu({ clientX: at.clientX, clientY: at.clientY, preventDefault() {}, stopPropagation() {} }, {
+    title: 'Manuscript',
+    items: ms.on
+      ? [
+        { label: 'Compile to Word…', onSelect: async () => { await openFolder(folderPath); setTimeout(() => document.querySelector('.ms-compile')?.click(), 400); } },
+        { label: 'Stop treating as a manuscript', hint: 'keeps the order', onSelect: () => setManuscript(folderPath, false) },
+      ]
+      : [{ label: 'Mark as a manuscript', hint: 'each note is a chapter', onSelect: () => setManuscript(folderPath, true) }],
+  });
+}
+
+async function setManuscript(folderPath, on) {
+  try {
+    await window.opal.writeManuscript(folderPath, { on });
+    await openFolder(folderPath);
+    refreshFiles();
+  } catch (err) {
+    alert(`Couldn't change the manuscript setting.\n\n${err.message}`);
+  }
+}
+
+// Joins the chapters, in order, into one Word file (built with the shared note
+// structure) and asks where to save it. → the saved path, or null.
+async function compileManuscript(title, paths) {
+  const chapters = [];
+  for (const path of paths) {
+    chapters.push({ title: noteName(path), blocks: noteStructure(await window.opal.readFile(path)) });
+  }
+  return window.opal.saveDocx(title, docxFromChapters(chapters));
 }
 
 // Shows a folder as a database (starting from a preset), or back as a page.

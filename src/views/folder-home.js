@@ -14,7 +14,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase, loadManuscript, mountManuscript }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -108,6 +108,19 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
     sections.push(h('section', { class: 'home-empty' },
       h('p', { class: 'hand home-empty-text' }, subfolders.length ? 'no loose notes in here' : 'nothing here yet — start a note!'),
       scribbleArrow({ width: 120, height: 80, d: 'M10 70 C 40 60, 80 40, 104 10', head: 'M92 12 L105 9 L104 23' })));
+  }
+
+  // A manuscript? Its chapter list goes above the note cards.
+  const msSlot = h('div', { class: 'home-ms' });
+  msSlot.hidden = true;
+  const cardsAt = sections.findIndex((el) => el.classList && (el.classList.contains('home-cards') || el.classList.contains('home-empty')));
+  sections.splice(cardsAt === -1 ? sections.length : cardsAt, 0, msSlot);
+  if (loadManuscript) {
+    loadManuscript().then((ms) => {
+      if (!ms || !ms.on || !msSlot.isConnected) return;
+      msSlot.hidden = false;
+      mountManuscript(msSlot, ms, files.filter((f) => kindOf(f.path) === 'note').map((f) => ({ name: f.name, path: f.path })));
+    }).catch(() => {});
   }
 
   // Shown as a database? Then the database takes the place of the note cards.
