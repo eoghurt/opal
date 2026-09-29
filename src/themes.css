@@ -1015,3 +1015,9 @@
 :root[data-theme="github"][data-screen="settings"] #topbar .bar-link[data-section="settings"]::after,
 :root[data-theme="github"][data-screen="review"] #topbar .bar-link[data-section="review"]::after { background: var(--tab-line); }
 :root[data-theme="github"][data-screen="review"] #topbar .bar-link[data-section="review"] { font-weight: 600; }
+
+/* ---------- Pomodoro ---------- */
+
+:root:not([data-theme="scrapbook"]) .timer-pomodoro-start { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+:root:not([data-theme="scrapbook"]) .timer-pomodoro-start:hover { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .timer-stop.is-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }

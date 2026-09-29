@@ -113,6 +113,7 @@ const prepTimer = new PrepTimer({
   openNote: () => (current && screen && screen.kind === 'note' ? current.filePath : null),
   notify: (payload) => window.opal.notify(payload).catch(() => {}),
   record: (session) => window.opal.addSession(session).then(() => { if (logbook) logbook.reload(); }).catch(() => {}),
+  openSettings: () => showSettings('timer'),
 });
 chrome.timerSlot = prepTimer.el;
 chrome.renderTop();

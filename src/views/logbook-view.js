@@ -124,7 +124,7 @@ export class LogbookView {
       tile('Calendar events', t.events, p.events),
       tile('Tasks done', t.tasks, p.tasks),
       tile('Words written', t.words, p.words, 'added while writing in Opal', t.words.toLocaleString()),
-      tile('Prep time', t.prep, p.prep, 'with the prep timer', fmtMinutes(t.prep)),
+      tile('Timer time', t.prep, p.prep, 'prep countdowns and Pomodoro focus', fmtMinutes(t.prep)),
       tile('Files added', t.added, p.added, 'PDFs, pictures, Office…'));
 
     const main = h('div', { class: 'lb-main' },
@@ -318,7 +318,7 @@ export class LogbookView {
           group('Events', day.events.slice().sort((a, b) => a.start - b.start).map((e) => item(e.allDay ? '◆' : clock(e.start), e.title, () => this.io.openCalendarDay(key)))),
           group('Tasks done', day.tasks.map((t) => item('✓', t.title, () => this.io.openTasks(), t.list))),
           day.words ? group('Words written', [item('✎', `${day.words.toLocaleString()} words`, () => {}, null)]) : null,
-          group('Prep sessions', (day.sessions || []).map((s) => item(s.time, s.note ? s.note.split('/').pop() : 'Prep session', () => s.note && this.io.openFile(`${s.note}.md`), `${s.minutes} min`))),
+          group('Timer sessions', (day.sessions || []).map((s) => item(s.time, s.note ? s.note.split('/').pop() : s.kind === 'pomodoro' ? 'Pomodoro focus' : 'Prep session', () => s.note && this.io.openFile(`${s.note}.md`), `${s.minutes} min${s.kind === 'pomodoro' ? ' · 🍅' : ''}`))),
           group('New notes', day.created.map((f) => item('+', noteName(f.path), () => this.io.openFile(f.path), f.path.includes('/') ? f.path.split('/').slice(0, -1).join('/') : null))),
           group('Edited', day.edited.map((f) => item('✎', noteName(f.path), () => this.io.openFile(f.path), f.path.includes('/') ? f.path.split('/').slice(0, -1).join('/') : null))),
           group('Files added', day.added.map((f) => item('↓', f.path.split('/').pop(), () => this.io.openFile(f.path)))))

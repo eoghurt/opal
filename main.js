@@ -1165,6 +1165,7 @@ async function moveHistory(fromRel, toRel) {
 //   - 2026-09-29: 532
 //   ## Prep sessions
 //   - 2026-09-29 14:00 · 30 min · [[School/Essay plan]]
+//   - 2026-09-29 15:00 · 25 min · pomodoro · [[School/Essay plan]]
 
 function logbookFile() {
   return path.join(vaultPath, '.opal', 'logbook.md');
@@ -1181,8 +1182,8 @@ async function readLogbook() {
   for (const line of text.split(/\r?\n/)) {
     let m = /^- (\d{4}-\d{2}-\d{2}): (\d+)\s*$/.exec(line);
     if (m) out.words[m[1]] = Number(m[2]);
-    m = /^- (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) · (\d+) min(?: · \[\[([^\]]+)\]\])?\s*$/.exec(line);
-    if (m) out.sessions.push({ day: m[1], time: m[2], minutes: Number(m[3]), note: m[4] || null });
+    m = /^- (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) · (\d+) min(?: · (pomodoro))?(?: · \[\[([^\]]+)\]\])?\s*$/.exec(line);
+    if (m) out.sessions.push({ day: m[1], time: m[2], minutes: Number(m[3]), kind: m[4] || null, note: m[5] || null });
   }
   return out;
 }
@@ -1193,13 +1194,13 @@ async function writeLogbook(data) {
   const text = [
     '# Opal logbook',
     '',
-    'Words written each day and prep-timer sessions, kept by Opal.',
+    'Words written each day and timer sessions (prep and Pomodoro focus), kept by Opal.',
     '',
     '## Words written',
     ...days.map((d) => `- ${d}: ${data.words[d]}`),
     '',
     '## Prep sessions',
-    ...sessions.map((s) => `- ${s.day} ${s.time} · ${s.minutes} min${s.note ? ` · [[${s.note}]]` : ''}`),
+    ...sessions.map((s) => `- ${s.day} ${s.time} · ${s.minutes} min${s.kind === 'pomodoro' ? ' · pomodoro' : ''}${s.note ? ` · [[${s.note}]]` : ''}`),
     '',
   ].join('\n');
   await fs.promises.mkdir(path.dirname(logbookFile()), { recursive: true });
@@ -1230,7 +1231,8 @@ function addSession(session) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s.day)) || !/^\d{2}:\d{2}$/.test(String(s.time))) return Promise.resolve();
   const minutes = Math.max(1, Math.min(24 * 60, Math.round(Number(s.minutes) || 0)));
   const note = typeof s.note === 'string' && s.note && !/[\]\[\n]/.test(s.note) ? s.note.replace(/\.md$/i, '') : null;
-  return changeLogbook((data) => { data.sessions.push({ day: s.day, time: s.time, minutes, note }); });
+  const kind = s.kind === 'pomodoro' ? 'pomodoro' : null;
+  return changeLogbook((data) => { data.sessions.push({ day: s.day, time: s.time, minutes, kind, note }); });
 }
 
 // ---------- Vault settings and open tabs (.opal/settings.json, .opal/workspace.json) ----------
