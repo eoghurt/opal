@@ -44,6 +44,8 @@ contextBridge.exposeInMainWorld('opal', {
   setLook: (look) => call('look:set', look),
   notify: (payload) => call('notify:show', payload),
   search: (query) => call('vault:search', query),
+  backlinks: (relPath) => call('links:backlinks', relPath),
+  linkMention: (notePath, line, column, target) => call('links:link-mention', notePath, line, column, target),
   openCheckboxes: () => call('vault:checkboxes'),
 
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),

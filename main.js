@@ -8,7 +8,7 @@ const { pathToFileURL } = require('url');
 const FILE_TYPES = require('./file-types.json');
 const frontmatter = require('./shared/frontmatter.js');
 const { stripStickies, parseStickies, writeStickies } = require('./shared/stickies.js');
-const { relinkText } = require('./shared/relink.js');
+const { relinkText, resolve: resolveTarget, joinPath, folderOf } = require('./shared/relink.js');
 
 app.setName('Opal');
 // Lets automated tests use a throwaway settings folder instead of the real one.
@@ -965,6 +965,101 @@ async function searchVault(query) {
   return results.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path)).slice(0, 60);
 }
 
+// ---------- Backlinks ----------
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Lines of a note that aren't properties or code blocks: [{ index, text }].
+function readableLines(text) {
+  const lines = stripStickies(text).split(/\r?\n/);
+  const out = [];
+  let start = 0;
+  if (lines[0] === '---') {
+    const end = lines.indexOf('---', 1);
+    if (end > 0) start = end + 1;
+  }
+  let inCode = false;
+  for (let i = start; i < lines.length; i++) {
+    if (/^\s*(```|~~~)/.test(lines[i])) {
+      inCode = !inCode;
+      continue;
+    }
+    if (!inCode) out.push({ index: i, text: lines[i] });
+  }
+  return out;
+}
+
+// Notes that link to relPath, and notes that mention its name without a link.
+// → { linked: [{ path, line, text }], unlinked: [{ path, line, text, column, length }] }
+async function findBacklinks(relPath) {
+  if (!vaultPath || typeof relPath !== 'string') return { linked: [], unlinked: [] };
+  const paths = listNotePaths(await scanFolder(''));
+  const name = path.posix.basename(relPath).replace(/\.md$/i, '');
+  const mention = name.length >= 3 ? new RegExp(`(^|[^\\p{L}\\p{N}_])(${escapeRegExp(name)})(?![\\p{L}\\p{N}_])`, 'giu') : null;
+  const linked = [];
+  const unlinked = [];
+  for (const notePath of paths) {
+    if (notePath === relPath || !isNoteFile(notePath)) continue;
+    let text;
+    try {
+      text = await noteText(notePath);
+    } catch {
+      continue;
+    }
+    const lower = text.toLowerCase();
+    if (!lower.includes(name.toLowerCase()) && !lower.includes(path.posix.basename(relPath).toLowerCase())) continue;
+    for (const { index, text: line } of readableLines(text)) {
+      let links = false;
+      for (const m of line.matchAll(/!?\[\[([^[\]\n]+?)\]\]/g)) {
+        const target = m[1].split('|')[0].split('#')[0].trim();
+        if (target && resolveTarget(target, paths) === relPath) links = true;
+      }
+      for (const m of line.matchAll(/\]\(<?([^)>\s]+)>?\)/g)) {
+        let target = m[1].split('#')[0];
+        try {
+          target = decodeURIComponent(target);
+        } catch {
+          // as written
+        }
+        if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+        const lowerPath = relPath.toLowerCase();
+        if (joinPath(folderOf(notePath), target).toLowerCase() === lowerPath || joinPath('', target).toLowerCase() === lowerPath) links = true;
+      }
+      if (links && linked.length < 200) linked.push({ path: notePath, line: index + 1, text: line.trim().slice(0, 240) });
+      if (!mention || unlinked.length >= 200) continue;
+      // Mentions outside any link on the line (the link parts are blanked out).
+      const plain = line.replace(/!?\[\[[^\]]*\]\]|\[[^\]]*\]\([^)]*\)|<[^>]+>/g, (m) => ' '.repeat(m.length));
+      mention.lastIndex = 0;
+      const m = mention.exec(plain);
+      if (m) {
+        const column = m.index + m[1].length;
+        unlinked.push({ path: notePath, line: index + 1, text: line.trim().slice(0, 240), column, length: m[2].length, trim: line.length - line.trimStart().length });
+      }
+    }
+  }
+  return { linked, unlinked };
+}
+
+// Turns one unlinked mention into a [[link]] to targetPath.
+async function linkMention(notePath, line, column, targetPath) {
+  const text = await readNote(notePath);
+  const nl = /\r\n/.test(text) ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const row = lines[line - 1];
+  const name = path.posix.basename(targetPath).replace(/\.md$/i, '');
+  if (row == null || row.substr(column, name.length).toLowerCase() !== name.toLowerCase()) {
+    throw new Error('That note has changed since the mention was found.');
+  }
+  const paths = listNotePaths(await scanFolder(''));
+  const linkName = resolveTarget(name, paths) === targetPath ? name : targetPath.replace(/\.md$/i, '');
+  const shown = row.substr(column, name.length);
+  const link = shown === linkName ? `[[${linkName}]]` : `[[${linkName}|${shown}]]`;
+  lines[line - 1] = row.slice(0, column) + link + row.slice(column + name.length);
+  await writeNote(notePath, lines.join(nl));
+  scheduleRefresh();
+  return true;
+}
+
 // Unticked checklist items ("- [ ] …") in notes outside Tasks/ and the Inbox,
 // for the Inbox screen. → [{ path, line (1-based), raw, text }]
 async function openCheckboxes() {
@@ -1014,6 +1109,8 @@ function showNotification(payload) {
 }
 
 ipcMain.handle('vault:checkboxes', () => openCheckboxes());
+ipcMain.handle('links:backlinks', (_event, relPath) => findBacklinks(relPath));
+ipcMain.handle('links:link-mention', (_event, notePath, line, column, target) => linkMention(notePath, line, column, target));
 ipcMain.handle('vault:search', (_event, query) => searchVault(query));
 ipcMain.handle('notify:show', (_event, payload) => showNotification(payload));
 ipcMain.handle('vault:get', () => vaultInfo());

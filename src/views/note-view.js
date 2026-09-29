@@ -14,11 +14,12 @@ import { editableLine } from './folder-home.js';
 import { getDescription } from '../../shared/frontmatter.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention };
+    this.backlinks = null; // { linked, unlinked } once loaded
     this.tree = [];
     this.text = '';
 
@@ -275,6 +276,41 @@ export class NoteView {
     this.leftBody.replaceChildren(details, outline, colour);
   }
 
+  // Notes linking here, and notes that mention this one's name without a link.
+  setBacklinks(backlinks) {
+    this.backlinks = backlinks;
+    this.renderRight();
+  }
+
+  backlinkBlock() {
+    const data = this.backlinks;
+    const where = (p) => {
+      const folder = parentOf(p);
+      return folder ? folder.split('/').pop() : this.vaultName;
+    };
+    const linked = data ? data.linked : [];
+    const unlinked = data ? data.unlinked : [];
+    const item = (hit, extra) => h('div', { class: 'backlink' },
+      h('button', { class: 'backlink-open', title: `${hit.path}, line ${hit.line}`, onclick: () => this.handlers.onOpenAt(hit.path, hit.line) },
+        h('span', { class: 'backlink-name' }, noteName(hit.path), h('span', { class: 'backlink-where' }, where(hit.path))),
+        h('span', { class: 'backlink-line' }, ...(extra ? extra.snippet : [hit.text]))),
+      extra ? extra.button : null);
+    const mentionSnippet = (hit) => {
+      const start = hit.column - (hit.trim || 0);
+      return [hit.text.slice(0, start), h('mark', { class: 'backlink-mark' }, hit.text.slice(start, start + hit.length)), hit.text.slice(start + hit.length)];
+    };
+    return h('div', { class: 'side-block side-backlinks' },
+      h('span', { class: 'side-label-inline mono-label' }, h('span', null, 'Linked from'), h('span', null, data ? pad2(linked.length) : '…')),
+      data && !linked.length ? h('span', { class: 'hand side-hint' }, 'no notes link here yet') : null,
+      linked.map((hit) => item(hit)),
+      h('span', { class: 'side-label-inline mono-label' }, h('span', null, 'Unlinked mentions'), h('span', null, data ? pad2(unlinked.length) : '…')),
+      data && !unlinked.length ? h('span', { class: 'hand side-hint' }, 'no loose mentions') : null,
+      unlinked.map((hit) => item(hit, {
+        snippet: mentionSnippet(hit),
+        button: h('button', { class: 'backlink-link', title: 'Turn this mention into a [[link]]', onclick: () => this.handlers.onLinkMention(hit) }, 'Link'),
+      })));
+  }
+
   renderRight() {
     const folder = findFolder(this.tree, this.folderPath, this.vaultName);
     const siblings = folder ? folder.children.filter((n) => n.type === 'file' && (!n.quiet || n.path === this.filePath)) : [];
@@ -307,6 +343,7 @@ export class NoteView {
       h('div', { class: 'side-label mono-label' }, h('span', null, `Also in ${name}`), h('span', null, pad2(siblings.length))),
       list,
       h('button', { class: 'dashed-button mono-label', onclick: (e) => this.handlers.onNewNoteHere(e.currentTarget) }, `+ New note in ${name}`),
+      this.backlinkBlock(),
       h('div', { class: 'grow' }),
       linkBlock,
     );

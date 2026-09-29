@@ -925,3 +925,7 @@
 :root .sticky .hand,
 :root .sticky .sticky-text { font-family: "Caveat", "Bradley Hand", cursive; font-weight: 700; color: #16140F; transform: none; }
 :root .sticky .sticky-text { font-size: calc(22px * var(--sticky-scale)); }
+:root:not([data-theme="scrapbook"]) .backlink-open { border: 1px solid var(--line-soft); border-radius: 8px; background: var(--paper-2); }
+:root:not([data-theme="scrapbook"]) .backlink-open:hover { border-color: var(--line); }
+:root:not([data-theme="scrapbook"]) .backlink-link { border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+:root:not([data-theme="scrapbook"]) .backlink-mark { background: rgb(255 210 63 / 0.55); }

@@ -2820,3 +2820,18 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .otable-ctx-swatches { display: grid; grid-template-columns: repeat(11, 18px); gap: 3px; }
 .otable-ctx-swatches .otable-swatch { width: 18px; height: 18px; }
 .otable-colh:hover, .otable-rowh:hover { background: rgba(61, 165, 217, 0.55); }
+
+/* ---------- Backlinks (note's right panel) ---------- */
+
+.side-backlinks { display: flex; flex-direction: column; gap: 6px; }
+.side-label-inline { display: flex; justify-content: space-between; margin-top: 4px; }
+.backlink { display: flex; gap: 6px; align-items: flex-start; }
+.backlink-open { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 5px 7px; border: var(--hair); border-radius: var(--radius); background: var(--white); text-align: left; }
+.backlink-open:hover { border-color: var(--ink); }
+.backlink-name { display: flex; gap: 6px; align-items: baseline; font-weight: 600; font-size: 12.5px; }
+.backlink-where { font-weight: 400; font-size: 11px; color: var(--ink-3); }
+.backlink-line { font-size: 11.5px; line-height: 1.4; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.backlink-mark { background: var(--c2); color: #16140F; padding: 0 1px; }
+.backlink-link { flex-shrink: 0; align-self: center; padding: 3px 8px; border: var(--rule); border-radius: var(--radius); background: var(--paper); font-size: 11px; font-weight: 600; }
+.backlink-link:hover { background: var(--c2); }
+.note-right .panel-body { overflow-y: auto; }

@@ -110,4 +110,4 @@ function relinkText(text, { oldPath, newPath, moves, before, after }) {
   return changed ? out : text;
 }
 
-module.exports = { relinkText };
+module.exports = { relinkText, resolve, joinPath, folderOf, baseName };

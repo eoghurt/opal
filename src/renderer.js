@@ -259,6 +259,24 @@ function showCrumbs(crumbs) {
   remember();
 }
 
+// ---------- Backlinks ----------
+
+// Fills the open note's Linked from / Unlinked mentions lists.
+let backlinkTimer = null;
+function loadBacklinks() {
+  clearTimeout(backlinkTimer);
+  backlinkTimer = setTimeout(async () => {
+    const open = current;
+    if (!open || !open.noteView || !open.noteView.setBacklinks) return;
+    try {
+      const data = await window.opal.backlinks(open.filePath);
+      if (current === open) open.noteView.setBacklinks(data);
+    } catch {
+      // Leave the lists as they were.
+    }
+  }, 120);
+}
+
 // ---------- Back and forward ----------
 //
 // Every page you land on is remembered in order, like a web browser: Back
@@ -453,6 +471,18 @@ async function showNote(filePath) {
     onInsertTable: (rows, cols) => current && current.editor.insertTable && current.editor.insertTable(rows, cols),
     onRename: (newName, options) => renameOpenNote(filePath, newName, options),
     onDescribe: (text) => describeOpenNote(filePath, text),
+    onOpenAt: async (path, line) => {
+      await openFile(path);
+      if (current && current.filePath === path && current.editor.goToLine) current.editor.goToLine(line);
+    },
+    onLinkMention: async (hit) => {
+      try {
+        await window.opal.linkMention(hit.path, hit.line, hit.column, filePath);
+      } catch (err) {
+        alert(`Couldn't add the link.\n\n${err.message}`);
+      }
+      loadBacklinks();
+    },
     onSetColor: (path, kind, color) => setItemColor(path, kind, color),
   });
 
@@ -487,6 +517,7 @@ async function showNote(filePath) {
   stickies.refresh();
   noteView.connectEditor(editor.view);
   current = { filePath, editor, noteView, stickies };
+  loadBacklinks();
   noteView.setTree(tree);
   noteView.setText(content);
 
@@ -1226,6 +1257,7 @@ function refreshFiles() {
       } else {
         current.noteView.setTree(tree);
         await pickUpOutsideEdits();
+        loadBacklinks(); // other notes may have gained or lost a link here
       }
     }
   });
