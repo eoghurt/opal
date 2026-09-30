@@ -19,6 +19,8 @@
 import { h, icon } from '../ui.js';
 import { LogbookView } from './logbook-view.js';
 import { BookmarkList } from '../bookmarks.js';
+import { renderHeatmap } from '../heatmap.js';
+import { showMenu } from '../context-menu.js';
 import { noteName, relativeDay } from '../format.js';
 import { clock, dayKey, addDays, startOfWeek } from '../calendar/events.js';
 import { dueSides, todayKey } from '../flashcards/schedule.js';
@@ -31,6 +33,7 @@ export const WIDGETS = [
   { id: 'recent', name: 'Recent pages', icon: 'note', size: 'wide', desc: 'The notes you changed last.' },
   { id: 'bookmarks', name: 'Bookmarks', icon: 'bookmark', size: 'small', desc: 'Your bookmarked notes, folders and files.' },
   { id: 'writing', name: 'Writing', icon: 'pen', size: 'small', desc: 'Words written today and this week.' },
+  { id: 'heatmap', name: 'Heatmap', icon: 'grid', size: 'wide', desc: 'A heatmap from one of your notes — runs, habits, films… (a tracker block).' },
   { id: 'numbers', name: 'Numbers', icon: 'chart', size: 'full', desc: 'Notes, events, tasks, words and timer time for a week, month or year.' },
   { id: 'activity', name: 'Activity', icon: 'activity', size: 'full', desc: 'Which days you worked; click one to see what happened.' },
   { id: 'places', name: 'Where you worked', icon: 'folder', size: 'wide', desc: 'Your busiest folders.' },
@@ -363,6 +366,45 @@ export class HomeWidgets {
     const list = h('div', { class: 'widget-bm-list' });
     body.append(list);
     new BookmarkList(list, { io: { ...this.io.bookmarks, save: async () => { await this.io.bookmarks.save(); } } });
+  }
+
+  async fill_heatmap(body, tools) {
+    const io = this.io;
+    body.append(empty('Counting…'));
+    let notes = [];
+    let chosen = null;
+    try {
+      [notes, chosen] = await Promise.all([io.trackerNotes(), io.heatmapChoice()]);
+    } catch {
+      // Nothing to show then.
+    }
+    if (!body.isConnected) return;
+    if (!notes.length) {
+      body.replaceChildren(
+        empty('Show runs, habits, films or journaling as a year of squares. Add a heatmap to any note with its ribbon’s Heatmap button.'),
+        h('button', { class: 'widgets-btn widget-go', onclick: () => io.makeHeatmapNote() }, icon('plus', 13), 'Make an example note'));
+      return;
+    }
+    const note = notes.find((n) => n.path === chosen) || notes[0];
+    tools.append(h('button', {
+      class: 'widget-link',
+      onclick: (e) => showMenu(e, {
+        title: 'Show the heatmap from…',
+        items: notes.map((n) => ({ label: n.title, hint: n.path.replace(/\.md$/i, ''), onSelect: () => io.setHeatmapChoice(n.path) })),
+      }),
+    }, 'Choose…'));
+    let offset = 0;
+    let data;
+    try {
+      data = await io.trackerData(note.source);
+    } catch (err) {
+      body.replaceChildren(empty(`Can't draw ${note.title}: ${String(err.message).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')}`));
+      return;
+    }
+    const draw = () => body.replaceChildren(
+      renderHeatmap(data, { openFile: io.openFile, offset, onOffset: (n) => { offset = n; draw(); } }),
+      h('button', { class: 'widget-link heat-source', onclick: () => io.openFile(note.path) }, `From ${note.path.replace(/\.md$/i, '')} →`));
+    if (body.isConnected) draw();
   }
 
   async fill_writing(body) {

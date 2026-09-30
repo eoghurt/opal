@@ -16,6 +16,7 @@ import { livePreview, formatBar, formatKeymap } from './markdown-live.js';
 import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
 import { frontmatterRange } from '../../shared/frontmatter.js';
 import { tableBlocks, insertTable } from '../tables/table-widget.js';
+import { trackerBlocks } from '../heatmap.js';
 import { linkPreview, wikilinkCompletions } from './markdown-links.js';
 import { keymap } from '@codemirror/view';
 
@@ -132,7 +133,7 @@ export class MarkdownEditor {
 
   // onOpenHref(address) opens a [text](address) link; linkTargets() lists notes
   // and files for [[ suggestions; findLink(name) finds a file without creating it.
-  constructor({ parent, content, save, onStatus, onOpenLink, onOpenHref, onChange, onCursor, linkTargets, findLink, saveImage }) {
+  constructor({ parent, content, save, onStatus, onOpenLink, onOpenHref, onChange, onCursor, linkTargets, findLink, saveImage, heatmap }) {
     this.saveImage = saveImage;
     this.linkTargets = linkTargets || (() => []);
     this.save = save;
@@ -185,6 +186,7 @@ export class MarkdownEditor {
         linkPreview(findLink || (async () => null)),
         hiddenStickies,
         tableBlocks,
+        heatmap ? trackerBlocks(heatmap) : [],
         EditorView.domEventHandlers({
           // Click a link to open it. While you're editing a link (its brackets
           // are showing) a click just moves the cursor; Cmd-click always opens.

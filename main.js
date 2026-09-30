@@ -11,6 +11,7 @@ const { stripStickies, parseStickies, writeStickies } = require('./shared/sticki
 const { relinkText, resolve: resolveTarget, joinPath, folderOf } = require('./shared/relink.js');
 const { countWords } = require('./shared/words.js');
 const { readProperties, writeProperty } = require('./shared/properties.js');
+const tracker = require('./shared/tracker.js');
 const { stripFrontmatter } = frontmatter;
 
 app.setName('Opal');
@@ -1232,6 +1233,53 @@ async function moveBookmarks(fromRel, toRel, isFolder) {
   if (changed) await writeBookmarks(data);
 }
 
+// ---------- Heatmaps from notes (Tracker blocks — see shared/tracker.js) ----------
+
+// A tracker block's numbers: { settings, days: { 'YYYY-MM-DD': value }, notes: { day: [paths] } }.
+async function trackerData(source) {
+  if (!vaultPath) throw new Error('No vault is open.');
+  const settings = tracker.trackerSettings(tracker.parseTracker(String(source || '').slice(0, 5000)));
+  if (settings.folder.includes('..')) throw new Error('The folder must be inside the vault.');
+  if (settings.folder && !fs.existsSync(path.join(vaultPath, settings.folder))) throw new Error(`There's no folder “${settings.folder}” in this vault.`);
+  const days = {};
+  const notes = {};
+  for (const relPath of await listNotes(settings.folder)) {
+    const name = path.basename(relPath, path.extname(relPath));
+    let text;
+    try {
+      text = await fs.promises.readFile(path.join(vaultPath, relPath), 'utf8');
+    } catch {
+      continue;
+    }
+    if (/^```tracker\b/m.test(text) && !settings.dateProperty && !tracker.dateFromName(name, settings.dateFormat)) continue;
+    const props = readProperties(text);
+    const day = tracker.noteDate(name, props, settings);
+    if (!day) continue;
+    if ((settings.startDate && day < settings.startDate) || (settings.endDate && day > settings.endDate)) continue;
+    const value = tracker.noteValue(text, props, settings, settings.searchType === 'fileMeta' ? countWords(text) : 0);
+    if (value == null || value === 0) continue;
+    days[day] = Math.round(((days[day] || 0) + value) * 100) / 100;
+    (notes[day] = notes[day] || []).push(relPath);
+  }
+  return { settings, days, notes };
+}
+
+// Notes with a tracker block (for the home page's Heatmap widget): [{ path, title }].
+async function trackerNotes() {
+  const out = [];
+  for (const relPath of await listNotes('')) {
+    let text;
+    try {
+      text = await fs.promises.readFile(path.join(vaultPath, relPath), 'utf8');
+    } catch {
+      continue;
+    }
+    const m = /^```tracker[ \t]*\r?\n([\s\S]*?)^```/m.exec(text);
+    if (m) out.push({ path: relPath, title: tracker.trackerSettings(tracker.parseTracker(m[1])).title, source: m[1] });
+  }
+  return out;
+}
+
 // ---------- Words and the Logbook's own records (.opal/logbook.md) ----------
 //
 // Words written per day and prep-timer sessions, as a readable note:
@@ -1743,6 +1791,8 @@ ipcMain.handle('db:read', (_event, folder) => readDatabase(folder));
 ipcMain.handle('db:write', (_event, folder, on, settings) => writeDatabase(folder, on, settings));
 ipcMain.handle('logbook:read', () => readLogbook());
 ipcMain.handle('bookmarks:read', () => readBookmarks());
+ipcMain.handle('tracker:data', (_event, source) => trackerData(source));
+ipcMain.handle('tracker:notes', () => trackerNotes());
 ipcMain.handle('bookmarks:write', (_event, data) => writeBookmarks(data));
 ipcMain.handle('opal-json:read', (_event, name) => readOpalJson(name));
 ipcMain.handle('opal-json:write', (_event, name, data) => writeOpalJson(name, data));

@@ -7,6 +7,7 @@
 //   const ribbon = new Ribbon({ onAddSticky, onInsertTable(anchor) });
 //   ribbon.connect(editorView);  ribbon.refresh();  ribbon.el
 
+import { insertHeatmap } from '../heatmap.js';
 import { undo, redo, indentMore, indentLess } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import { h } from '../ui.js';
@@ -115,7 +116,8 @@ export class Ribbon {
         btn(null, 'Web', 'Web link', (v) => insertWebLink(v), 'is-word'),
         btn(null, 'Table', 'Table', (v, anchor) => onInsertTable(anchor), 'is-word'),
         btn(null, 'Sticky', 'Sticky note', () => onAddSticky(), 'is-word'),
-        btn(null, 'Date', "Today's date", (v) => insertText(v, today()), 'is-word')),
+        btn(null, 'Date', "Today's date", (v) => insertText(v, today()), 'is-word'),
+        btn(null, 'Heatmap', 'A heatmap from your notes (Tracker format)', (v) => insertHeatmap(v), 'is-word')),
       group('Find',
         btn(null, 'Find', 'Find & replace (⌘F)', (v) => openSearchPanel(v), 'is-word')));
 

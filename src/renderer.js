@@ -1003,6 +1003,22 @@ async function mountHomeWidgets(slot) {
       readFile: (path) => window.opal.readFile(path),
       timer: prepTimer,
       bookmarks: bookmarkIo(),
+      trackerNotes: () => window.opal.trackerNotes(),
+      trackerData: (source) => window.opal.trackerData(source),
+      heatmapChoice: async () => getProp(await window.opal.readFolderSettings('').catch(() => ''), 'opal-home-heatmap') || null,
+      setHeatmapChoice: async (path) => {
+        const text = await window.opal.readFolderSettings('').catch(() => '');
+        await window.opal.writeFolderSettings('', setProp(text, 'opal-home-heatmap', JSON.stringify(path)));
+      },
+      makeHeatmapNote: async () => {
+        const path = await window.opal.createNote('Exercise heatmap', '');
+        const existing = await window.opal.readFile(path).catch(() => '');
+        if (!existing.trim()) {
+          await window.opal.writeFile(path, '# Exercise heatmap\n\nEvery day note in the Calendar folder that mentions #exercise is a square here. Click the heatmap to change what it counts.\n\n```tracker\nsearchType: tag\nsearchTarget: exercise\nfolder: Calendar\ndatasetName: Exercise\nmonth:\n    color: green\n```\n');
+        }
+        await reloadTree();
+        if (homeWidgets) homeWidgets.reload();
+      },
     },
   });
 }
@@ -1177,6 +1193,7 @@ async function showNote(filePath) {
     linkTargets: () => linkTargets(),
     findLink: (target) => window.opal.findLink(target),
     saveImage: (ext, bytes) => window.opal.saveAttachment(filePath, ext, bytes),
+    heatmap: { load: (source) => window.opal.trackerData(source), openFile: (path) => openFile(path) },
     onExport: (data) => exportFlow(noteName(filePath), data),
     onLeaveFlow: () => changeOpenNote(filePath, fromFlowText),
     onCursor: () => {
