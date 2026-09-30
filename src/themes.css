@@ -1075,3 +1075,14 @@
 :root:not([data-theme="scrapbook"]) .pin-typed { border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 :root:not([data-theme="scrapbook"]) .pin-preview { border: 1px solid var(--line); }
 :root:not([data-theme="scrapbook"]) .cm-task-box { accent-color: var(--accent); }
+
+/* ---------- The + button ---------- */
+
+:root:not([data-theme="scrapbook"]) .fab-main { border: 0; background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 14px rgb(0 0 0 / 0.22); }
+:root:not([data-theme="scrapbook"]) .fab-main:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgb(0 0 0 / 0.26); }
+:root:not([data-theme="scrapbook"]) .fab-item-label { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 2px 8px rgb(0 0 0 / 0.12); }
+:root:not([data-theme="scrapbook"]) .fab-item-icon { border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); box-shadow: 0 2px 8px rgb(0 0 0 / 0.12); }
+:root:not([data-theme="scrapbook"]) .fab-item:hover .fab-item-label { background: var(--fill); }
+:root:not([data-theme="scrapbook"]) .fab .fab-item:focus-visible .fab-item-label { box-shadow: 0 0 0 2px var(--accent); }
+:root:not([data-theme="scrapbook"]) .skip-btn { border: 1px solid var(--line); background: var(--paper); }
+:root:not([data-theme="scrapbook"]) .skip-btn:hover { background: var(--fill); }

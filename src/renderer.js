@@ -66,6 +66,7 @@ import { ReviewView } from './views/review-view.js';
 import { countDue } from './flashcards/schedule.js';
 import { PrepTimer } from './timer.js';
 import { TabBar, openPinPicker } from './tabs.js';
+import { AddButton } from './fab.js';
 import { ITEM_COLORS } from './item-colors.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
@@ -139,6 +140,23 @@ chrome.renderTop();
 new ResizeObserver(() => {
   document.documentElement.style.setProperty('--sidebar-w', `${document.getElementById('sidebar').offsetWidth}px`);
 }).observe(document.getElementById('sidebar'));
+
+// The + button in the bottom right: what can be added depends on the page.
+const addButton = new AddButton(document.getElementById('workspace'), { items: () => addItems() });
+
+function addItems() {
+  if (!vault || !screen || screen.kind === 'welcome') return [];
+  const items = [
+    { id: 'note', label: 'Note', hint: '⌘N', icon: 'note', run: (at) => newNote(currentFolder(), at) },
+    { id: 'folder', label: 'Folder', hint: '⌘⇧N', icon: 'folder', run: (at) => newFolder(currentFolder(), at) },
+  ];
+  if (screen.kind === 'home' && homeStickies) {
+    items.push({ id: 'sticky', label: 'Sticky note', icon: 'sticky', run: () => homeStickies && homeStickies.layer.add(viewEl.scrollTop) });
+  } else if (screen.kind === 'note' && current && current.stickies) {
+    items.push({ id: 'sticky', label: 'Sticky note', icon: 'sticky', run: () => current && current.stickies && current.stickies.add(viewEl.scrollTop - current.noteView.center.offsetTop) });
+  }
+  return items;
+}
 
 // ---------- Everything happens one step at a time ----------
 
@@ -308,6 +326,7 @@ function openReminder(open) {
 function showCrumbs(crumbs) {
   document.documentElement.dataset.screen = screen ? screen.kind : '';
   chrome.setCrumbs(crumbs);
+  addButton.refresh();
   remember();
   if (!screen || screen.kind !== 'note') chrome.setWords(null);
   else showWordCount();
@@ -851,6 +870,7 @@ function showHome(folderPath, notice) {
   });
   describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
+  addButton.refresh();
 }
 
 // ---------- Home page widgets ----------
@@ -1095,6 +1115,7 @@ async function showNote(filePath) {
   stickies.refresh();
   noteView.connectEditor(editor.view);
   current = { filePath, editor, noteView, stickies };
+  addButton.refresh();
   loadBacklinks();
   noteView.setTree(tree);
   noteView.setText(content);

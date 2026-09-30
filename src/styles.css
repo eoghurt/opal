@@ -3269,3 +3269,50 @@ button.tab-peek-step:hover { background: var(--c2); color: var(--ink); text-deco
 
 .cm-task-box { width: 15px; height: 15px; margin: 0 3px 0 1px; vertical-align: -2px; cursor: pointer; accent-color: var(--ink); }
 .cm-task-done { color: var(--ink-3); text-decoration: line-through; text-decoration-color: rgb(var(--ink-rgb) / 0.4); }
+
+/* ---------- The + button (bottom right) ---------- */
+
+#workspace { position: relative; }
+.fab { position: absolute; right: 26px; bottom: 22px; z-index: 45; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
+.fab[hidden] { display: none; }
+.fab > * { pointer-events: auto; }
+.fab-main { width: 54px; height: 54px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--paper); border: var(--rule); box-shadow: 3px 3px 0 var(--c1); transition: transform 0.18s ease; }
+.fab-main:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--c1); }
+.fab-main .icon { transition: transform 0.18s ease; }
+.fab.is-open .fab-main .icon { transform: rotate(45deg); }
+.fab-menu { display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 8px; }
+.fab:not(.is-open) .fab-menu { display: none; }
+.fab.is-open .fab-item { animation: fab-in 0.16s ease both; }
+.fab.is-open .fab-item:nth-child(2) { animation-delay: 0.03s; }
+.fab.is-open .fab-item:nth-child(3) { animation-delay: 0.06s; }
+@keyframes fab-in { from { opacity: 0; transform: translateY(8px); } }
+.fab-item { display: inline-flex; align-items: center; gap: 10px; padding: 0 0 0 14px; border-radius: 26px; background: none; }
+.fab-item-label { display: inline-flex; align-items: baseline; gap: 8px; padding: 6px 12px; border: var(--rule); border-radius: var(--radius); background: var(--white); color: var(--ink); font-size: 14px; font-weight: 600; box-shadow: 2px 2px 0 var(--ink); white-space: nowrap; }
+.fab-item-hint { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--ink-3); }
+.fab-item-icon { width: 42px; height: 42px; margin-right: 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--c2); color: var(--ink); border: var(--rule); }
+.fab-item:hover .fab-item-label, .fab-item:focus-visible .fab-item-label { background: var(--c2); }
+.fab-item:focus-visible { outline: none; }
+.fab .fab-item:focus-visible { outline: none !important; }
+.fab .fab-item:focus-visible .fab-item-label { box-shadow: 0 0 0 2px var(--c3); }
+
+/* ---------- Skipping in audio and video ---------- */
+
+.video-frame { position: relative; display: inline-flex; max-width: 100%; }
+.video-frame .video-player { display: block; }
+.skip-zone { position: absolute; top: 0; bottom: 56px; width: 32%; cursor: pointer; z-index: 2; border-radius: 0; }
+.skip-zone.is-back { left: 0; }
+.skip-zone.is-forward { right: 0; }
+.skip-zone:hover { background: linear-gradient(to var(--zone-side, right), rgb(255 255 255 / 0.08), transparent); }
+.skip-zone.is-back:hover { --zone-side: right; }
+.skip-zone.is-forward:hover { --zone-side: left; }
+.skip-bubble { position: absolute; top: 42%; z-index: 3; padding: 8px 14px; border-radius: 22px; background: rgb(0 0 0 / 0.62); color: #FFFFFF; font-family: var(--sans); font-size: 15px; font-weight: 700; letter-spacing: 0; text-transform: none; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.skip-bubble.is-shown { opacity: 1; }
+.skip-bubble.is-back { left: 12%; }
+.skip-bubble.is-forward { right: 12%; }
+.audio-skip-row { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; }
+.audio-skip-row .audio-bars { flex: 1; min-width: 0; }
+.skip-btn { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 64px; height: 64px; border-radius: 50%; border: var(--rule); background: var(--paper); color: var(--ink); font-family: var(--mono); font-size: 13px; font-weight: 600; user-select: none; }
+.skip-btn:hover { background: var(--c2); }
+.skip-btn:active { transform: scale(0.96); }
+.audio-skip-row .skip-bubble { top: -8px; }
+.skip-hint { font-size: 12px; color: var(--ink-3); }

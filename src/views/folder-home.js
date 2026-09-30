@@ -69,11 +69,8 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
         h('span', null, 'Files'),
         h('span', { class: 'home-stamp-num' }, String(total)),
         h('span', null, 'in here'))),
-    h('div', { class: 'home-actions' },
-      h('button', { class: 'home-action is-primary', onclick: (e) => onNewNote(e.currentTarget) }, '+ Note'),
-      h('button', { class: 'home-action', onclick: (e) => onNewFolder(e.currentTarget) }, '+ Folder'),
-      h('button', { class: 'home-action', onclick: onAddSticky }, '+ Sticky')),
   );
+  // (+ Note / + Folder / + Sticky are on the round + button in the bottom right — see fab.js.)
 
   const sections = [head];
   if (notice) sections.unshift(h('div', { class: 'home-notice' }, notice));
