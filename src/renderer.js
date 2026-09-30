@@ -67,6 +67,7 @@ import { countDue } from './flashcards/schedule.js';
 import { PrepTimer } from './timer.js';
 import { TabBar, openPinPicker } from './tabs.js';
 import { AddButton } from './fab.js';
+import { BookmarkList, openBookmarksPanel, isBookmarked, toggleBookmark } from './bookmarks.js';
 import { ITEM_COLORS } from './item-colors.js';
 
 // The Inbox is switched off for now (its code stays, ready to come back).
@@ -103,6 +104,7 @@ const sidebar = new Sidebar(sidebarPanel, {
 const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
   onHome: () => vault && openFolder(''),
   onSettings: () => showSettings(),
+  onBookmarks: (anchor) => showBookmarks(anchor),
   onBack: () => goHistory(-1),
   onForward: () => goHistory(1),
   onReview: () => showReview(),
@@ -661,6 +663,7 @@ function tabMenu(event, id) {
       { label: tab.pinned ? 'Unpin' : 'Pin', hint: tab.pinned ? '' : 'small, with an emoji', onSelect: () => togglePin(id) },
       tab.pinned ? { label: 'Emoji and colour…', onSelect: () => choosePin(id) } : null,
       { label: 'Duplicate tab', onSelect: () => duplicateTab(id) },
+      tabBookmarkItem(tab),
       ...(fileItems(tab).length ? ['separator', ...fileItems(tab)] : []),
       'separator',
       { label: 'Close', hint: '⌘W', onSelect: () => closeTab(id) },
@@ -689,6 +692,13 @@ function fileItems(tab) {
     { label: 'Copy path', hint: 'the full path on this Mac', onSelect: () => copy(full, 'the path') },
     rel ? { label: 'Copy vault path', hint: rel.length > 28 ? `…${rel.slice(-27)}` : rel, onSelect: () => copy(rel, 'the vault path') } : null,
   ].filter(Boolean);
+}
+
+function tabBookmarkItem(tab) {
+  const place = tabPlace(tab);
+  const target = place && place.kind === 'note' ? bookmarkTarget(place.filePath, false) : place && place.kind === 'home' ? bookmarkTarget(place.folderPath, true) : null;
+  if (!target) return null;
+  return { label: isBookmarked(bookmarksData, target) ? 'Remove bookmark' : 'Bookmark', onSelect: () => toggleBookmarkOf(target) };
 }
 
 function tabFileMenu(event, id) {
@@ -873,6 +883,79 @@ function showHome(folderPath, notice) {
   addButton.refresh();
 }
 
+// ---------- Bookmarks ----------
+//
+// In .obsidian/bookmarks.json (Obsidian's format — see bookmarks.js and main.js).
+
+let bookmarksData = { items: [] };
+
+async function loadBookmarks() {
+  bookmarksData = vault ? await window.opal.readBookmarks().catch(() => ({ items: [] })) : { items: [] };
+  bookmarksChanged();
+}
+
+async function saveBookmarks() {
+  bookmarksChanged();
+  try {
+    await window.opal.writeBookmarks(bookmarksData);
+  } catch (err) {
+    alert(`Couldn't save the bookmarks.\n\n${err.message}`);
+  }
+}
+
+// Everything showing bookmarks picks up the change.
+function bookmarksChanged() {
+  if (current && current.noteView && current.noteView.setBookmarked) current.noteView.setBookmarked(isBookmarked(bookmarksData, { type: 'file', path: current.filePath }));
+  if (homeWidgets) homeWidgets.reload();
+}
+
+// What a bookmark of this note, file or folder looks like ({ type, path }).
+function bookmarkTarget(path, isFolder) {
+  if (isFolder) return path ? { type: 'folder', path } : null;
+  return { type: 'file', path };
+}
+
+async function toggleBookmarkOf(target) {
+  if (!target) return;
+  // Read them again first, so a change made in Obsidian isn't overwritten.
+  bookmarksData = await window.opal.readBookmarks().catch(() => bookmarksData);
+  toggleBookmark(bookmarksData, target);
+  await saveBookmarks();
+}
+
+function openBookmark(item, event = {}) {
+  const open = () => {
+    if (item.type === 'file') {
+      if (!findFile(tree, item.path)) return alert(`Can't find “${item.path}” any more.`);
+      return openFile(item.path);
+    }
+    if (item.type === 'folder') return openFolder(item.path);
+    if (item.type === 'url') return window.opal.openWebLink(item.url).catch((err) => alert(err.message));
+    if (item.type === 'search') return startSearch('text');
+    return undefined;
+  };
+  return event.metaKey && item.type !== 'url' ? inNewTab(open) : open();
+}
+
+function bookmarkIo() {
+  return {
+    data: () => bookmarksData,
+    save: () => saveBookmarks(),
+    open: (item, event) => openBookmark(item, event),
+    exists: (item) => (item.type === 'file' ? Boolean(findFile(tree, item.path)) : item.type === 'folder' ? Boolean(findFolder(tree, item.path, vault.name)) : true),
+  };
+}
+
+async function showBookmarks(anchor) {
+  if (!vault) return;
+  await loadBookmarks(); // Obsidian may have changed them
+  const place = currentPlace();
+  let target = null;
+  if (place && place.kind === 'note') target = { target: bookmarkTarget(place.filePath, false), title: noteName(place.filePath) };
+  else if (place && place.kind === 'home' && place.folderPath) target = { target: bookmarkTarget(place.folderPath, true), title: place.folderPath.split('/').pop() };
+  openBookmarksPanel(anchor, { io: bookmarkIo(), current: target, onToggleCurrent: () => toggleBookmarkOf(target.target) });
+}
+
 // ---------- Home page widgets ----------
 //
 // The vault's own page has widgets (home-widgets.js). Which ones, in what
@@ -919,6 +1002,7 @@ async function mountHomeWidgets(slot) {
       readLogbook: () => window.opal.readLogbook(),
       readFile: (path) => window.opal.readFile(path),
       timer: prepTimer,
+      bookmarks: bookmarkIo(),
     },
   });
 }
@@ -1044,6 +1128,7 @@ async function showNote(filePath) {
     onDescribe: (text) => describeOpenNote(filePath, text),
     onHistory: () => showHistory(filePath),
     onTemplate: (anchor) => chooseTemplateFor(filePath, anchor),
+    onBookmark: () => toggleBookmarkOf(bookmarkTarget(filePath, false)),
     onWordTarget: (target) => {
       if (!current || current.filePath !== filePath) return;
       current.editor.replaceText(setProp(current.editor.getText(), 'word-target', target ? String(target) : null));
@@ -1116,6 +1201,7 @@ async function showNote(filePath) {
   noteView.connectEditor(editor.view);
   current = { filePath, editor, noteView, stickies };
   addButton.refresh();
+  noteView.setBookmarked(isBookmarked(bookmarksData, { type: 'file', path: filePath }));
   loadBacklinks();
   noteView.setTree(tree);
   noteView.setText(content);
@@ -1577,6 +1663,7 @@ function colorMenu(event, node, kind) {
     ? [
       { label: 'Open', onSelect: () => openFolder(node.path) },
       { label: 'Open in new tab', hint: '⌘-click', onSelect: () => inNewTab(() => openFolder(node.path)) },
+      node.path ? { label: isBookmarked(bookmarksData, bookmarkTarget(node.path, true)) ? 'Remove bookmark' : 'Bookmark', onSelect: () => toggleBookmarkOf(bookmarkTarget(node.path, true)) } : null,
       { label: 'New note here…', onSelect: () => newNote(node.path, at) },
       { label: 'New folder inside…', onSelect: () => newFolder(node.path, at) },
       'separator',
@@ -1593,6 +1680,7 @@ function colorMenu(event, node, kind) {
     : [
       { label: 'Open', onSelect: () => openFile(node.path) },
       { label: 'Open in new tab', hint: '⌘-click', onSelect: () => inNewTab(() => openFile(node.path)) },
+      { label: isBookmarked(bookmarksData, bookmarkTarget(node.path, false)) ? 'Remove bookmark' : 'Bookmark', onSelect: () => toggleBookmarkOf(bookmarkTarget(node.path, false)) },
       isNote ? null : { label: 'Open in its own app', onSelect: () => window.opal.openExternal(node.path) },
       isNote ? { label: 'Apply template…', hint: 'or a flow sheet', onSelect: async () => { await openFile(node.path); if (current && current.filePath === node.path) chooseTemplateFor(node.path, at); } } : null,
       'separator',
@@ -2194,6 +2282,7 @@ function loadVault(newVault) {
     }
     await reloadTree();
     await loadVaultSettings();
+    await loadBookmarks();
     firstPlace = await restoreTabs();
   });
   // The first tab's page is drawn once loading is done (drawing goes through the same queue).

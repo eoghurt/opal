@@ -13,11 +13,12 @@
 //   io: saveLayout(items), onEditing(on), files(), openFile(path), openFolder(path),
 //       openCalendarDay(key), openTasks(), openReview(), openSettings(section),
 //       loadDayEvents(key), loadTasks(), toggleTask(task), listCards(),
-//       readLogbook(), readFile(path), timer (the PrepTimer)
+//       readLogbook(), readFile(path), timer (the PrepTimer), bookmarks (see bookmarks.js)
 //   home.destroy()
 
 import { h, icon } from '../ui.js';
 import { LogbookView } from './logbook-view.js';
+import { BookmarkList } from '../bookmarks.js';
 import { noteName, relativeDay } from '../format.js';
 import { clock, dayKey, addDays, startOfWeek } from '../calendar/events.js';
 import { dueSides, todayKey } from '../flashcards/schedule.js';
@@ -28,6 +29,7 @@ export const WIDGETS = [
   { id: 'flashcards', name: 'Flashcards', icon: 'review', size: 'small', desc: 'Cards due today and your decks.' },
   { id: 'timer', name: 'Timer', icon: 'timer', size: 'small', desc: 'Start a countdown or a Pomodoro.' },
   { id: 'recent', name: 'Recent pages', icon: 'note', size: 'wide', desc: 'The notes you changed last.' },
+  { id: 'bookmarks', name: 'Bookmarks', icon: 'bookmark', size: 'small', desc: 'Your bookmarked notes, folders and files.' },
   { id: 'writing', name: 'Writing', icon: 'pen', size: 'small', desc: 'Words written today and this week.' },
   { id: 'numbers', name: 'Numbers', icon: 'chart', size: 'full', desc: 'Notes, events, tasks, words and timer time for a week, month or year.' },
   { id: 'activity', name: 'Activity', icon: 'activity', size: 'full', desc: 'Which days you worked; click one to see what happened.' },
@@ -39,7 +41,7 @@ const BY_ID = Object.fromEntries(WIDGETS.map((w) => [w.id, w]));
 const SIZES = [['small', 'S', 'Small — a quarter of the width'], ['wide', 'M', 'Wide — half'], ['full', 'L', 'Full width']];
 const LOGBOOK_PARTS = { numbers: 'tiles', activity: 'activity', places: 'places', busiest: 'busiest' };
 
-export const DEFAULT_LAYOUT = ['clock small', 'today wide', 'flashcards small', 'timer small', 'recent wide', 'writing small', 'numbers full', 'activity full', 'places wide', 'busiest wide'];
+export const DEFAULT_LAYOUT = ['clock small', 'today wide', 'flashcards small', 'timer small', 'recent small', 'bookmarks small', 'writing small', 'numbers full', 'activity full', 'places wide', 'busiest wide'];
 
 // The saved list → [{ id, size }] (unknown or repeated widgets are skipped).
 export function parseLayout(list) {
@@ -355,6 +357,12 @@ export class HomeWidgets {
       icon('note', 14),
       h('span', { class: 'widget-row-title' }, noteName(f.path)),
       h('span', { class: 'widget-row-meta' }, [f.path.includes('/') ? f.path.split('/').slice(0, -1).pop() : null, ago(f.modified)].filter(Boolean).join(' · ')))) : [empty('No notes yet.')]));
+  }
+
+  fill_bookmarks(body) {
+    const list = h('div', { class: 'widget-bm-list' });
+    body.append(list);
+    new BookmarkList(list, { io: { ...this.io.bookmarks, save: async () => { await this.io.bookmarks.save(); } } });
   }
 
   async fill_writing(body) {

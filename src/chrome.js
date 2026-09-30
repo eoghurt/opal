@@ -31,11 +31,12 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview }) {
+  constructor(topbar, footer, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
     this.onSettings = onSettings;
+    this.onBookmarks = onBookmarks;
     this.onBack = onBack;
     this.onForward = onForward;
     this.canBack = false;
@@ -133,6 +134,7 @@ export class Chrome {
       this.tabSlot,
       h('div', { class: 'bar-tools' }, ...[
         link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
+        !this.onBookmarks ? null : link('bookmarks', 'bookmark', 'Bookmarks', (e) => this.onBookmarks(e.currentTarget), { class: 'bar-bookmarks' }),
         !this.onInbox ? null : link('inbox', 'tasks', 'Inbox', () => this.onInbox(), {
           class: 'bar-inbox',
           title: 'Inbox (⌘⇧I)',

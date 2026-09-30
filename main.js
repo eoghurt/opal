@@ -600,6 +600,11 @@ async function withRelink(relPath, kind, change) {
   } catch (err) {
     console.error('Could not move the version history:', err);
   }
+  try {
+    await moveBookmarks(relPath, newRel, kind === 'folder');
+  } catch (err) {
+    console.error('Could not update bookmarks:', err);
+  }
   return newRel;
 }
 
@@ -1165,6 +1170,68 @@ async function moveHistory(fromRel, toRel) {
   await fs.promises.rename(from, to);
 }
 
+// ---------- Bookmarks (.obsidian/bookmarks.json) ----------
+//
+// Kept in the same file, and the same format, as Obsidian's Bookmarks plugin,
+// so bookmarks made in either app show in both:
+//   { "items": [ { "type": "file", "ctime": 1727…, "path": "School/Essay plan.md", "title": "…" },
+//                { "type": "folder", "path": "School" },
+//                { "type": "group", "title": "Exams", "items": [ … ] }, … ] }
+// Anything Opal doesn't show (searches, graph views…) is kept as it was.
+
+function bookmarksFile() {
+  if (!vaultPath) throw new Error('No vault is open.');
+  return path.join(vaultPath, '.obsidian', 'bookmarks.json');
+}
+
+async function readBookmarks() {
+  try {
+    const data = JSON.parse(await fs.promises.readFile(bookmarksFile(), 'utf8'));
+    return data && Array.isArray(data.items) ? data : { items: [] };
+  } catch {
+    return { items: [] };
+  }
+}
+
+let bookmarksQueue = Promise.resolve();
+function writeBookmarks(data) {
+  if (!data || !Array.isArray(data.items)) return Promise.reject(new Error('Invalid bookmarks.'));
+  const text = `${JSON.stringify(data, null, 2)}\n`;
+  if (text.length > 2000000) return Promise.reject(new Error('Too many bookmarks to save.'));
+  const run = bookmarksQueue.then(async () => {
+    const full = bookmarksFile();
+    await fs.promises.mkdir(path.dirname(full), { recursive: true });
+    const temp = `${full}.opal-saving`;
+    await fs.promises.writeFile(temp, text, 'utf8');
+    await fs.promises.rename(temp, full);
+  });
+  bookmarksQueue = run.catch(() => {});
+  return run;
+}
+
+// A note, file or folder was renamed or moved: its bookmarks (and those of
+// everything inside a moved folder) follow it, as in Obsidian.
+async function moveBookmarks(fromRel, toRel, isFolder) {
+  if (!vaultPath || fromRel === toRel || !fs.existsSync(bookmarksFile())) return;
+  const data = await readBookmarks();
+  let changed = false;
+  const walk = (items) => {
+    for (const item of items) {
+      if (item && item.type === 'group' && Array.isArray(item.items)) walk(item.items);
+      if (!item || typeof item.path !== 'string') continue;
+      if (item.path === fromRel) {
+        item.path = toRel;
+        changed = true;
+      } else if (isFolder && item.path.startsWith(`${fromRel}/`)) {
+        item.path = toRel + item.path.slice(fromRel.length);
+        changed = true;
+      }
+    }
+  };
+  walk(data.items);
+  if (changed) await writeBookmarks(data);
+}
+
 // ---------- Words and the Logbook's own records (.opal/logbook.md) ----------
 //
 // Words written per day and prep-timer sessions, as a readable note:
@@ -1675,6 +1742,8 @@ ipcMain.handle('db:set-cell', (_event, relPath, key, value, type) => setDatabase
 ipcMain.handle('db:read', (_event, folder) => readDatabase(folder));
 ipcMain.handle('db:write', (_event, folder, on, settings) => writeDatabase(folder, on, settings));
 ipcMain.handle('logbook:read', () => readLogbook());
+ipcMain.handle('bookmarks:read', () => readBookmarks());
+ipcMain.handle('bookmarks:write', (_event, data) => writeBookmarks(data));
 ipcMain.handle('opal-json:read', (_event, name) => readOpalJson(name));
 ipcMain.handle('opal-json:write', (_event, name, data) => writeOpalJson(name, data));
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), vault: vaultInfo() }));

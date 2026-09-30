@@ -11,7 +11,7 @@ const USE = {
   grid: 'layout-grid', columns: 'columns-3', palette: 'palette', keyboard: 'keyboard',
   activity: 'activity', info: 'info-circle', drag: 'grip-vertical', chart: 'chart-bar', pen: 'pencil',
   flame: 'flame', player: 'player-play', stop: 'player-stop', skip: 'player-skip-forward',
-  history: 'history', template: 'template', layers: 'stack-2', sticky: 'note', bookmark: 'bookmark', bookmarks: 'bookmarks',
+  history: 'history', template: 'template', layers: 'stack-2', sticky: 'note', bookmark: 'bookmark', bookmarks: 'bookmarks', link: 'link',
 };
 
 const dir = new URL('../node_modules/@tabler/icons/icons/outline/', import.meta.url);
