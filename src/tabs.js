@@ -11,7 +11,7 @@
 // history) are kept by the window code (renderer.js).
 //
 //   const bar = new TabBar(el, { onActivate(id), onClose(id), onNew(), onMenu(event, id),
-//                                onMove(id, index), onPath(id, place) })
+//                                onMove(id, index), onPath(id, place), onDouble(event, id) })
 //   bar.render([{ id, title, icon, pinned, pin: { emoji, color }, path: [{ label, icon, place }] }], activeId)
 //   openPinPicker(anchor, { emoji, color }, onDone({ emoji, color }))
 
@@ -85,6 +85,13 @@ export class TabBar {
       e.preventDefault();
       e.stopPropagation();
       this.handlers.onClose(tab.id);
+    });
+    // Double-click: Show in Finder / Copy path.
+    el.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.tab-close')) return;
+      e.preventDefault();
+      this.hidePeek(true);
+      if (this.handlers.onDouble) this.handlers.onDouble(e, tab.id);
     });
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();

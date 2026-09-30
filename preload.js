@@ -62,6 +62,7 @@ contextBridge.exposeInMainWorld('opal', {
   readOpalJson: (name) => call('opal-json:read', name),
   writeOpalJson: (name, data) => call('opal-json:write', name, data),
   appInfo: () => call('app:info'),
+  copyText: (text) => call('clipboard:write', text),
   addWords: (day, count) => call('logbook:add-words', day, count),
   addSession: (session) => call('logbook:add-session', session),
   folderWords: (folder) => call('words:folder', folder),

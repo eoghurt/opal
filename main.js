@@ -1,7 +1,7 @@
 // Main process: the only part of Opal that touches the disk.
 // The window (renderer) asks for things through IPC; see preload.js.
 
-const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -1678,6 +1678,12 @@ ipcMain.handle('logbook:read', () => readLogbook());
 ipcMain.handle('opal-json:read', (_event, name) => readOpalJson(name));
 ipcMain.handle('opal-json:write', (_event, name, data) => writeOpalJson(name, data));
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), vault: vaultInfo() }));
+// Copies a line of text (a file path) for pasting elsewhere.
+ipcMain.handle('clipboard:write', (_event, text) => {
+  if (typeof text !== 'string' || text.length > 4096) throw new Error('Nothing to copy.');
+  clipboard.writeText(text);
+  return true;
+});
 ipcMain.handle('logbook:add-words', (_event, day, count) => addWords(day, count));
 ipcMain.handle('logbook:add-session', (_event, session) => addSession(session));
 ipcMain.handle('words:folder', (_event, folder) => folderWords(folder));

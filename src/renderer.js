@@ -120,6 +120,7 @@ const tabBar = new TabBar(tabStrip, {
   onMenu: (event, id) => tabMenu(event, id),
   onMove: (id, index) => moveTab(id, index),
   onPath: (id, place) => openFromTab(id, place),
+  onDouble: (event, id) => tabFileMenu(event, id),
 });
 
 // The prep timer lives in the top bar and keeps running across screens.
@@ -641,12 +642,42 @@ function tabMenu(event, id) {
       { label: tab.pinned ? 'Unpin' : 'Pin', hint: tab.pinned ? '' : 'small, with an emoji', onSelect: () => togglePin(id) },
       tab.pinned ? { label: 'Emoji and colour…', onSelect: () => choosePin(id) } : null,
       { label: 'Duplicate tab', onSelect: () => duplicateTab(id) },
+      ...(fileItems(tab).length ? ['separator', ...fileItems(tab)] : []),
       'separator',
       { label: 'Close', hint: '⌘W', onSelect: () => closeTab(id) },
       { label: 'Close others', hint: 'keeps pinned tabs', disabled: tabs.length < 2, onSelect: () => closeTabs((t) => t === tab || t.pinned) },
       { label: 'Close tabs to the right', disabled: index === tabs.length - 1, onSelect: () => closeTabs((t, i) => i <= index || t.pinned) },
     ].filter(Boolean),
   });
+}
+
+// Show in Finder / Copy path for a tab's note, file or folder (double-click a tab).
+function fileItems(tab) {
+  const place = tabPlace(tab);
+  if (!place || !vault || (place.kind !== 'note' && place.kind !== 'home')) return [];
+  const rel = place.kind === 'note' ? place.filePath : place.folderPath;
+  const full = rel ? `${vault.path}/${rel}` : vault.path;
+  const copy = async (text, what) => {
+    try {
+      await window.opal.copyText(text);
+      chrome.setStatus(`Copied ${what}`);
+    } catch (err) {
+      alert(`Couldn't copy the path.\n\n${err.message}`);
+    }
+  };
+  return [
+    { label: 'Show in Finder', onSelect: () => (place.kind === 'note' ? window.opal.revealInFinder(rel) : window.opal.revealFolder(rel)) },
+    { label: 'Copy path', hint: 'the full path on this Mac', onSelect: () => copy(full, 'the path') },
+    rel ? { label: 'Copy vault path', hint: rel.length > 28 ? `…${rel.slice(-27)}` : rel, onSelect: () => copy(rel, 'the vault path') } : null,
+  ].filter(Boolean);
+}
+
+function tabFileMenu(event, id) {
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const items = fileItems(tab);
+  if (!items.length) return;
+  showMenu(event, { title: placeTitle(tabPlace(tab)), items });
 }
 
 function duplicateTab(id) {
