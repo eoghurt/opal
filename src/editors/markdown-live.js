@@ -1,11 +1,12 @@
 // Live preview for the markdown editor:
 //  - hides the markdown symbols (# ** * ~~ ` == <u>) unless the cursor is on them
+//  - `- [ ]` task items show a real checkbox; clicking it writes [x] / [ ] into the note
 //  - a small formatting bar that pops up over selected text
 //  - the commands the ribbon (ribbon.js) uses, and what's active at the cursor
 //  - Cmd+B / Cmd+I / Cmd+U / Cmd+K shortcuts
 // The file keeps plain markdown; this only changes what you see while writing.
 
-import { Decoration, ViewPlugin, showTooltip, keymap } from '@codemirror/view';
+import { Decoration, ViewPlugin, WidgetType, showTooltip, keymap } from '@codemirror/view';
 import { StateField, EditorSelection } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 
@@ -13,6 +14,42 @@ const hide = Decoration.replace({});
 const highlightMark = Decoration.mark({ class: 'cm-highlight' });
 const underlineMark = Decoration.mark({ class: 'cm-underline' });
 const faintMark = Decoration.mark({ class: 'cm-faint-mark' });
+const doneLine = Decoration.line({ class: 'cm-task-done' });
+
+// The box drawn in place of "[ ]" / "[x]". Clicking it flips the letter in the note.
+class CheckboxWidget extends WidgetType {
+  constructor(checked) {
+    super();
+    this.checked = checked;
+  }
+
+  eq(other) {
+    return other.checked === this.checked;
+  }
+
+  toDOM(view) {
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'cm-task-box';
+    box.checked = this.checked;
+    box.setAttribute('aria-label', this.checked ? 'Done — click to untick' : 'Not done — click to tick');
+    box.addEventListener('mousedown', (event) => event.preventDefault()); // keep the cursor where it is
+    box.addEventListener('click', (event) => {
+      event.preventDefault();
+      const at = view.posAtDOM(box);
+      const inside = view.state.doc.sliceString(at + 1, at + 2);
+      if (!/[ xX]/.test(inside) || view.state.doc.sliceString(at, at + 1) !== '[') return;
+      view.dispatch({ changes: { from: at + 1, to: at + 2, insert: inside === ' ' ? 'x' : ' ' }, userEvent: 'input.task' });
+    });
+    return box;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+const TASK_LINE = /^(\s*(?:[-*+]|\d+[.)])\s)\[([ xX])\](?=\s|$)/;
 
 // Is the text cursor on [from, to]? Symbols only reappear where you're typing —
 // not while a range of text is selected (so the text doesn't jump as you drag).
@@ -53,6 +90,22 @@ function buildDecorations(view) {
         return undefined;
       },
     });
+
+    // Task items: a checkbox in place of [ ] / [x], ticked ones crossed out.
+    for (let pos = from; pos <= to;) {
+      const line = state.doc.lineAt(pos);
+      const m = TASK_LINE.exec(line.text);
+      if (m) {
+        const boxFrom = line.from + m[1].length;
+        const checked = m[2] !== ' ';
+        if (checked) ranges.push(doneLine.range(line.from));
+        // The "- " before the box is hidden (unless you're editing this line), as in Obsidian.
+        const indent = /^\s*/.exec(m[1])[0].length;
+        if (!/\d/.test(m[1]) && !touches(state, line.from, line.to)) ranges.push(hide.range(line.from + indent, boxFrom));
+        ranges.push(Decoration.replace({ widget: new CheckboxWidget(checked) }).range(boxFrom, boxFrom + 3));
+      }
+      pos = line.to + 1;
+    }
 
     // ==highlight== and <u>underline</u> (not part of standard markdown, so found by pattern).
     const text = state.doc.sliceString(from, to);

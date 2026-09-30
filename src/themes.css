@@ -1074,3 +1074,4 @@
 :root:not([data-theme="scrapbook"]) .pin-emoji.is-on { background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--accent); }
 :root:not([data-theme="scrapbook"]) .pin-typed { border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 :root:not([data-theme="scrapbook"]) .pin-preview { border: 1px solid var(--line); }
+:root:not([data-theme="scrapbook"]) .cm-task-box { accent-color: var(--accent); }
