@@ -15,11 +15,11 @@ import { getDescription, getProp } from '../../shared/frontmatter.js';
 import { countWords } from '../../shared/words.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark, onExport }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark, onExport };
     this.backlinks = null; // { linked, unlinked } once loaded
     this.tree = [];
     this.text = '';
@@ -248,6 +248,7 @@ export class NoteView {
       }, icon('bookmark', 12), this.bookmarked ? 'Bookmarked' : 'Bookmark') : null,
       this.handlers.onTemplate ? h('button', { class: 'chip chip-add chip-template', title: 'Apply a template or a flow sheet to this note', onclick: (e) => this.handlers.onTemplate(e.currentTarget) }, 'Template') : null,
       h('button', { class: 'chip chip-add chip-history', title: 'Earlier versions of this note', onclick: () => this.handlers.onHistory() }, 'History'),
+      this.handlers.onExport ? h('button', { class: 'chip chip-add chip-export', title: 'Save as a PDF or Word document', onclick: (e) => this.handlers.onExport(e.currentTarget) }, 'Export') : null,
     );
   }
 

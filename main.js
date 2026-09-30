@@ -1605,6 +1605,40 @@ async function saveDocx(suggestedName, bytes) {
   return filePath;
 }
 
+// A note's printable page (built in the window, all text escaped) → a PDF.
+// It's laid out in a hidden window with no scripts and no access to anything.
+async function savePdf(suggestedName, html) {
+  if (typeof html !== 'string' || !html || html.length > 20 * 1024 * 1024) throw new Error('Nothing to save.');
+  const name = `${safeFileName(String(suggestedName || 'Opal export')).replace(/\.pdf$/i, '')}.pdf`;
+  let target;
+  if (process.env.OPAL_EXPORT_DIR) {
+    target = path.join(process.env.OPAL_EXPORT_DIR, name); // automated tests save without the dialog
+  } else {
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Save as a PDF',
+      defaultPath: path.join(app.getPath('documents'), name),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (canceled || !filePath) return null;
+    target = filePath;
+  }
+  const printer = new BrowserWindow({
+    show: false,
+    webPreferences: { javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'opal-print' },
+  });
+  printer.webContents.on('will-navigate', (event) => event.preventDefault());
+  printer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  try {
+    await printer.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    const pdf = await printer.webContents.printToPDF({ pageSize: 'A4', printBackground: true, preferCSSPageSize: true });
+    await fs.promises.writeFile(target, pdf);
+  } finally {
+    printer.destroy();
+  }
+  lastSavedExport = target;
+  return target;
+}
+
 function revealExport() {
   if (lastSavedExport) shell.showItemInFolder(lastSavedExport);
 }
@@ -1791,6 +1825,7 @@ ipcMain.handle('db:read', (_event, folder) => readDatabase(folder));
 ipcMain.handle('db:write', (_event, folder, on, settings) => writeDatabase(folder, on, settings));
 ipcMain.handle('logbook:read', () => readLogbook());
 ipcMain.handle('bookmarks:read', () => readBookmarks());
+ipcMain.handle('export:pdf', (_event, name, html) => savePdf(name, html));
 ipcMain.handle('tracker:data', (_event, source) => trackerData(source));
 ipcMain.handle('tracker:notes', () => trackerNotes());
 ipcMain.handle('bookmarks:write', (_event, data) => writeBookmarks(data));

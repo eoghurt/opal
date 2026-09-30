@@ -3386,3 +3386,4 @@ button.heat-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 0; }
 .heat-legend .heat-cell { width: 10px; min-width: 10px; }
 .heat-source { align-self: flex-start; margin-top: 4px; }
 .widget-heatmap .widget-body { gap: 4px; }
+.chip-history + .chip-export { margin-left: 0; }

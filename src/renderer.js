@@ -58,7 +58,8 @@ import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './views/database-view.js';
 import { ManuscriptView } from './views/manuscript-view.js';
 import { noteStructure } from './export/note-structure.js';
-import { docxFromChapters, docxFromTable } from './export/docx.js';
+import { docxFromChapters, docxFromTable, docxFromNote } from './export/docx.js';
+import { htmlFromNote } from './export/html.js';
 import { FlowEditor, FLOW_FORMATS, isFlowNote, newFlowText, toFlowText, fromFlowText } from './editors/flow-editor.js';
 import { mergeTemplate } from './templates.js';
 import { inlineRuns } from './export/note-structure.js';
@@ -1146,6 +1147,7 @@ async function showNote(filePath) {
     onHistory: () => showHistory(filePath),
     onTemplate: (anchor) => chooseTemplateFor(filePath, anchor),
     onBookmark: () => toggleBookmarkOf(bookmarkTarget(filePath, false)),
+    onExport: (anchor) => exportMenu(filePath, anchor),
     onWordTarget: (target) => {
       if (!current || current.filePath !== filePath) return;
       current.editor.replaceText(setProp(current.editor.getText(), 'word-target', target ? String(target) : null));
@@ -1700,6 +1702,8 @@ function colorMenu(event, node, kind) {
       { label: 'Open in new tab', hint: '⌘-click', onSelect: () => inNewTab(() => openFile(node.path)) },
       { label: isBookmarked(bookmarksData, bookmarkTarget(node.path, false)) ? 'Remove bookmark' : 'Bookmark', onSelect: () => toggleBookmarkOf(bookmarkTarget(node.path, false)) },
       isNote ? null : { label: 'Open in its own app', onSelect: () => window.opal.openExternal(node.path) },
+      isNote ? { label: 'Export to PDF…', onSelect: () => exportNote(node.path, 'pdf') } : null,
+      isNote ? { label: 'Export to Word…', onSelect: () => exportNote(node.path, 'docx') } : null,
       isNote ? { label: 'Apply template…', hint: 'or a flow sheet', onSelect: async () => { await openFile(node.path); if (current && current.filePath === node.path) chooseTemplateFor(node.path, at); } } : null,
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
@@ -1752,6 +1756,34 @@ async function compileManuscript(title, paths) {
     chapters.push({ title: noteName(path), blocks: noteStructure(await window.opal.readFile(path)) });
   }
   return window.opal.saveDocx(title, docxFromChapters(chapters));
+}
+
+// ---------- Exporting a note (plain PDF / Word) ----------
+
+// The note as saved (the open note's latest typing included), as the shared structure.
+async function exportNote(filePath, kind) {
+  try {
+    if (current && current.filePath === filePath) await current.editor.flush();
+    const title = noteName(filePath);
+    const blocks = noteStructure(await window.opal.readFile(filePath));
+    const saved = kind === 'pdf'
+      ? await window.opal.savePdf(title, htmlFromNote(title, blocks))
+      : await window.opal.saveDocx(title, docxFromNote(title, blocks));
+    if (saved) chrome.setStatus(`Exported ${saved.split('/').pop()}`);
+  } catch (err) {
+    alert(`Couldn't export “${noteName(filePath)}”.\n\n${err.message}`);
+  }
+}
+
+function exportMenu(filePath, anchor) {
+  const box = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.clientX, bottom: anchor.clientY };
+  showMenu({ clientX: box.left, clientY: box.bottom + 4, preventDefault() {}, stopPropagation() {} }, {
+    title: 'Export',
+    items: [
+      { label: 'PDF…', hint: 'Arial 11pt, A4', onSelect: () => exportNote(filePath, 'pdf') },
+      { label: 'Word document…', hint: '.docx', onSelect: () => exportNote(filePath, 'docx') },
+    ],
+  });
 }
 
 // ---------- Flow sheets ----------

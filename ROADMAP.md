@@ -161,26 +161,26 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Flow sheets are templates** — apply one (or any vault template) to a note
   from its Template button; Normal note turns it back.
 
+## Later list, round one (done)
+- **Checkboxes** — `- [ ]` items in notes show a real box; clicking it writes
+  [x] / [ ] into the note; ticked items are crossed out.
+- **Heatmaps from notes** — ```tracker blocks (Obsidian's Tracker plugin
+  format: tag, frontmatter, text, task, dvField, fileMeta; Opal adds
+  `dateProperty`) show as a year of squares with totals and streaks; a
+  Heatmap ribbon button and home widget.
+- **The + button** — bottom right; Note, Folder and Sticky note.
+- **Tab double-click** — Show in Finder, Copy path, Copy vault path.
+- **Bookmarks** — in .obsidian/bookmarks.json (Obsidian's format), with
+  sections; top bar icon, note button, menus, home widget; follow renames.
+- **Skipping in audio and video** — click the sides for 5 s, twice for 10;
+  ← / →.
+- **Plain exports** — PDF and Word for any note: Arial 11pt, black on white,
+  A4, 2.54 cm margins. Manuscripts and flow sheets use the same style.
+- **Fixed** — a task dragged between lists could get stuck on screen.
+
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).
-- **Checkboxes that work** — ticking `- [ ]` boxes in notes doesn't reliably
-  work at the moment; probably a bug. Look at this first.
-- **Heatmaps from notes** — turn data in .md files (movies watched, runs,
-  habits, journal entries…) into a heatmap, e.g. from dated notes or a
-  property, shown in a note and as a home page widget.
-- **A + button for new things** — + Note / + Folder / + Sticky move from the
-  top right of a folder or page to one + button fixed at the bottom right of
-  the window that opens out into those options.
-- **Tab double-click** — Show in Finder and Copy path.
-- **Bookmarks** — bookmark anything (notes, folders, files, pages), grouped
-  into sections; an icon next to Search and Calendar, and a home page widget.
-  (Obsidian's Bookmarks plugin keeps them in .obsidian/bookmarks.json — use
-  its format if possible.)
-- **Skipping in audio and video** — click left / right to go back / forward
-  5 seconds, double-click for 10.
-- **Plain exports** — PDF and Word exports that look like ordinary documents:
-  Arial 11pt by default, black text on white, no Opal styling.
 - **Opal on iPhone** — at least browsing notes, tasks and the calendar.
   Options to weigh up:
   - Free now: keep the vault in iCloud Drive and open it in the free Obsidian

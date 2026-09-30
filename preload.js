@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('opal', {
   writeDatabase: (folder, on, settings) => call('db:write', folder, on, settings),
   readLogbook: () => call('logbook:read'),
   readBookmarks: () => call('bookmarks:read'),
+  savePdf: (name, html) => call('export:pdf', name, html),
   trackerData: (source) => call('tracker:data', source),
   trackerNotes: () => call('tracker:notes'),
   writeBookmarks: (data) => call('bookmarks:write', data),
