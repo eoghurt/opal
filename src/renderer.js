@@ -201,6 +201,7 @@ let inboxView = null;
 function leaveCalendar() {
   if (reviewView) reviewView.destroy();
   reviewView = null;
+  if (tasksView && tasksView.destroy) tasksView.destroy();
   tasksView = null;
   inboxView = null;
   if (calendar) calendar.destroy();

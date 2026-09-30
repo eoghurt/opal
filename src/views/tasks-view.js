@@ -56,6 +56,12 @@ export class TasksView {
   }
 
   async load() {
+    // Mid-drag, the lists are redrawn once the task is dropped (redrawing now
+    // would pull the row out from under the pointer).
+    if (this.dragging) {
+      this.pendingLoad = true;
+      return;
+    }
     const names = this.io.listNames();
     const loaded = await Promise.all(names.map(async (name) => [name, await this.io.readList(name)]));
     this.lists = {};
@@ -325,10 +331,13 @@ export class TasksView {
 
   // ---------- Dragging ----------
 
+  // The drag is followed on the whole window, not the row: if the lists are
+  // redrawn meanwhile (a save finishing), the drop still ends it. Escape,
+  // leaving the page or switching away from Opal cancel it.
   startDrag(down, task, row) {
     if (down.button !== 0) return;
+    if (this.cancelDrag) this.cancelDrag();
     const handle = down.currentTarget;
-    handle.setPointerCapture(down.pointerId);
     const source = row.closest('[data-raw]') || row;
     let ghost = null;
     let line = null;
@@ -338,9 +347,10 @@ export class TasksView {
       const col = document.elementsFromPoint(e.clientX, e.clientY).map((n) => n.closest && n.closest('.task-col[data-list]')).find(Boolean);
       if (line) line.remove();
       drop = null;
-      if (!col) return;
+      if (!col || !this.root.contains(col)) return;
       const items = col.querySelector('.task-open');
-      const rows = [...items.querySelectorAll(':scope > [data-raw]')].filter((r) => r !== source);
+      if (!items) return;
+      const rows = [...items.querySelectorAll(':scope > [data-raw]')].filter((r) => r !== source && r.dataset.raw !== source.dataset.raw);
       const before = rows.find((r) => {
         const box = r.getBoundingClientRect();
         return e.clientY < box.top + box.height / 2;
@@ -356,6 +366,7 @@ export class TasksView {
     };
 
     const move = (e) => {
+      if (e.pointerId !== down.pointerId) return;
       const dx = e.clientX - down.clientX;
       const dy = e.clientY - down.clientY;
       if (!ghost) {
@@ -368,14 +379,19 @@ export class TasksView {
         source.classList.add('is-moving');
         this.dragging = true;
       }
+      e.preventDefault(); // no text selection while dragging
       ghost.style.transform = `translate(${dx}px, ${dy}px) rotate(-1.2deg)`;
       place(e);
     };
 
-    const up = () => {
-      handle.removeEventListener('pointermove', move);
-      handle.removeEventListener('pointerup', up);
-      handle.removeEventListener('pointercancel', up);
+    // Ends the drag; `drop` moves the task (unless cancelled).
+    const finish = (cancelled) => {
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', cancel, true);
+      window.removeEventListener('keydown', escape, true);
+      window.removeEventListener('blur', cancel);
+      this.cancelDrag = null;
       if (!ghost) return;
       handle.dataset.dragged = '1'; // the click that follows isn't an "edit"
       setTimeout(() => delete handle.dataset.dragged, 0);
@@ -383,17 +399,39 @@ export class TasksView {
       if (line) line.remove();
       source.classList.remove('is-moving');
       this.dragging = false;
-      if (!drop) return;
-      const unchanged = drop.list === task.list && drop.where
-        && ((!drop.where.after && source.nextElementSibling && source.nextElementSibling.dataset.raw === drop.where.raw)
-          || (drop.where.after && source.previousElementSibling && source.previousElementSibling.dataset.raw === drop.where.raw));
-      if (unchanged) return;
-      this.moveTo(task, drop.list, drop.where);
+      const target = cancelled ? null : drop;
+      const unchanged = target && target.list === task.list && target.where
+        && ((!target.where.after && source.nextElementSibling && source.nextElementSibling.dataset.raw === target.where.raw)
+          || (target.where.after && source.previousElementSibling && source.previousElementSibling.dataset.raw === target.where.raw));
+      if (target && !unchanged) {
+        this.pendingLoad = false;
+        this.moveTo(task, target.list, target.where); // redraws when saved
+      } else if (this.pendingLoad) {
+        this.pendingLoad = false;
+        this.load();
+      }
+    };
+    const up = (e) => { if (e.pointerId === down.pointerId) finish(false); };
+    const cancel = () => finish(true);
+    const escape = (e) => {
+      if (e.key !== 'Escape' || !ghost) return;
+      e.preventDefault();
+      e.stopPropagation();
+      finish(true);
     };
 
-    handle.addEventListener('pointermove', move);
-    handle.addEventListener('pointerup', up);
-    handle.addEventListener('pointercancel', up);
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', cancel, true);
+    window.addEventListener('keydown', escape, true);
+    window.addEventListener('blur', cancel);
+    this.cancelDrag = cancel;
+  }
+
+  // Leaving the Tasks page: nothing of a drag is left behind.
+  destroy() {
+    if (this.cancelDrag) this.cancelDrag();
+    document.querySelectorAll('.task-ghost').forEach((g) => g.remove());
   }
 
   editor(task) {
