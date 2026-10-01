@@ -1109,3 +1109,4 @@
 :root:not([data-theme="scrapbook"]) .heat-edit { border: 1px solid var(--line); }
 :root:not([data-theme="scrapbook"]) .heat-edit:hover { background: var(--fill); }
 :root[data-theme="github"] { --heat: #2DA44E; }
+:root:not([data-theme="scrapbook"]) .cal-draft-bar { box-shadow: 0 0 0 2px var(--accent) !important; }

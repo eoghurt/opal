@@ -1614,7 +1614,7 @@ button.pdf-tool:hover { background: var(--c2); }
   flex-direction: column;
   gap: 3px;
   border-left: var(--hair);
-  cursor: copy;
+  cursor: pointer;
 }
 
 .cal-chip {
@@ -1647,7 +1647,7 @@ button.pdf-tool:hover { background: var(--c2); }
   flex: 1 1 0;
   min-width: 0;
   border-left: var(--hair);
-  cursor: copy;
+  cursor: pointer;
   background-image:
     linear-gradient(rgb(var(--ink-rgb) / 0.14) 1px, transparent 1px),
     linear-gradient(rgb(var(--ink-rgb) / 0.05) 1px, transparent 1px);
@@ -2134,7 +2134,14 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .cal-mhead .mono-label { padding: 6px 8px; font-size: 9.5px; color: var(--ink-3); }
 .cal-mhead .mono-label + .mono-label { border-left: var(--hair); }
 .cal-mscroll { flex-grow: 1; min-height: 0; overflow-y: auto; }
-.cal-mgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-height: 100%; }
+.cal-mgrid { display: flex; flex-direction: column; min-height: 100%; }
+/* A week: seven days side by side; multi-day bars lie across them. */
+.cal-mweek { --mtop: 30px; --lane: 24px; --lanes: 0; position: relative; flex: 1 0 112px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-mtop { display: flex; align-items: center; min-height: 26px; }
+.cal-mlanes { flex-shrink: 0; height: calc(var(--lanes) * var(--lane)); }
+.cal-mbar { position: absolute; z-index: 2; height: calc(var(--lane) - 4px); display: flex; align-items: center; min-width: 0; margin: 0; box-sizing: border-box; touch-action: none; }
+.cal-mbar.is-cont-left { left: 0 !important; }
+.cal-draft-bar { pointer-events: none; opacity: 0.92; box-shadow: 0 0 0 2px var(--ink) !important; }
 .cal-mcell {
   min-width: 0;
   padding: 4px 4px 6px;
@@ -2143,7 +2150,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
   gap: 2px;
   border-bottom: var(--hair);
   border-left: var(--hair);
-  cursor: copy;
+  cursor: pointer;
 }
 .cal-mcell:nth-child(7n + 1) { border-left: 0; }
 .cal-mcell.is-outside { background: rgb(var(--ink-rgb) / 0.04); }
@@ -3387,3 +3394,12 @@ button.heat-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 0; }
 .heat-source { align-self: flex-start; margin-top: 4px; }
 .widget-heatmap .widget-body { gap: 4px; }
 .chip-history + .chip-export { margin-left: 0; }
+
+/* Grips on the ends of all-day and multi-day bars */
+.cal-chip:not(.cal-mbar) { position: relative; }
+.cal-bar-grip { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 2; }
+.cal-bar-grip.is-start { left: -2px; }
+.cal-bar-grip.is-end { right: -2px; }
+.cal-chip:hover .cal-bar-grip::after { content: ''; position: absolute; top: 25%; bottom: 25%; left: 3px; width: 2px; border-radius: 1px; background: rgb(var(--ink-rgb) / 0.45); }
+.cal-chip.is-cont-left > .cal-bar-grip.is-start, .cal-chip.is-cont-right > .cal-bar-grip.is-end { display: none; }
+.cal-chip.is-resizing { opacity: 0.35; }
