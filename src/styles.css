@@ -2139,7 +2139,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .cal-mweek { --mtop: 30px; --lane: 24px; --lanes: 0; position: relative; flex: 1 0 112px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .cal-mtop { display: flex; align-items: center; min-height: 26px; }
 .cal-mlanes { flex-shrink: 0; height: calc(var(--lanes) * var(--lane)); }
-.cal-mbar { position: absolute; z-index: 2; height: calc(var(--lane) - 4px); display: flex; align-items: center; min-width: 0; margin: 0; box-sizing: border-box; touch-action: none; }
+.cal-mbar { position: absolute !important; z-index: 2; height: calc(var(--lane) - 4px); display: flex; align-items: center; min-width: 0; margin: 0; box-sizing: border-box; touch-action: none; }
 .cal-mbar.is-cont-left { left: 0 !important; }
 .cal-draft-bar { pointer-events: none; opacity: 0.92; box-shadow: 0 0 0 2px var(--ink) !important; }
 .cal-mcell {
