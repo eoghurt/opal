@@ -73,6 +73,11 @@ function saveRailPreference(open) {
 }
 
 export class PdfViewer extends Viewer {
+  // PDFs remember their page and zoom themselves (above).
+  get remembersPlace() {
+    return false;
+  }
+
   async render() {
     this.root.classList.add('viewer-pdf');
     this.showLoading();
