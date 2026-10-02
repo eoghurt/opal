@@ -13,6 +13,39 @@ const CSS_UNITS = 96 / 72; // PDF points → screen pixels at "100%"
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 const THUMB_WIDTH = 132;
 const RAIL_KEY = 'opal.pdfRailOpen';
+const PLACE_KEY = 'opal.pdfPlaces';
+const MAX_PLACES = 200;
+
+// Where you were in each PDF (page, how far down it, zoom), so coming back
+// to one — another tab, another note, Opal restarting — opens it there.
+// A viewing preference on this Mac, kept with the panel sizes; never in notes.
+let places = null;
+function placesMap() {
+  if (!places) {
+    try {
+      places = new Map(JSON.parse(localStorage.getItem(PLACE_KEY) || '[]'));
+    } catch {
+      places = new Map();
+    }
+  }
+  return places;
+}
+
+let saveTimer = null;
+function rememberPlace(filePath, place) {
+  const map = placesMap();
+  map.delete(filePath); // most recent last
+  map.set(filePath, place);
+  while (map.size > MAX_PLACES) map.delete(map.keys().next().value);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(PLACE_KEY, JSON.stringify([...map]));
+    } catch {
+      // Not remembered after a restart this time.
+    }
+  }, 400);
+}
 
 // One background worker, shared by every PDF you open and never shut down.
 // (Shutting a worker down mid-task can freeze the window, and reusing it
@@ -52,8 +85,10 @@ export class PdfViewer extends Viewer {
     if (this.destroyed) return;
 
     this.pageCount = this.pdf.numPages;
-    this.current = 1;
-    this.zoom = 'fit'; // 'fit' (fit width) or a number (1 = 100%)
+    const saved = placesMap().get(this.filePath);
+    const back = saved && saved.page >= 1 && saved.page <= this.pageCount ? saved : null;
+    this.current = back ? back.page : 1;
+    this.zoom = back && (back.zoom === 'fit' || ZOOM_STEPS.includes(back.zoom)) ? back.zoom : 'fit'; // 'fit' (fit width) or a number (1 = 100%)
     this.pages = []; // { num, base (1× viewport), el, canvasHost, rendered }
     this.thumbs = [];
     this.buildShell();
@@ -62,11 +97,37 @@ export class PdfViewer extends Viewer {
     const first = await this.pdf.getPage(1);
     const firstBase = first.getViewport({ scale: 1 });
     for (let num = 1; num <= this.pageCount; num++) this.addPage(num, firstBase);
-    this.stage.addEventListener('scroll', () => this.schedule(), { passive: true });
+    this.stage.addEventListener('scroll', () => {
+      this.schedule();
+      if (!this.restoring) this.notePlace();
+    }, { passive: true });
     this.rail.addEventListener('scroll', () => this.schedule(), { passive: true });
+    this.restoring = Boolean(back);
     this.applyZoom();
+    if (back) this.restorePlace(back);
     this.stage.focus({ preventScroll: true });
-    this.loadRealSizes();
+    await this.loadRealSizes();
+    // Page sizes may have changed as they loaded: back to the same spot.
+    if (back && this.restoring && !this.destroyed) this.restorePlace(back);
+    this.restoring = false;
+  }
+
+  // Scrolls to a remembered spot: a page, and how far down it (0–1).
+  restorePlace(place) {
+    const entry = this.pages[place.page - 1];
+    if (!entry) return;
+    this.stage.scrollTop = entry.el.offsetTop - 26 + (place.within || 0) * entry.el.offsetHeight;
+    this.setCurrent(place.page);
+    this.schedule();
+  }
+
+  // Remembers the page at the top of the view and how far down it is.
+  notePlace() {
+    if (!this.pages || !this.pages.length) return;
+    const top = this.stage.scrollTop + 26;
+    const entry = this.pages.find((p) => p.el.offsetTop + p.el.offsetHeight > top) || this.pages[this.pages.length - 1];
+    const within = Math.max(0, Math.min(1, (top - entry.el.offsetTop) / (entry.el.offsetHeight || 1)));
+    rememberPlace(this.filePath, { page: entry.num, within: Math.round(within * 1000) / 1000, zoom: this.zoom });
   }
 
   // ---------- Layout ----------
@@ -113,6 +174,7 @@ export class PdfViewer extends Viewer {
     this.rail = h('nav', { class: 'pdf-rail', 'aria-label': 'Page overview' });
     // Focusable, so arrow keys, Page Up/Down and Space scroll the pages.
     this.stage = h('div', { class: 'pdf-stage', tabindex: '0', 'aria-label': 'Pages' });
+    for (const type of ['wheel', 'pointerdown', 'keydown']) this.stage.addEventListener(type, () => { this.restoring = false; }, { passive: true });
     this.shell = h('div', { class: 'pdf-shell' }, toolbar, h('div', { class: 'pdf-body' }, this.rail, this.stage));
     this.root.replaceChildren(this.shell);
     this.setRailOpen(railPreference(), { remember: false });
@@ -186,7 +248,9 @@ export class PdfViewer extends Viewer {
 
   setZoom(zoom) {
     this.zoom = zoom;
+    this.restoring = false;
     this.applyZoom();
+    this.notePlace();
   }
 
   stepZoom(direction) {
@@ -198,13 +262,15 @@ export class PdfViewer extends Viewer {
   }
 
   applyZoom() {
+    // Keep the same spot on the same page when the size changes.
     const keepPage = this.current;
+    const before = this.pages[keepPage - 1];
+    const within = before && before.el.offsetHeight ? Math.max(0, Math.min(1, (this.stage.scrollTop + 26 - before.el.offsetTop) / before.el.offsetHeight)) : 0;
     this.currentScale = this.scale();
     this.zoomLabel.textContent = `${Math.round((this.currentScale / CSS_UNITS) * 100)}%`;
     this.fitButton.setAttribute('aria-pressed', String(this.zoom === 'fit'));
     for (const entry of this.pages) this.sizePage(entry);
-    this.goToPage(keepPage);
-    this.schedule();
+    this.restorePlace({ page: keepPage, within });
   }
 
   sizePage(entry) {
