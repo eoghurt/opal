@@ -271,15 +271,30 @@ export class CalendarView {
     const month = this.mode === 'month';
     const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0);
     const dy = e.shiftKey ? 0 : e.deltaY;
-    // One gesture keeps one direction: up/down in Day and Week scrolls the hours.
+    // A gesture keeps one direction (up/down in Day and Week scrolls the
+    // hours). The trackpad's coasting ends in tiny wobbles, which never
+    // decide it; a clear push the other way always takes over.
     clearTimeout(this.axisTimer);
-    this.axisTimer = setTimeout(() => { this.wheelAxis = null; }, 160);
-    if (!this.wheelAxis) this.wheelAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-    if (!month && this.wheelAxis === 'y') return;
+    this.axisTimer = setTimeout(() => { this.wheelAxis = null; this.pendingDelta = 0; }, 160);
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (ax >= 3 && ax > 2 * ay) this.wheelAxis = 'x';
+    else if (ay >= 3 && ay > 2 * ax) this.wheelAxis = 'y';
+    else if (!this.wheelAxis && Math.max(ax, ay) >= 2) this.wheelAxis = ax > ay ? 'x' : 'y';
+    const axis = this.wheelAxis || (ax > ay ? 'x' : 'y');
+    if (!month && axis === 'y') return;
     e.preventDefault();
     const unit = this.unitPixels();
     const lines = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? unit : 1;
-    const delta = (month && this.wheelAxis === 'y' ? dy : dx) * lines;
+    const delta = (month && axis === 'y' ? dy : dx) * lines;
+    // A trickle (the end of a swipe's coasting) never starts a new slide:
+    // it takes a few pixels of real movement.
+    if (!this.gesture) {
+      // While settling, only a real new swipe (not coasting) takes over.
+      if (this.slideFrame && Math.abs(delta) < 6) return;
+      this.pendingDelta = (this.pendingDelta || 0) + delta;
+      if (Math.abs(this.pendingDelta) < 6) return;
+    }
     if (!this.gesture) {
       cancelAnimationFrame(this.slideFrame);
       this.slideFrame = null;
@@ -288,7 +303,12 @@ export class CalendarView {
       this.closePopover();
     }
     const g = this.gesture;
-    g.raw += delta / unit;
+    const fresh = this.pendingDelta;
+    this.pendingDelta = 0;
+    g.raw += (fresh || delta) / unit;
+    // Once the movement has died down to a trickle, come to rest now
+    // rather than waiting for the coasting to stop completely.
+    g.quiet = Math.abs(delta) < 2 ? (g.quiet || 0) + 1 : 0;
     // Leaving a Monday (or a month's first week) takes a little more push.
     const R = 0.5;
     const K = 0.35;
@@ -297,7 +317,8 @@ export class CalendarView {
     const limit = BUFFER[this.mode];
     this.setStripPos(Math.max(-limit, Math.min(limit, g.start + moved)));
     clearTimeout(this.settleTimer);
-    this.settleTimer = setTimeout(() => this.settle(), 140);
+    if (g.quiet >= 4) this.settle();
+    else this.settleTimer = setTimeout(() => this.settle(), 140);
   }
 
   // Where to come to rest: the nearest day (week), or a Monday (a month's
