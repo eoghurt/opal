@@ -4,7 +4,7 @@
 // Events are read from and written to the day notes, and repeating ones to
 // Calendar/Repeating.md (see calendar/events.js).
 
-import { h, askName, askChoice } from '../ui.js';
+import { h, askChoice } from '../ui.js';
 import { makePanel } from '../panel.js';
 import { slotFor } from '../palettes.js';
 import {
@@ -24,6 +24,10 @@ const TASK_LENGTH = 30; // minutes a timed task takes up in the grid
 const HOUR = 39; // pixels per hour
 const MINUTE = HOUR / 60;
 const MONTH_ITEMS = 4; // events shown in a month cell before "+N more"
+// Scrolling between days, weeks and months: how many days (weeks in Month)
+// are on screen, and how many more are drawn on each side, ready to slide in.
+const SHOWN = { day: 1, week: 7, month: 6 };
+const BUFFER = { day: 3, week: 7, month: 6 };
 
 function longDate(date) {
   return date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -42,7 +46,7 @@ export class CalendarView {
   // noteDays() → Set of day keys that have a note. openDayNote(key), openLink(target).
   // readRepeats() → text of Calendar/Repeating.md ('' if none). writeRepeats(text).
   // updateTask(task, patch) changes a task's date/time (dragging it in the grid).
-  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, deleteTask, openTasks, openReview }) {
+  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, deleteTask, openTasks, openReview, recordStep, undo }) {
     this.container = container;
     this.date = date || new Date();
     this.mode = mode || 'day';
@@ -53,54 +57,89 @@ export class CalendarView {
       onChange: onChange || (() => {}),
       loadTasks: loadTasks || (async () => []),
       openReview: openReview || (() => {}),
+      recordStep: recordStep || (async (fn) => fn()),
+      undo,
     };
     this.cardsDue = 0; // flashcards due today (a badge on today)
+    // Tasks can be hidden, leaving only events (remembered on this Mac).
+    try {
+      this.showTasks = localStorage.getItem('opal.calendarTasks') !== 'hidden';
+    } catch {
+      this.showTasks = true;
+    }
+    this.allTasks = [];
     this.series = [];
     this.tasks = [];
     this.days = {};
     this.writing = Promise.resolve();
     this.scrolled = false;
     this.clockTimer = setInterval(() => this.placeNowLine(), 60 * 1000);
+    this.first = this.anchorFor(this.date, this.mode);
+    this.stripPos = 0;
+    this.selected = null;
     this.root = h('div', { class: 'cal' });
     container.replaceChildren(this.root);
-    // Two-finger swipe left/right (or Shift+scroll) steps to the next or
-    // previous day, week or month — one step per swipe.
-    let swipe = 0;
-    let resting = null;
-    this.root.addEventListener('wheel', (event) => {
-      const dx = event.deltaX || (event.shiftKey ? event.deltaY : 0);
-      if (Math.abs(dx) <= Math.abs(event.shiftKey ? 0 : event.deltaY)) return;
-      if (event.target.closest('.cal-pop, .ctx-menu')) return;
-      event.preventDefault();
-      clearTimeout(resting);
-      resting = setTimeout(() => { swipe = 0; this.swiped = false; }, 180);
-      if (this.swiped) return; // wait for this swipe to finish
-      swipe += dx;
-      if (Math.abs(swipe) > 80) {
-        this.swiped = true;
-        this.step(swipe > 0 ? 1 : -1);
+    // Two-finger swipe (or Shift+scroll) slides smoothly through the days,
+    // weeks or months; letting go settles on the nearest day (week in Month).
+    this.root.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+    // A click on empty space clears the selection.
+    this.root.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('.cal-event, .cal-chip, .cal-pop, .cal-agenda-item')) this.selectItem(null);
+    });
+    // ⌘Z / Ctrl+Z undoes, ⇧⌘Z / Ctrl+Y redoes; Delete or Backspace removes
+    // the selected event or task.
+    this.onKey = (e) => {
+      if (!this.root.isConnected || e.defaultPrevented) return;
+      if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"], .ask')) return;
+      if (document.querySelector('.ask, .ctx-menu')) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && !e.altKey && (key === 'z' || (key === 'y' && e.ctrlKey))) {
+        e.preventDefault();
+        this.undo(key === 'y' || e.shiftKey);
+      } else if (!mod && (e.key === 'Backspace' || e.key === 'Delete') && this.selected) {
+        e.preventDefault();
+        this.deleteSelected();
       }
-    }, { passive: false });
+    };
+    document.addEventListener('keydown', this.onKey);
     this.render();
     this.load();
   }
 
   destroy() {
     clearInterval(this.clockTimer);
+    clearTimeout(this.settleTimer);
+    cancelAnimationFrame(this.slideFrame);
+    document.removeEventListener('keydown', this.onKey);
     this.closePopover();
   }
 
+  // The first day on screen for a date: that day (Day), its Monday (Week), or
+  // the Monday of its month's first week (Month).
+  anchorFor(date, mode) {
+    if (mode === 'day') return dayKey(date);
+    if (mode === 'week') return dayKey(startOfWeek(date));
+    return dayKey(startOfWeek(new Date(date.getFullYear(), date.getMonth(), 1)));
+  }
+
+  // Days in one step of scrolling: a day, or a week in Month.
+  unitDays() {
+    return this.mode === 'month' ? 7 : 1;
+  }
+
+  // The days on screen.
+  shownKeys() {
+    const count = SHOWN[this.mode] * this.unitDays();
+    return Array.from({ length: count }, (_, i) => shiftKey(this.first, i));
+  }
+
+  // The days drawn: those on screen plus the ones waiting either side.
   visibleKeys() {
-    if (this.mode === 'day') return [dayKey(this.date)];
-    if (this.mode === 'month') {
-      const first = new Date(this.date.getFullYear(), this.date.getMonth(), 1);
-      const start = startOfWeek(first);
-      const inMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-      const weeks = Math.ceil((Math.round((first - start) / 86400000) + inMonth) / 7);
-      return Array.from({ length: weeks * 7 }, (_, i) => dayKey(addDays(start, i)));
-    }
-    const monday = startOfWeek(this.date);
-    return Array.from({ length: 7 }, (_, i) => dayKey(addDays(monday, i)));
+    const unit = this.unitDays();
+    const count = (SHOWN[this.mode] + 2 * BUFFER[this.mode]) * unit;
+    const start = shiftKey(this.first, -BUFFER[this.mode] * unit);
+    return Array.from({ length: count }, (_, i) => shiftKey(start, i));
   }
 
   async load() {
@@ -120,7 +159,8 @@ export class CalendarView {
     const before = [...this.io.noteDays()].filter((k) => k < keys[0] && k >= earliest);
     const earlier = await Promise.all(before.map(async (key) => parseEvents((await this.io.readDay(key)) || '', key)));
     this.carried = earlier.flat().filter((e) => e.endDay && e.endDay >= keys[0]);
-    this.tasks = await this.io.loadTasks();
+    this.allTasks = await this.io.loadTasks();
+    this.tasks = this.showTasks ? this.allTasks : [];
     this.render();
   }
 
@@ -134,6 +174,18 @@ export class CalendarView {
     const d = this.date;
     if (this.mode === 'month') this.go(new Date(d.getFullYear(), d.getMonth() + direction, 1));
     else this.go(addDays(d, direction * (this.mode === 'day' ? 1 : 7)));
+  }
+
+  toggleTasks() {
+    this.showTasks = !this.showTasks;
+    try {
+      localStorage.setItem('opal.calendarTasks', this.showTasks ? 'shown' : 'hidden');
+    } catch {
+      // not remembered this time
+    }
+    this.tasks = this.showTasks ? this.allTasks : [];
+    if (this.selected && this.selected.kind === 'task') this.selectItem(null);
+    this.render();
   }
 
   // Flashcards due today, shown on today's header.
@@ -162,9 +214,146 @@ export class CalendarView {
   }
 
   go(date, mode = this.mode) {
+    // Somewhere close by in the same view: slide there.
+    const first = this.anchorFor(date, mode);
+    if (mode === this.mode && this.tracks && this.tracks.length && !this.gesture) {
+      const units = Math.round((keyToDate(first) - keyToDate(this.first)) / 86400000 / this.unitDays());
+      if (units && Math.abs(units) <= BUFFER[mode]) {
+        if (mode === 'day') this.date = date;
+        this.slideTo(units);
+        return;
+      }
+    }
+    cancelAnimationFrame(this.slideFrame);
+    this.slideFrame = null;
+    this.stripPos = 0;
     this.date = date;
     this.mode = mode;
+    this.first = first;
     this.scrolled = false;
+    this.io.onChange({ date: this.date, mode: this.mode });
+    this.render();
+    this.load();
+  }
+
+  // ---------- Sliding between days, weeks and months ----------
+
+  // Every drawn column (or week row) slides together.
+  setStripPos(pos) {
+    this.stripPos = pos;
+    const total = SHOWN[this.mode] + 2 * BUFFER[this.mode];
+    const pct = -((BUFFER[this.mode] + pos) / total) * 100;
+    for (const track of this.tracks || []) {
+      track.style.transform = this.mode === 'month' ? `translateY(${pct}%)` : `translateX(${pct}%)`;
+    }
+  }
+
+  // Pixels in one day (one week row in Month).
+  unitPixels() {
+    if (!this.stripWin) return 100;
+    const size = this.mode === 'month' ? this.stripWin.clientHeight : this.stripWin.clientWidth;
+    return Math.max(20, size / SHOWN[this.mode]);
+  }
+
+  // Mondays (Week), and weeks where a month begins (Month), hold on a little.
+  isSticky(units) {
+    if (this.mode === 'week') return keyToDate(shiftKey(this.first, units)).getDay() === 1;
+    if (this.mode === 'month') {
+      const monday = shiftKey(this.first, units * 7);
+      return Array.from({ length: 7 }, (_, d) => keyToDate(shiftKey(monday, d)).getDate()).includes(1);
+    }
+    return false;
+  }
+
+  onWheel(e) {
+    if (!this.tracks || !this.tracks.length) return;
+    if (!e.target.closest('.cal-main') || e.target.closest('.cal-pop, .ctx-menu')) return;
+    const month = this.mode === 'month';
+    const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+    const dy = e.shiftKey ? 0 : e.deltaY;
+    // One gesture keeps one direction: up/down in Day and Week scrolls the hours.
+    clearTimeout(this.axisTimer);
+    this.axisTimer = setTimeout(() => { this.wheelAxis = null; }, 160);
+    if (!this.wheelAxis) this.wheelAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (!month && this.wheelAxis === 'y') return;
+    e.preventDefault();
+    const unit = this.unitPixels();
+    const lines = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? unit : 1;
+    const delta = (month && this.wheelAxis === 'y' ? dy : dx) * lines;
+    if (!this.gesture) {
+      cancelAnimationFrame(this.slideFrame);
+      this.slideFrame = null;
+      const at = Math.round(this.stripPos);
+      this.gesture = { start: this.stripPos, raw: 0, sticky: Math.abs(this.stripPos - at) < 0.02 && this.isSticky(at) };
+      this.closePopover();
+    }
+    const g = this.gesture;
+    g.raw += delta / unit;
+    // Leaving a Monday (or a month's first week) takes a little more push.
+    const R = 0.5;
+    const K = 0.35;
+    const size = Math.abs(g.raw);
+    const moved = g.sticky ? Math.sign(g.raw) * (size < R ? size * K : R * K + (size - R)) : g.raw;
+    const limit = BUFFER[this.mode];
+    this.setStripPos(Math.max(-limit, Math.min(limit, g.start + moved)));
+    clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(() => this.settle(), 140);
+  }
+
+  // Where to come to rest: the nearest day (week), or a Monday (a month's
+  // first week) when it's close.
+  snapTarget(pos) {
+    const limit = BUFFER[this.mode];
+    for (let i = Math.floor(pos) - 1; i <= Math.ceil(pos) + 1; i++) {
+      if (Math.abs(pos - i) < 0.6 && Math.abs(i) <= limit && this.isSticky(i)) return i;
+    }
+    return Math.max(-limit, Math.min(limit, Math.round(pos)));
+  }
+
+  settle() {
+    if (!this.gesture) return;
+    this.gesture = null;
+    this.slideTo(this.snapTarget(this.stripPos));
+  }
+
+  // Glide to `target` (days, or weeks in Month, from where things rest now),
+  // then redraw around the new first day.
+  slideTo(target) {
+    cancelAnimationFrame(this.slideFrame);
+    this.closePopover();
+    const from = this.stripPos;
+    const started = performance.now();
+    const length = Math.min(380, 200 + Math.abs(target - from) * 25);
+    const frame = (now) => {
+      const k = Math.min(1, (now - started) / length);
+      const eased = 1 - (1 - k) ** 3;
+      this.setStripPos(from + (target - from) * eased);
+      if (k < 1) {
+        this.slideFrame = requestAnimationFrame(frame);
+        return;
+      }
+      this.slideFrame = null;
+      this.rebase(target);
+    };
+    this.slideFrame = requestAnimationFrame(frame);
+  }
+
+  rebase(units) {
+    if (!units) {
+      this.setStripPos(0);
+      return;
+    }
+    this.first = shiftKey(this.first, units * this.unitDays());
+    this.stripPos = 0;
+    if (this.mode === 'month') {
+      // The month that fills most of the screen (today, if it's in it).
+      const middle = keyToDate(shiftKey(this.first, 17));
+      const today = new Date();
+      this.date = today.getFullYear() === middle.getFullYear() && today.getMonth() === middle.getMonth() ? today : new Date(middle.getFullYear(), middle.getMonth(), 1);
+    } else if (this.mode === 'week' || dayKey(this.date) !== this.first) {
+      this.date = keyToDate(this.first);
+    }
+    this.scrolled = true; // keep the hours where they are
     this.io.onChange({ date: this.date, mode: this.mode });
     this.render();
     this.load();
@@ -217,7 +406,8 @@ export class CalendarView {
   render() {
     this.closePopover();
     const scroll = this.scrollEl ? this.scrollEl.scrollTop : null;
-    const keys = this.visibleKeys();
+    const drawn = this.visibleKeys();
+    const keys = this.shownKeys();
     const first = keyToDate(keys[0]);
     const last = keyToDate(keys[keys.length - 1]);
 
@@ -258,6 +448,12 @@ export class CalendarView {
           'aria-pressed': String(this.mode === key),
           onclick: () => this.go(this.date, key),
         }, label))),
+      h('button', {
+        class: `cal-navbtn cal-tasks-toggle${this.showTasks ? ' is-on' : ''}`,
+        'aria-pressed': String(this.showTasks),
+        title: this.showTasks ? 'Hide tasks (show only events)' : 'Show tasks',
+        onclick: () => this.toggleTasks(),
+      }, this.showTasks ? '✓ Tasks' : 'Tasks hidden'),
       h('div', { class: 'cal-nav' },
         h('button', { class: 'cal-navbtn', 'aria-label': 'Previous', onclick: () => this.go(shift(-1)) }, '‹'),
         h('button', { class: 'cal-navbtn cal-today', onclick: () => this.go(new Date()) }, 'Today'),
@@ -266,14 +462,37 @@ export class CalendarView {
     );
 
     const rail = this.renderRail(keys);
-    const body = h('div', { class: 'cal-body' }, rail, month ? this.renderMonth(keys) : this.renderGrid(keys));
+    this.tracks = [];
+    const body = h('div', { class: 'cal-body' }, rail, month ? this.renderMonth(drawn) : this.renderGrid(drawn));
     this.root.replaceChildren(head, body);
+    if (this.flashEl) this.root.append(this.flashEl); // a message outlasts a redraw
     makePanel(rail, { id: 'cal-rail', side: 'left', label: 'Month', width: 260, min: 220, max: 420 });
+    this.setStripPos(this.stripPos);
+    this.markSelected();
 
-    if (month) return;
+    if (month) {
+      requestAnimationFrame(() => this.fitMonthCells());
+      return;
+    }
+    // The headings leave room for the hour grid's scrollbar, so the columns line up.
+    requestAnimationFrame(() => {
+      if (!this.scrollEl) return;
+      const bar = this.scrollEl.offsetWidth - this.scrollEl.clientWidth;
+      this.root.querySelector('.cal-main')?.style.setProperty('--scrollbar', `${bar}px`);
+    });
     this.fitEvents();
     if (scroll !== null && this.scrolled) this.scrollEl.scrollTop = scroll;
     else this.scrollToMorning(keys);
+  }
+
+  // A row of drawn days that slides as one: wider than its window by the
+  // days waiting either side.
+  track(className, children, style = '') {
+    const total = SHOWN[this.mode] + 2 * BUFFER[this.mode];
+    const size = `${(total / SHOWN[this.mode]) * 100}%`;
+    const el = h('div', { class: `cal-track ${className}`, style: `${this.mode === 'month' ? 'height' : 'width'}: ${size}; ${style}` }, children);
+    this.tracks.push(el);
+    return el;
   }
 
   renderRail(keys) {
@@ -335,7 +554,7 @@ export class CalendarView {
     const today = dayKey(new Date());
     const columnsHead = h('div', { class: 'cal-colhead' },
       h('span', { class: 'cal-gutter' }),
-      keys.map((key) => {
+      h('div', { class: 'cal-hwin' }, this.track('cal-coltrack', keys.map((key) => {
         const date = keyToDate(key);
         return h('button', {
           class: `cal-colday${key === today ? ' is-today' : ''}`,
@@ -345,7 +564,7 @@ export class CalendarView {
         h('span', { class: 'mono-label' }, weekday(date, 'short')),
         h('span', { class: 'display cal-colnum' }, String(date.getDate())),
         key === today ? this.cardsBadge() : null);
-      }));
+      }))));
 
     const allDayRow = this.renderAllDayRow(keys);
 
@@ -354,7 +573,8 @@ export class CalendarView {
 
     const columns = keys.map((key) => this.renderDayColumn(key, key === today));
     this.monthEl = null;
-    this.inner = h('div', { class: 'cal-inner', style: `height: ${24 * HOUR}px` }, hours, ...columns);
+    this.stripWin = h('div', { class: 'cal-hwin' }, this.track('cal-daytrack', columns));
+    this.inner = h('div', { class: 'cal-inner', style: `height: ${24 * HOUR}px` }, hours, this.stripWin);
     this.scrollEl = h('div', { class: 'cal-scroll' }, this.inner);
     this.scrollEl.addEventListener('scroll', () => { this.scrolled = true; this.closePopover(); }, { passive: true });
     this.placeNowLine();
@@ -371,24 +591,23 @@ export class CalendarView {
     }));
     const lanes = stackLanes(items);
     const rows = lanes + 1; // one free row to click in
-    const row = h('div', {
-      class: 'cal-allday',
-      style: `grid-template-columns: 58px repeat(${keys.length}, minmax(0, 1fr)); grid-template-rows: repeat(${rows}, 22px)`,
-    }, h('span', { class: 'cal-gutter mono-label', style: `grid-row: 1 / span ${rows}` }, 'All day'));
+    const row = this.track('cal-alldaytrack', [], `grid-template-columns: repeat(${keys.length}, minmax(0, 1fr)); grid-template-rows: repeat(${rows}, 22px)`);
     row.dataset.lanes = String(lanes);
     keys.forEach((key, i) => {
-      row.append(h('div', { class: 'cal-allday-cell', 'data-key': key, style: `grid-column: ${i + 2}; grid-row: 1 / span ${rows}` }));
+      row.append(h('div', { class: 'cal-allday-cell', 'data-key': key, style: `grid-column: ${i + 1}; grid-row: 1 / span ${rows}` }));
     });
     this.allDayRowEl = row;
     this.allDayKeys = keys;
     this.selectDays(row, keys);
     for (const entry of items) {
       const el = this.spanChip(entry, keys);
-      el.style.gridColumn = `${entry.from + 2} / ${entry.to + 3}`;
+      el.style.gridColumn = `${entry.from + 1} / ${entry.to + 2}`;
       el.style.gridRow = String(entry.lane + 1);
       row.append(el);
     }
-    return row;
+    return h('div', { class: 'cal-allday' },
+      h('span', { class: 'cal-gutter mono-label' }, 'All day'),
+      h('div', { class: 'cal-hwin' }, row));
   }
 
   // One bar in the all-day row (or a month cell): an event or a task.
@@ -477,7 +696,7 @@ export class CalendarView {
       const from = Math.max(0, keys.indexOf(first) === -1 ? 0 : keys.indexOf(first));
       const to = keys.indexOf(last) === -1 ? keys.length - 1 : keys.indexOf(last);
       const el = bar();
-      el.style.gridColumn = `${from + 2} / ${to + 3}`;
+      el.style.gridColumn = `${from + 1} / ${to + 2}`;
       el.style.gridRow = String(Number(this.allDayRowEl.dataset.lanes) + 1);
       this.allDayRowEl.append(el);
       out.push(el);
@@ -603,6 +822,7 @@ export class CalendarView {
       startDate: task.startDate ? shiftKey(task.startDate, days) : null,
     })), () => this.showTaskPopover(task, chip));
     this.menuOn(chip, () => this.taskMenu(task, chip));
+    this.tagItem(chip, 'task', task);
     return chip;
   }
 
@@ -635,6 +855,7 @@ export class CalendarView {
     });
     this.makeDraggable(el, item);
     this.menuOn(el, () => this.taskMenu(task, el));
+    this.tagItem(el, 'task', task);
     return el;
   }
 
@@ -665,6 +886,7 @@ export class CalendarView {
     });
     this.makeDraggable(el, event);
     this.menuOn(el, () => this.eventMenu(event, el));
+    this.tagItem(el, 'event', event);
     return el;
   }
 
@@ -681,7 +903,7 @@ export class CalendarView {
   eventMenu(event, anchor) {
     const items = [
       { label: 'Edit…', onSelect: () => this.showPopover(event, anchor) },
-      { label: 'Rename…', onSelect: () => this.rename(event) },
+      { label: 'Rename…', onSelect: () => this.showPopover(event, anchor, { focusTitle: true }) },
       event.repeating ? null : { label: 'Duplicate', onSelect: () => this.duplicateEvent(event) },
       event.link ? { label: `Open “${event.link}”`, onSelect: () => this.io.openLink(event.link) } : null,
       { label: 'Open day note', onSelect: () => this.io.openDayNote(event.day) },
@@ -701,6 +923,7 @@ export class CalendarView {
       title: task.title,
       items: [
         { label: 'Edit…', onSelect: () => this.showTaskPopover(task, anchor) },
+        { label: 'Rename…', onSelect: () => this.showTaskPopover(task, anchor, { focusTitle: true }) },
         { label: task.done ? 'Mark not done' : 'Mark done', onSelect: () => this.change(() => this.io.toggleTask(task)) },
         { label: 'Open in Tasks', onSelect: () => this.io.openTasks() },
         'separator',
@@ -744,6 +967,31 @@ export class CalendarView {
 
   // ---------- Month ----------
 
+  // A day that's too full for its cell hides what doesn't fit behind
+  // "+N more" (measured all at once, then changed all at once).
+  fitMonthCells() {
+    if (!this.monthEl) return;
+    const plans = [];
+    for (const cell of this.monthEl.querySelectorAll('.cal-mcell')) {
+      const items = [...cell.children].filter((n) => n.classList.contains('cal-chip'));
+      const more = cell.querySelector('.cal-mmore');
+      if (!items.length || !more) continue;
+      const limit = cell.clientHeight - 4;
+      const bottoms = items.map((n) => n.offsetTop + n.offsetHeight);
+      if (more.hidden && bottoms[bottoms.length - 1] <= limit) continue;
+      const room = limit - 18; // the "+N more" line
+      let keep = bottoms.filter((b) => b <= room).length;
+      if (more.hidden && keep === items.length) continue;
+      keep = Math.max(0, keep);
+      plans.push({ items, more, keep, total: Number(cell.dataset.total) || items.length });
+    }
+    for (const { items, more, keep, total } of plans) {
+      items.forEach((n, i) => { n.hidden = i >= keep; });
+      more.hidden = false;
+      more.textContent = `+${total - keep} more`;
+    }
+  }
+
   // Month: one row per week. Multi-day events and tasks lie across the row as
   // one bar (continuing on the next row if they run into the next week);
   // single-day ones sit in their day. Press a day and drag across others to
@@ -757,8 +1005,9 @@ export class CalendarView {
       keys.slice(0, 7).map((key) => h('span', { class: 'mono-label' }, weekday(keyToDate(key), 'short'))));
     const weeks = [];
     for (let w = 0; w < keys.length; w += 7) weeks.push(this.renderMonthWeek(keys.slice(w, w + 7), month, today));
-    this.monthEl = h('div', { class: 'cal-mgrid' }, weeks);
-    return h('div', { class: 'cal-main cal-month' }, head, h('div', { class: 'cal-mscroll' }, this.monthEl));
+    this.monthEl = this.track('cal-mgrid', weeks);
+    this.stripWin = h('div', { class: 'cal-mscroll' }, this.monthEl);
+    return h('div', { class: 'cal-main cal-month' }, head, this.stripWin);
   }
 
   // The bars (multi-day events and tasks) that cross a run of days, with
@@ -820,7 +1069,8 @@ export class CalendarView {
       // Room for the bars that cross this week.
       h('div', { class: 'cal-mlanes', 'aria-hidden': 'true' }),
       items.slice(0, extra > 0 ? room - 1 : room),
-      extra > 0 ? h('button', { class: 'cal-mmore', onclick: () => this.go(date, 'day') }, `+${extra + 1} more`) : null);
+      h('button', { class: 'cal-mmore', hidden: extra > 0 ? null : true, onclick: () => this.go(date, 'day') }, `+${extra + 1} more`));
+      cell.dataset.total = String(items.length);
       row.append(cell);
     });
     for (const bar of bars) {
@@ -846,6 +1096,7 @@ export class CalendarView {
     this.dragToDay(chip, (days) => this.moveEvent(event, { day: shiftKey(event.day, days), start: event.start, end: event.end }), () => this.showPopover(event, chip));
     this.menuOn(chip, () => this.eventMenu(event, chip));
     if ((event.allDay || event.endDay) && !event.repeating && extraClass !== 'is-timed') this.addResizers(chip, event);
+    this.tagItem(chip, 'event', event);
     return chip;
   }
 
@@ -1089,12 +1340,125 @@ export class CalendarView {
 
   // ---------- Popover ----------
 
-  showPopover(event, anchor) {
+  // ---------- Selecting ----------
+
+  itemId(kind, item) {
+    return kind === 'task' ? `t|${item.list}|${item.raw}` : `e|${item.day}|${item.raw}`;
+  }
+
+  // Remembers which item an element shows (to find the selection again
+  // after the calendar is redrawn).
+  tagItem(el, kind, item) {
+    el.dataset.item = this.itemId(kind, item);
+    el.calItem = { kind, item };
+  }
+
+  // Select an item (null: nothing). Delete or Backspace removes it.
+  selectItem(kind, item) {
+    this.selected = kind ? { kind, item, id: this.itemId(kind, item) } : null;
+    this.markSelected();
+  }
+
+  markSelected() {
+    for (const el of this.root.querySelectorAll('.is-selected')) el.classList.remove('is-selected');
+    if (!this.selected) return;
+    for (const el of this.root.querySelectorAll('[data-item]')) {
+      if (el.dataset.item !== this.selected.id) continue;
+      el.classList.add('is-selected');
+      this.selected.item = el.calItem.item; // the freshest copy
+    }
+  }
+
+  async deleteSelected() {
+    const sel = this.selected;
+    if (!sel) return null;
+    this.selectItem(null);
+    if (sel.kind === 'task') return this.change(() => this.io.deleteTask(sel.item));
+    const event = sel.item;
+    if (!event.repeating) return this.deleteEvent(event);
+    const which = await askChoice(`Delete “${event.title}”`, [
+      { label: 'Just this one', value: 'one' },
+      { label: 'Every repeat', value: 'all' },
+    ]);
+    return which ? this.deleteEvent(event, which) : null;
+  }
+
+  // Undo (or redo) the last change made in the calendar.
+  undo(redo = false) {
+    if (!this.io.undo) return null;
     this.closePopover();
-    const picker = (label, current, onPick, allowNone) => this.colorPicker(label, current, onPick, allowNone);
+    this.selectItem(null);
+    this.writing = this.writing
+      .then(() => this.io.undo(redo))
+      .then((did) => this.flash(did ? (redo ? 'Redone' : 'Undone') : (redo ? 'Nothing to redo' : 'Nothing to undo')))
+      .catch((err) => alert(`The calendar couldn't undo that.\n\n${err.message}`))
+      .then(() => this.load());
+    return this.writing;
+  }
+
+  // A short message at the bottom of the calendar.
+  flash(text) {
+    if (this.flashEl) this.flashEl.remove();
+    const note = h('div', { class: 'cal-flash', role: 'status' }, text);
+    this.flashEl = note;
+    this.root.append(note);
+    setTimeout(() => {
+      note.remove();
+      if (this.flashEl === note) this.flashEl = null;
+    }, 1800);
+  }
+
+  // ---------- Popover ----------
+
+  // The title box at the top of an item's popover: edit it in place; it's
+  // saved with Enter, or when the popover closes.
+  titleBox(value, onEnter) {
+    const input = h('input', { class: 'cal-new-title cal-edit-title', value, placeholder: 'Untitled', 'aria-label': 'Title', spellcheck: 'true' });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onEnter();
+      } else if (e.key === 'Escape') {
+        input.value = value;
+      }
+    });
+    // → the new title, or null if it hasn't changed.
+    const edited = () => {
+      const next = input.value.trim();
+      return next && next !== value.trim() ? next : null;
+    };
+    return { input, edited };
+  }
+
+  // Event | Task switch at the top of a popover; picking the other side
+  // turns the item into it.
+  kindSwitch(current, onSwitch, blocked) {
+    const button = (kind, label) => h('button', {
+      type: 'button',
+      class: `cal-new-kind${current === kind ? ' is-on' : ''}`,
+      'aria-pressed': String(current === kind),
+      disabled: kind !== current && blocked ? true : null,
+      title: kind !== current ? (blocked || `Make this ${kind === 'task' ? 'a task' : 'an event'}`) : null,
+      onclick: () => { if (kind !== current && !blocked) onSwitch(); },
+    }, label);
+    return h('div', { class: 'cal-new-kinds', role: 'group', 'aria-label': 'Kind' }, button('event', 'Event'), button('task', 'Task'));
+  }
+
+  showPopover(event, anchor, { focusTitle = false } = {}) {
+    this.closePopover();
+    this.selectItem('event', event);
+    // Every change made here carries the title being typed along with it.
+    let done = false;
+    const title = this.titleBox(event.text || event.title, () => act((e) => this.updateEvent(event, { text: e.text })));
+    const current = () => (title.edited() ? { ...event, text: title.edited() } : event);
+    const act = (fn) => {
+      done = true;
+      return fn(current());
+    };
+    const picker = (label, value, onPick, allowNone) => this.colorPicker(label, value, onPick, allowNone);
     const swatches = h('div', { class: 'cal-pickers' },
-      picker('Primary · fill', event.primary, (name) => this.updateEvent(event, { primary: name, color: null }), false),
-      picker('Secondary · accent', event.secondary, (name) => this.updateEvent(event, { secondary: name }), true));
+      picker('Primary · fill', event.primary, (name) => act((e) => this.updateEvent(e, { primary: name, color: null })), false),
+      picker('Secondary · accent', event.secondary, (name) => act((e) => this.updateEvent(e, { secondary: name })), true));
 
     // Repeat: a menu of rules, plus an optional last day for a series.
     const from = event.repeating ? event.from : event.day;
@@ -1102,27 +1466,28 @@ export class CalendarView {
       rule: event.repeating ? event.rule : null,
       from,
       className: 'cal-pop-select',
-      onChange: (rule) => this.setRepeat(event, rule),
+      onChange: (rule) => act((e) => this.setRepeat(e, rule)),
     });
     const remindChoices = event.allDay ? REMIND_ALL_DAY : REMIND_TIMED;
     const remindMenu = h('select', { class: 'cal-pop-select', 'aria-label': 'Reminder' },
       remindChoices.map(([value, label]) => h('option', { value: value == null ? '' : String(value) }, label)),
       event.remind != null && !remindChoices.some(([v]) => v === event.remind) ? h('option', { value: String(event.remind) }, `${event.remind} minutes before`) : null);
     remindMenu.value = event.remind == null ? '' : String(event.remind);
-    remindMenu.addEventListener('change', () => this.updateEvent(event, { remind: remindMenu.value === '' ? null : Number(remindMenu.value) }));
+    remindMenu.addEventListener('change', () => act((e) => this.updateEvent(e, { remind: remindMenu.value === '' ? null : Number(remindMenu.value) })));
     const until = event.repeating ? h('input', { type: 'date', class: 'cal-pop-select', value: event.until || '', min: event.from, 'aria-label': 'Repeat until' }) : null;
-    if (until) until.addEventListener('change', () => this.updateEvent(event, { until: until.value || null }));
+    if (until) until.addEventListener('change', () => act((e) => this.updateEvent(e, { until: until.value || null })));
 
     // Until: a later last day makes it a multi-day event (not for repeats).
     const shortDay = (key) => keyToDate(key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
     const untilIn = event.repeating ? null : h('input', { type: 'date', class: 'cal-pop-select', value: event.endDay || event.day, min: event.day, 'aria-label': 'Until' });
-    if (untilIn) untilIn.addEventListener('change', () => this.updateEvent(event, { endDay: untilIn.value > event.day ? untilIn.value : null }));
+    if (untilIn) untilIn.addEventListener('change', () => act((e) => this.updateEvent(e, { endDay: untilIn.value > event.day ? untilIn.value : null })));
     const when = event.endDay
       ? `${shortDay(event.day)}${event.allDay ? '' : ` ${clock(event.start)}`} → ${shortDay(event.endDay)}${event.allDay ? '' : ` ${clock(event.end)}`}`
       : event.allDay ? 'All day' : `${clock(event.start)} – ${clock(event.end)}`;
     const pop = h('div', { class: 'cal-pop', role: 'dialog', 'aria-label': event.title },
+      title.input,
+      this.kindSwitch('event', () => act((e) => this.eventToTask(e)), event.repeating ? 'A repeating event can’t become a task' : null),
       h('span', { class: 'mono-label' }, when),
-      h('span', { class: 'display cal-pop-title' }, event.title),
       swatches,
       h('div', { class: 'cal-pop-repeat' },
         untilIn ? h('label', { class: 'cal-pop-row' }, h('span', { class: 'mono-label' }, 'Until'), untilIn) : null,
@@ -1132,37 +1497,21 @@ export class CalendarView {
         event.repeating ? h('span', { class: 'hand cal-pop-hint' }, 'name, colour & reminder apply to every repeat') : null),
       h('div', { class: 'cal-pop-actions' },
         event.link ? h('button', { class: 'cal-pop-btn is-primary', onclick: () => this.io.openLink(event.link) }, `Open “${event.link}”`) : null,
-        h('button', { class: 'cal-pop-btn', onclick: () => this.rename(event) }, 'Rename'),
         h('button', { class: 'cal-pop-btn', onclick: () => this.io.openDayNote(event.day) }, 'Day note'),
         event.repeating
           ? [
-            h('button', { class: 'cal-pop-btn is-danger', onclick: () => this.deleteEvent(event, 'one') }, 'Delete this one'),
-            h('button', { class: 'cal-pop-btn is-danger', onclick: () => this.deleteEvent(event, 'all') }, 'Delete all'),
+            h('button', { class: 'cal-pop-btn is-danger', onclick: () => act(() => this.deleteEvent(event, 'one')) }, 'Delete this one'),
+            h('button', { class: 'cal-pop-btn is-danger', onclick: () => act(() => this.deleteEvent(event, 'all')) }, 'Delete all'),
           ]
-          : h('button', { class: 'cal-pop-btn is-danger', onclick: () => this.deleteEvent(event) }, 'Delete')));
-
-    const host = this.root.querySelector('.cal-main');
-    host.append(pop);
-    const hostBox = host.getBoundingClientRect();
-    const box = (anchor || host).getBoundingClientRect();
-    const left = Math.min(Math.max(8, box.right - hostBox.left + 8), hostBox.width - 330);
-    const top = Math.min(Math.max(8, box.top - hostBox.top), hostBox.height - 400);
-    pop.style.left = `${left}px`;
-    pop.style.top = `${top}px`;
-    this.popover = pop;
-
-    const outside = (e) => {
-      if (!pop.contains(e.target) && !(anchor && anchor.contains(e.target))) this.closePopover();
-    };
-    const escape = (e) => {
-      if (e.key === 'Escape') this.closePopover();
-    };
-    setTimeout(() => document.addEventListener('pointerdown', outside), 0);
-    document.addEventListener('keydown', escape);
-    this.popoverCleanup = () => {
-      document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
-    };
+          : h('button', { class: 'cal-pop-btn is-danger', onclick: () => act(() => this.deleteEvent(event)) }, 'Delete')));
+    // Closing the popover keeps a title that was typed.
+    this.placePopover(pop, anchor, () => {
+      if (!done && title.edited()) act((e) => this.updateEvent(event, { text: e.text }));
+    });
+    if (focusTitle) {
+      title.input.focus();
+      title.input.select();
+    }
   }
 
   // A row of the 20 event colours (plus "none" for the accent).
@@ -1223,50 +1572,97 @@ export class CalendarView {
     };
   }
 
-  showTaskPopover(task, anchor) {
+  showTaskPopover(task, anchor, { focusTitle = false } = {}) {
     this.closePopover();
+    this.selectItem('task', task);
+    let done = false;
+    const title = this.titleBox(task.title, () => act((t) => this.io.updateTask(task, { title: t.title }), true));
+    const current = () => (title.edited() ? { ...task, title: title.edited() } : task);
+    // Every change made here carries the title being typed along with it.
+    const act = (fn, write = true) => {
+      done = true;
+      return write ? this.change(() => fn(current())) : fn(current());
+    };
     const pop = h('div', { class: 'cal-pop', role: 'dialog', 'aria-label': task.title },
-      h('span', { class: 'mono-label' }, `Task · ${task.list}${task.time ? ` · ${task.time}` : ''}`),
-      h('span', { class: 'display cal-pop-title' }, task.title),
+      title.input,
+      this.kindSwitch('task', () => act((t) => this.taskToEvent(t), false)),
+      h('span', { class: 'mono-label' }, `Task · ${task.list}${task.time ? ` · ${task.time}${task.endTime ? `–${task.endTime}` : ''}` : ''}`),
       task.details.length ? h('span', { class: 'serif-i' }, task.details.join(' ')) : null,
       h('div', { class: 'cal-pickers' },
-        this.colorPicker('Primary · fill', task.primary, (name) => this.change(() => this.io.updateTask(task, { primary: name })), false),
-        this.colorPicker('Secondary · accent', task.secondary, (name) => this.change(() => this.io.updateTask(task, { secondary: name })), true)),
+        this.colorPicker('Primary · fill', task.primary, (name) => act((t) => this.io.updateTask(task, { title: t.title, primary: name })), false),
+        this.colorPicker('Secondary · accent', task.secondary, (name) => act((t) => this.io.updateTask(task, { title: t.title, secondary: name })), true)),
       h('div', { class: 'cal-pop-actions' },
         h('button', {
           class: 'cal-pop-btn is-primary',
-          onclick: () => this.change(() => this.io.toggleTask(task)),
+          onclick: () => act((t) => this.io.toggleTask(t)),
         }, task.done ? 'Mark not done' : 'Mark done'),
-        h('button', { class: 'cal-pop-btn', onclick: () => this.io.openTasks() }, 'Open Tasks')));
-    const host = this.root.querySelector('.cal-main');
-    host.append(pop);
-    const hostBox = host.getBoundingClientRect();
-    const box = anchor.getBoundingClientRect();
-    pop.style.left = `${Math.min(Math.max(8, box.left - hostBox.left), hostBox.width - 330)}px`;
-    pop.style.top = `${box.bottom - hostBox.top + 6}px`;
-    this.popover = pop;
-    const outside = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) this.closePopover(); };
-    const escape = (e) => { if (e.key === 'Escape') this.closePopover(); };
-    setTimeout(() => document.addEventListener('pointerdown', outside), 0);
-    document.addEventListener('keydown', escape);
-    this.popoverCleanup = () => {
-      document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
+        h('button', { class: 'cal-pop-btn', onclick: () => this.io.openTasks() }, 'Open Tasks'),
+        h('button', { class: 'cal-pop-btn is-danger', onclick: () => act(() => this.io.deleteTask(task)) }, 'Delete')));
+    this.placePopover(pop, anchor, () => {
+      if (!done && title.edited()) act((t) => this.io.updateTask(task, { title: t.title }));
+    });
+    if (focusTitle) {
+      title.input.focus();
+      title.input.select();
+    }
+  }
+
+  // An event → a task on the same day(s) and time, in the default list.
+  eventToTask(event) {
+    if (event.repeating) return null;
+    return this.change(async () => {
+      // Add the task before removing the event, so a failure never loses it.
+      await this.io.addTask({
+        title: event.text || event.title,
+        due: event.endDay || event.day,
+        startDate: event.endDay ? event.day : null,
+        time: event.allDay ? null : clock(event.start),
+        endTime: event.allDay ? null : clock(Math.min(event.end, 24 * 60 - 1)),
+        primary: event.primary || null,
+        secondary: event.secondary || null,
+      });
+      await this.io.writeDay(event.day, replaceEvent(await this.freshText(event.day), event, null));
+    });
+  }
+
+  // A task → an event on the same day(s) and time.
+  async taskToEvent(task) {
+    const loses = [task.details.length ? 'notes' : null, task.subtasks.length ? 'subtasks' : null, task.repeat ? 'repeat' : null].filter(Boolean);
+    if (loses.length) {
+      const ok = await askChoice(`Make “${task.title}” an event? Its ${loses.join(' and ')} won’t come along.`, [{ label: 'Make it an event', value: 'yes' }]);
+      if (!ok) return null;
+    }
+    const span = this.taskSpan(task);
+    const minutes = (v) => {
+      const [hh, mm] = v.split(':').map(Number);
+      return hh * 60 + mm;
     };
+    const allDay = !task.time;
+    const start = allDay ? 0 : minutes(task.time);
+    let end = allDay ? 24 * 60 : task.endTime ? minutes(task.endTime) : start + 60;
+    if (!span.multi && end <= start) end = start + 60;
+    end = Math.min(24 * 60, end);
+    const line = formatEvent({ allDay, start, end, text: task.title, color: null, primary: task.primary || null, secondary: task.secondary || null, endDay: span.multi ? span.last : null, day: span.first });
+    return this.change(async () => {
+      await this.io.writeDay(span.first, insertEvent(await this.freshText(span.first), line, this.dateLabel(span.first)));
+      await this.io.deleteTask(task);
+    });
   }
 
   closePopover() {
-    if (this.popover) this.popover.remove();
-    if (this.popoverCleanup) this.popoverCleanup();
+    const { popover, popoverCleanup } = this;
     this.popover = null;
     this.popoverCleanup = null;
+    if (popover) popover.remove();
+    if (popoverCleanup) popoverCleanup();
   }
 
   // ---------- Changes (all written to the day notes) ----------
 
+  // Every change is one step that ⌘Z can undo.
   change(task) {
     this.closePopover();
-    this.writing = this.writing.then(task).catch((err) => alert(`The calendar couldn't save that.\n\n${err.message}`)).then(() => this.load());
+    this.writing = this.writing.then(() => this.io.recordStep(task)).catch((err) => alert(`The calendar couldn't save that.\n\n${err.message}`)).then(() => this.load());
     return this.writing;
   }
 
@@ -1361,6 +1757,7 @@ export class CalendarView {
       // Same-day events end after they start; multi-day ones can end earlier in the day.
       const end = state.allDay ? 24 * 60 : (endDay ? state.end : Math.max(state.end, start + SNAP));
       if (state.kind === 'task') {
+        if (!this.showTasks) setTimeout(() => this.flash('Task saved (tasks are hidden)'), 0);
         this.change(() => this.io.addTask({
           title: text, due: endDay || key, startDate: endDay ? key : null, time: state.allDay ? null : clock(start), endTime: state.allDay ? null : clock(end), primary: state.primary, secondary: state.secondary,
         }));
@@ -1437,12 +1834,6 @@ export class CalendarView {
       await this.io.writeDay(key, insertEvent(await this.freshText(key), formatEvent(event), this.dateLabel(key)));
       await this.writeSeries(event, key > event.from ? { ...event, until: shiftKey(key, -1) } : null)();
     });
-  }
-
-  async rename(event) {
-    this.closePopover();
-    const text = await askName(`Rename · ${event.title}`, 'New name, then Enter', event.text);
-    if (text) this.updateEvent(event, { text });
   }
 
   deleteEvent(event, scope) {

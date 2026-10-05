@@ -3403,3 +3403,35 @@ button.heat-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 0; }
 .cal-chip:hover .cal-bar-grip::after { content: ''; position: absolute; top: 25%; bottom: 25%; left: 3px; width: 2px; border-radius: 1px; background: rgb(var(--ink-rgb) / 0.45); }
 .cal-chip.is-cont-left > .cal-bar-grip.is-start, .cal-chip.is-cont-right > .cal-bar-grip.is-end { display: none; }
 .cal-chip.is-resizing { opacity: 0.35; }
+
+/* ---------- Calendar: sliding days / weeks / months ---------- */
+
+/* Each window shows the days on screen; its track holds those plus the days
+   waiting either side, and slides (see CalendarView.setStripPos). */
+.cal .cal-hwin { position: relative; flex: 1 1 0; min-width: 0; overflow: clip; }
+.cal .cal-track { will-change: transform; }
+.cal .cal-coltrack { display: flex; height: 100%; }
+.cal .cal-daytrack { display: flex; height: 100%; }
+.cal .cal-allday { display: flex; padding: 0; }
+.cal .cal-allday > .cal-gutter { width: 58px; flex-shrink: 0; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; box-sizing: border-box; }
+.cal .cal-alldaytrack { display: grid; padding: 4px 0; row-gap: 3px; }
+.cal .cal-alldaytrack > .cal-chip { position: relative; z-index: 1; margin: 0 3px; min-width: 0; align-self: stretch; display: flex; align-items: center; }
+.cal .cal-inner { display: flex; }
+.cal .cal-mscroll { overflow: clip; }
+.cal .cal-mgrid { min-height: 0; }
+.cal .cal-mgrid > .cal-mweek { flex: 1 1 0; min-height: 0; overflow: hidden; }
+.cal .cal-mcell { overflow: hidden; }
+
+/* The selected event or task (Delete / Backspace removes it). */
+.cal .cal-event.is-selected, .cal .cal-chip.is-selected { outline: 2px solid var(--accent, var(--ink)); outline-offset: 1px; z-index: 6; }
+
+/* Popovers: the title can be edited in place; a tall popover scrolls. */
+.cal-pop { max-height: calc(100% - 16px); overflow-y: auto; box-sizing: border-box; }
+.cal-pop .cal-edit-title { width: 100%; box-sizing: border-box; }
+.cal-new-kind:disabled { opacity: 0.45; cursor: not-allowed; }
+.cal-flash { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 30; padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 12.5px; font-weight: 600; pointer-events: none; }
+.cal-top .cal-tasks-toggle { padding: 0 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cal-top .cal-tasks-toggle:not(.is-on) { opacity: 0.6; text-decoration: line-through; }
+.cal .cal-mcell { position: relative; }
+.cal .cal-mcell > [hidden] { display: none !important; }
+.cal .cal-colhead, .cal .cal-allday { padding-right: var(--scrollbar, 0px); }

@@ -1364,6 +1364,69 @@ function drawSettings() {
 
 // ---------- Calendar ----------
 
+// Undo / redo for the calendar. Each change the calendar makes is one step:
+// the files it touched and what they said before (null = the file didn't
+// exist yet). Undo writes those back; nothing is kept outside the notes
+// except this list, which lives only while Opal is open.
+const calendarUndo = { undo: [], redo: [], step: null };
+
+async function readOrNull(path) {
+  try {
+    return await window.opal.readFile(path);
+  } catch {
+    return null;
+  }
+}
+
+// Called just before the calendar writes a file during a step.
+async function rememberForUndo(path) {
+  const { step } = calendarUndo;
+  if (step && !step.has(path)) step.set(path, await readOrNull(path));
+}
+
+// Runs fn as one undoable step.
+async function recordCalendarStep(fn) {
+  const step = new Map();
+  calendarUndo.step = step;
+  try {
+    await fn();
+  } finally {
+    calendarUndo.step = null;
+    if (step.size) {
+      calendarUndo.undo.push(step);
+      if (calendarUndo.undo.length > 100) calendarUndo.undo.shift();
+      calendarUndo.redo = [];
+    }
+  }
+}
+
+// Puts files back as a step remembers them; → the step that reverses it.
+async function restoreFiles(step) {
+  const back = new Map();
+  for (const [path, text] of step) {
+    back.set(path, await readOrNull(path));
+    if (text === null) {
+      if (findFile(tree, path) || (await readOrNull(path)) !== null) await window.opal.trashFile(path);
+    } else {
+      await window.opal.createFolder(path.split('/').slice(0, -1).join('/'), '');
+      await window.opal.writeFile(path, text);
+    }
+  }
+  await reloadTree();
+  reminders.refresh();
+  return back;
+}
+
+// → true if there was something to undo (or redo).
+async function undoCalendar(redo = false) {
+  const from = redo ? calendarUndo.redo : calendarUndo.undo;
+  const to = redo ? calendarUndo.undo : calendarUndo.redo;
+  const step = from.pop();
+  if (!step) return false;
+  to.push(await restoreFiles(step));
+  return true;
+}
+
 function showCalendar(date) {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
@@ -1387,6 +1450,7 @@ function showCalendar(date) {
         }
       },
       writeDay: async (key, text) => {
+        await rememberForUndo(dayPath(key));
         await window.opal.createFolder(CALENDAR_FOLDER, '');
         const isNew = !findFile(tree, dayPath(key));
         const path = await window.opal.createNote(key, CALENDAR_FOLDER, 'default');
@@ -1421,6 +1485,7 @@ function showCalendar(date) {
         }
       },
       writeRepeats: async (text) => {
+        await rememberForUndo(REPEATS_PATH);
         await window.opal.createFolder(CALENDAR_FOLDER, '');
         const path = await window.opal.createNote(REPEATS_NAME, CALENDAR_FOLDER);
         await window.opal.writeFile(path, text);
@@ -1443,6 +1508,8 @@ function showCalendar(date) {
         await writeTaskList(task.list, replaceTask(text, task, { ...task, ...patch }));
       },
       openTasks: () => showTasks(),
+      recordStep: recordCalendarStep,
+      undo: undoCalendar,
       onChange: (state) => { calendarState = state; },
     });
     calendar.setCardsDue(cardsDueCount);
@@ -1470,6 +1537,7 @@ async function readTaskList(name) {
 }
 
 async function writeTaskList(name, text) {
+  await rememberForUndo(taskListPath(name));
   const known = taskListNodes().some((n) => n.name.slice(0, -3).toLowerCase() === name.toLowerCase());
   await window.opal.createFolder(TASKS_FOLDER, '');
   const path = await window.opal.createNote(name, TASKS_FOLDER);

@@ -31,9 +31,9 @@ C "(()=>{const g=[...document.querySelectorAll('.cal-mbar')].find(b=>b.textConte
 ok "dragging a bar's end stretches the event" 'grep -q "^- all day Rowing → 2026-10-16$" "$V/Calendar/2026-10-12.md"'
 # Week view: the all-day row
 C "[...document.querySelectorAll('.cal-seg')].find(b=>b.textContent==='Week').click(); 1" >/dev/null; sleep 1.2
-ok "week view: the multi-day event is one bar in the all-day row" '[[ $(C "[...document.querySelectorAll(\".cal-allday > .cal-chip\")].filter(b=>b.textContent.includes(\"School camp\")).length") == "1" ]]'
+ok "week view: the multi-day event is one bar in the all-day row" '[[ $(C "[...document.querySelectorAll(\".cal-alldaytrack > .cal-chip\")].filter(b=>b.textContent.includes(\"School camp\")).length") == "1" ]]'
 # Timed grid draft says Untitled
-XY=$(C "(()=>{const s=document.querySelector('.cal-scroll'); s.scrollTop=8*52; const r=document.querySelector('.cal-day').getBoundingClientRect(); const top=s.getBoundingClientRect().top; return Math.round(r.x+30)+','+Math.round(top+60)+','+Math.round(r.x+30)+','+Math.round(top+140)})()" | tr -d '"'); sleep 0.3
+XY=$(C "(()=>{const s=document.querySelector('.cal-scroll'); s.scrollTop=8*52; const r=[...document.querySelectorAll('.cal-day')].find(d=>d.getBoundingClientRect().left>=d.closest('.cal-hwin').getBoundingClientRect().left-1).getBoundingClientRect(); const top=s.getBoundingClientRect().top; return Math.round(r.x+30)+','+Math.round(top+60)+','+Math.round(r.x+30)+','+Math.round(top+140)})()" | tr -d '"'); sleep 0.3
 C --drag "$XY" >/dev/null; sleep 0.6
 ok "a new timed event's preview says Untitled" '[[ $(C "document.querySelector(\".cal-draft .cal-event-title\")?.textContent") == "\"Untitled\"" ]]'
 C --key Escape >/dev/null
