@@ -10,7 +10,7 @@
 // 🔔 10m / 🔔 1h / 🔔 1d asks for a reminder that long before (🔔 0m = at the
 // start; all-day events count from 9:00).
 // #color/<name> sets the event's fill and #accent/<name> its accent stripe,
-// from the 20 EVENT_COLORS below (older #c1 … #c5 tags pick a palette colour).
+// from the 30 EVENT_COLORS below (older #c1 … #c5 tags pick a palette colour).
 // Anything else in the note is left alone.
 //
 // Repeating events live together in Calendar/Repeating.md, one per line:
@@ -25,8 +25,33 @@ export const CALENDAR_FOLDER = 'Calendar';
 export const REPEATS_NAME = 'Repeating';
 export const REPEATS_PATH = `${CALENDAR_FOLDER}/${REPEATS_NAME}.md`;
 
-// The 20 colours an event's fill (primary) and stripe (secondary) can use.
+// The 30 colours an event's or task's fill (primary) and stripe (secondary)
+// can use — chosen to read well on dark and light backgrounds.
 export const EVENT_COLORS = {
+  garnet: '#9B2C3A', brick: '#B4442F', coral: '#D9604C', raspberry: '#B02A5E', rose: '#C9507A', blush: '#D98AA0',
+  ember: '#C2571A', apricot: '#D98A3D', amber: '#C9971C', mustard: '#A88A2A', butter: '#D4BE5A',
+  olive: '#7A8A2E', moss: '#5C7F3A', fern: '#3E8E5E', sage: '#76A083', emerald: '#1F8A70', teal: '#1E7F86',
+  sky: '#4A90C9', ocean: '#2F6FB0', cobalt: '#3355C9', denim: '#4A6A9A', navy: '#2A3F8F',
+  iris: '#5B5BD6', lavender: '#8B7FD9', violet: '#7B4FC9', plum: '#8A3F8F', orchid: '#B45FB0',
+  slate: '#5A6472', mocha: '#7A5C48', sand: '#A8987A',
+};
+
+// Names from the earlier set of 20, still written in older notes: each shows
+// as its nearest colour from the set above (the notes don't need changing).
+const OLD_NAMES = {
+  tomato: 'brick', flamingo: 'blush', tangerine: 'apricot', banana: 'butter', lemon: 'butter',
+  basil: 'fern', forest: 'moss', mint: 'teal', peacock: 'ocean', blueberry: 'cobalt',
+  grape: 'violet', cocoa: 'mocha', graphite: 'slate', ink: 'slate',
+};
+
+// A colour name (new or old) → its colour, or null.
+export function colorHex(name) {
+  if (!name) return null;
+  return EVENT_COLORS[name] || EVENT_COLORS[OLD_NAMES[name]] || null;
+}
+
+// The earlier 20 colours, kept for table shading (tables store the colour itself).
+export const LEGACY_COLORS = {
   tomato: '#E4574A', flamingo: '#F28C8C', coral: '#F28B74', tangerine: '#F4A259', banana: '#F6D55C',
   lemon: '#F4E36B', sage: '#98C379', basil: '#3F9C63', forest: '#2E5E3B', mint: '#8FD4C1',
   sky: '#8EC5EA', peacock: '#3DA5D9', blueberry: '#4A6CD4', navy: '#2F3E75', lavender: '#A5A6F6',
@@ -134,8 +159,8 @@ export function parseEvents(text, key) {
       remind: remind ? Number(remind[2]) * { m: 1, h: 60, d: 1440 }[remind[3]] : null, // minutes before
       title: displayTitle(body) || 'Untitled',
       color: color ? Number(color[2]) : null,
-      primary: primary && EVENT_COLORS[primary[2]] ? primary[2] : null,
-      secondary: secondary && EVENT_COLORS[secondary[2]] ? secondary[2] : null,
+      primary: primary && colorHex(primary[2]) ? primary[2] : null,
+      secondary: secondary && colorHex(secondary[2]) ? secondary[2] : null,
       link: link ? link[1].trim() : null,
     });
   });

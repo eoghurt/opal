@@ -14,3 +14,6 @@ release/
 npm-debug.log*
 .env
 .env.*
+
+# End-to-end test runs (a scratch copy of the demo vault, test app data)
+tests/e2e/.run/

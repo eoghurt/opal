@@ -9,7 +9,7 @@
 
 import { h } from '../ui.js';
 import { showMenu, closeMenu } from '../context-menu.js';
-import { EVENT_COLORS, isDark } from '../calendar/events.js';
+import { LEGACY_COLORS as EVENT_COLORS, isDark } from '../calendar/events.js';
 import {
   parseTable, serializeTable, tableStyle, cellStyle, cellAt, cellsIn, expandRect,
   insertRow, insertCol, deleteRows, deleteCols, merge, split, cleanCellHtml, MIN_COL, MIN_ROW,

@@ -1,0 +1,2 @@
+- [ ] finish gatsby plan
+- [ ] chem prac write-up

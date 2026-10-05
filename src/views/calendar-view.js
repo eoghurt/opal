@@ -9,7 +9,7 @@ import { makePanel } from '../panel.js';
 import { slotFor } from '../palettes.js';
 import {
   SNAP, dayKey, keyToDate, addDays, startOfWeek, clock,
-  parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS,
+  parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS, colorHex,
   parseSeries, formatSeries, occurrences, appendSeries, stackLanes,
 } from '../calendar/events.js';
 import { describeRule, shiftKey } from '../calendar/repeat.js';
@@ -316,7 +316,7 @@ export class CalendarView {
           h('span', { class: 'mono-label' }, 'Today’s list'),
           agenda.length
             ? agenda.map((e) => h('button', { class: 'cal-agenda-item', onclick: () => this.showPopover(e) },
-              h('span', { class: 'cal-agenda-dot', style: `background: ${this.fillOf(e)}${e.secondary ? `; border-left: 4px solid ${EVENT_COLORS[e.secondary]}` : ''}` }),
+              h('span', { class: 'cal-agenda-dot', style: `background: ${this.fillOf(e)}${e.secondary ? `; border-left: 4px solid ${colorHex(e.secondary)}` : ''}` }),
               h('span', { class: 'cal-agenda-time' }, e.allDay ? 'all day' : clock(e.start)),
               h('span', null, e.title)))
             : h('span', { class: 'hand side-hint' }, 'nothing planned — click the grid to add'),
@@ -576,8 +576,12 @@ export class CalendarView {
     }, task.done ? '✓' : '');
   }
 
+  // Tasks are outlined in their colour with a faint tint inside (events are
+  // filled cards), so the two are easy to tell apart. An accent is a stripe.
   taskPaint(task) {
-    return this.paint({ primary: task.primary, secondary: task.secondary, color: null, title: task.title });
+    const parts = [`--task-c: ${this.fillOf({ primary: task.primary, color: null, title: task.title })}`];
+    if (colorHex(task.secondary)) parts.push(`--task-accent: ${colorHex(task.secondary)}; --task-accent-w: 4px`);
+    return parts.join('; ');
   }
 
   // A task in the all-day row or a month cell: like an event chip, with a tick box.
@@ -977,7 +981,7 @@ export class CalendarView {
 
   // Fill colour (CSS value) and the style for an event's block.
   fillOf(event) {
-    if (event.primary) return EVENT_COLORS[event.primary];
+    if (colorHex(event.primary)) return colorHex(event.primary);
     return `var(--c${event.color || slotFor(event.title)})`;
   }
 
@@ -986,7 +990,10 @@ export class CalendarView {
   paint(event) {
     const base = this.fillOf(event);
     const parts = [`background: color-mix(in srgb, ${base} var(--event-strength, 34%), var(--event-mix))`];
-    if (event.secondary) parts.push(`border-left: 4px solid ${EVENT_COLORS[event.secondary]}`);
+    if (colorHex(event.secondary)) parts.push(`border-left: 4px solid ${colorHex(event.secondary)}`);
+    // The 30 named colours are already deep enough for white writing: the
+    // Minimal theme doesn't darken them further.
+    if (colorHex(event.primary)) parts.push('--deepen-sat: 1; --deepen-bright: 1');
     return parts.join('; ');
   }
 
@@ -1174,9 +1181,10 @@ export class CalendarView {
         }) : null,
         Object.entries(EVENT_COLORS).map(([name, hex]) => h('button', {
           type: 'button',
-          class: `cal-swatch${current === name ? ' is-on' : ''}`,
+          // An older colour name counts as the new colour it now shows as.
+          class: `cal-swatch${colorHex(current) === hex ? ' is-on' : ''}`,
           role: 'radio',
-          'aria-checked': String(current === name),
+          'aria-checked': String(colorHex(current) === hex),
           'aria-label': name,
           title: name,
           style: `background: ${hex}`,

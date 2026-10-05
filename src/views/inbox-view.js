@@ -7,7 +7,7 @@
 
 import { h, askName } from '../ui.js';
 import { parseTasks, replaceTask, addTask, toggleTask, dueLabel, todayKey } from '../tasks/tasks.js';
-import { clock, EVENT_COLORS } from '../calendar/events.js';
+import { clock, colorHex } from '../calendar/events.js';
 import { shiftKey } from '../calendar/repeat.js';
 
 export const INBOX_PATH = 'Inbox.md';
@@ -240,7 +240,7 @@ export class InboxView {
   }
 
   eventRow(event) {
-    const color = event.primary ? EVENT_COLORS[event.primary] : `var(--c${event.color || 3})`;
+    const color = event.primary ? colorHex(event.primary) : `var(--c${event.color || 3})`;
     return h('div', { class: 'inbox-row' },
       h('div', { class: 'inbox-line' },
         h('span', { class: 'inbox-dot', style: `background: ${color}`, 'aria-hidden': 'true' }),

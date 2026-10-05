@@ -672,10 +672,10 @@
   z-index: -1;
   border-radius: inherit;
   background: inherit;
-  filter: saturate(1.7) brightness(0.68);
+  filter: saturate(var(--deepen-sat, 1.7)) brightness(var(--deepen-bright, 0.68));
 }
 :root[data-theme="minimal"] .cal .cal-event:hover::before,
-:root[data-theme="minimal"] .cal .cal-chip:hover::before { filter: saturate(1.7) brightness(0.6); }
+:root[data-theme="minimal"] .cal .cal-chip:hover::before { filter: saturate(var(--deepen-sat, 1.7)) brightness(calc(var(--deepen-bright, 0.68) * 0.9)); }
 :root[data-theme="minimal"] .cal .cal-event:hover { box-shadow: var(--lift-soft); }
 :root[data-theme="minimal"] .cal .cal-event-title,
 :root[data-theme="minimal"] .cal .cal-chip,
@@ -1110,3 +1110,32 @@
 :root:not([data-theme="scrapbook"]) .heat-edit:hover { background: var(--fill); }
 :root[data-theme="github"] { --heat: #2DA44E; }
 :root:not([data-theme="scrapbook"]) .cal-draft-bar { box-shadow: 0 0 0 2px var(--accent) !important; }
+
+
+/* ---------- Calendar tasks: outlined, a faint tint, coloured writing ----------
+   Events are filled cards; tasks are drawn in outline in their colour, with a
+   faint wash of it inside and the writing in a lighter shade (darker in light
+   themes), and a round tick. Same in every theme. */
+.cal .cal-task-block, .cal .cal-task {
+  --task-text-mix: #16140F;
+  background: color-mix(in srgb, var(--task-c, var(--c3)) 13%, transparent) !important;
+  border: 1.5px solid var(--task-c, var(--c3)) !important;
+  border-left: var(--task-accent-w, 1.5px) solid var(--task-accent, var(--task-c, var(--c3))) !important;
+  border-radius: 6px !important;
+  color: color-mix(in srgb, var(--task-c, var(--c3)) 58%, var(--task-text-mix)) !important;
+  box-shadow: none !important;
+  isolation: auto;
+}
+:root[data-mode="dark"] .cal .cal-task-block, :root[data-mode="dark"] .cal .cal-task { --task-text-mix: #FFFFFF; }
+.cal .cal-task-block::before, .cal .cal-task::before { display: none !important; }
+.cal .cal-task-block .cal-event-title, .cal .cal-task-block .cal-event-time, .cal .cal-task .cal-task-name { color: inherit !important; }
+.cal .cal-task-block .cal-event-time { opacity: 0.8; }
+.cal .cal-task-box, .cal .cal-task-block .cal-task-box {
+  width: 13px; height: 13px; border-radius: 50% !important;
+  border: 1.5px solid currentColor !important; background: transparent !important; color: inherit !important;
+}
+.cal .cal-task-box:hover { background: color-mix(in srgb, currentColor 18%, transparent) !important; }
+.cal .cal-task.is-done .cal-task-box, .cal .cal-task-block.is-done .cal-task-box, .cal .cal-task-box.is-done {
+  background: var(--task-c, var(--c3)) !important; border-color: var(--task-c, var(--c3)) !important; color: #FFFFFF !important;
+}
+.cal .cal-task.is-done, .cal .cal-task-block.is-done { opacity: 0.55; }
