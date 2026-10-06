@@ -228,6 +228,12 @@ Ethan's:
   - Competition tracker: both the season list and a page per competition,
     and each competition page has a tournament overview to reflect on the
     whole tournament.
+  - BP is scored differently: each round is a placing (1st–4th, worth
+    3/2/1/0 team points); BP competitions show the average placing and the
+    1st/2nd/3rd/4th split instead of a win rate. Two-team formats keep wins.
+  - Pages (all in the B3 rail): Overview, Motions, Competitions, one
+    competition, Log a round (Form 1, Form 2), Board (with a card opened),
+    Training (week, phase, drill bank, matter cycle, targets), Notes.
   - Opal hosts the two feedback forms (no Microsoft Forms / Excel / script);
     rounds are saved by Round ID (COMP-R#) and link to motions and cards.
   - The Schools Record table becomes one note per competition
