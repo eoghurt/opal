@@ -10,7 +10,7 @@
 //   const timer = new PrepTimer({ openNote(), notify(payload), record(session), openSettings() });
 //   timer.el  → put it in the top bar
 
-import { h, icon } from './ui.js';
+import { h, icon } from '../../ui.js';
 
 const STORE = 'opal.prepTimer';
 const PRESETS = [15, 30, 60];

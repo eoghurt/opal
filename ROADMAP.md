@@ -178,6 +178,60 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   A4, 2.54 cm margins. Manuscripts and flow sheets use the same style.
 - **Fixed** — a task dragged between lists could get stuck on screen.
 
+## Widgets and fidgets (done)
+- **Two kinds of "fun" features**, each in its own folder in the code:
+  - **Widgets** (`src/widgets/`) are small things inside a page that do one
+    job: heatmaps, tables, the home page widgets, sticky notes, the timer.
+  - **Fidgets** (`src/fidgets/`) are heavier and take a whole page: calendar,
+    tasks, inbox, flashcard review, flow sheets, folder databases,
+    manuscripts.
+  - Each folder has an `index.js` listing what's in it. Settings has a
+    Widgets & Fidgets group: an overview of every one, then their settings
+    (Home page, Timer).
+- **Calendar** — smooth sliding between days, weeks and months (Mondays and
+  month starts hold on a little); Delete/Backspace on the selected item;
+  ⌘Z undo, ⇧⌘Z redo; titles edited in place; switch an event to a task and
+  back; popovers stay on screen; a Tasks switch hides tasks.
+
+## Fidget ideas
+Ethan's:
+- **Bouldering tracker** — problems by gym, wall, grade and colour; sends,
+  flashes and attempts; projects in progress; a grade pyramid and progress
+  over time.
+- **Money manager** — budgeting, saving, investing and income in one place:
+  accounts, monthly budget by category, savings goals, income from jobs.
+- **Boards** — a Pinterest-style pinboard of images and notes, styled like a
+  real board: tape, pins, clips, slight tilts.
+- **Debate competition tracker** — competitions, rounds, motions, sides,
+  results and speaker scores, with the forms system and feedback system
+  folded in: feedback from every round gathered by skill, so patterns show.
+
+More to think about:
+- **Exam planner** — WACE exam countdown, each subject's syllabus dot points
+  ticked off as revised, linked to flashcards and practice tests.
+- **Practice test log** — scores per subject and topic over time, marks lost
+  by reason, what to revise next (pairs with marking feedback).
+- **Quote bank** — Literature quotes by text, character and theme, with page
+  numbers; pull them straight into an essay plan.
+- **Case and law cards** — Politics and Law cases, legislation and
+  principles, with the facts, the ruling and why it matters.
+- **Motion bank** — debate motions by topic, with prep notes, arguments for
+  and against, and when you ran them (links to the competition tracker).
+- **Reading list / bookshelf** — books to read, reading, and read, with notes
+  and ratings.
+- **Habit tracker** — daily ticks that feed the heatmaps.
+- **Training log** — sessions of any kind (gym, running, climbing) with a
+  weekly load chart.
+
+## Widget ideas
+- **Calculator** — a small one in a note or on the home page.
+- **Kanban board** — a task list as columns (to do / doing / done) inside a
+  note.
+- **Countdown** — days until a date (an exam, a competition, a trip).
+- **Progress bar** — a goal (words, pages, savings) and how far along it is.
+- **Speech timer** — debate speaking times with protected-time bells.
+- **Random quote** — one from the quote bank each day on the home page.
+
 ## Later
 - **Block colours** — colour any block from the current palette (saved as a
   palette slot inside the markdown, so switching palettes recolours).

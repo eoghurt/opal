@@ -7,7 +7,7 @@
 //   const ribbon = new Ribbon({ onAddSticky, onInsertTable(anchor) });
 //   ribbon.connect(editorView);  ribbon.refresh();  ribbon.el
 
-import { insertHeatmap } from '../heatmap.js';
+import { insertHeatmap } from '../widgets/heatmap/heatmap.js';
 import { undo, redo, indentMore, indentLess } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import { h } from '../ui.js';

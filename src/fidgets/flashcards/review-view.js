@@ -7,9 +7,9 @@
 //   io: listCards(), reviewCard(path, line, raw, schedule) → new line, openFile(path),
 //       onReviewed() (to update the due counts elsewhere)
 
-import { h } from '../ui.js';
-import { inlineRuns } from '../export/note-structure.js';
-import { GRADES, nextSchedule, describeInterval, dueSides, todayKey } from '../flashcards/schedule.js';
+import { h } from '../../ui.js';
+import { inlineRuns } from '../../export/note-structure.js';
+import { GRADES, nextSchedule, describeInterval, dueSides, todayKey } from './schedule.js';
 
 const LABELS = { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
 

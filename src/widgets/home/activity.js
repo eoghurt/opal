@@ -3,9 +3,9 @@
 // the events in the calendar's day notes, and Opal's own records in
 // .opal/logbook.md (words written each day, prep-timer sessions).
 
-import { dayKey, addDays, startOfWeek, parseEvents, keyToDate, parseSeries, occurrences, REPEATS_PATH } from '../calendar/events.js';
-import { kindOf } from '../file-types.js';
-import { parseTasks } from '../tasks/tasks.js';
+import { dayKey, addDays, startOfWeek, parseEvents, keyToDate, parseSeries, occurrences, REPEATS_PATH } from '../../fidgets/calendar/events.js';
+import { kindOf } from '../../file-types.js';
+import { parseTasks } from '../../fidgets/tasks/tasks.js';
 
 // [start, end) of the period that contains `date`.
 export function periodRange(kind, date) {

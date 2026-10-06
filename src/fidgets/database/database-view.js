@@ -8,8 +8,8 @@
 //   io: rows() → [{ path, name, props }], setCell(path, key, value, type),
 //       save(settings), addRow(name) → path, openFile(path), turnOff()
 
-import { h, askName } from '../ui.js';
-import { showMenu, closeMenu } from '../context-menu.js';
+import { h, askName } from '../../ui.js';
+import { showMenu, closeMenu } from '../../context-menu.js';
 
 export const COLUMN_TYPES = [
   ['text', 'Text'], ['number', 'Number'], ['date', 'Date'], ['checkbox', 'Checkbox'], ['select', 'Select'], ['link', 'Link'],

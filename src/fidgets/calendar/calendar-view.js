@@ -4,17 +4,17 @@
 // Events are read from and written to the day notes, and repeating ones to
 // Calendar/Repeating.md (see calendar/events.js).
 
-import { h, askChoice } from '../ui.js';
-import { makePanel } from '../panel.js';
-import { slotFor } from '../palettes.js';
+import { h, askChoice } from '../../ui.js';
+import { makePanel } from '../../panel.js';
+import { slotFor } from '../../palettes.js';
 import {
   SNAP, dayKey, keyToDate, addDays, startOfWeek, clock,
   parseEvents, formatEvent, replaceEvent, insertEvent, layoutColumns, EVENT_COLORS, colorHex,
   parseSeries, formatSeries, occurrences, appendSeries, stackLanes,
-} from '../calendar/events.js';
-import { describeRule, shiftKey } from '../calendar/repeat.js';
-import { repeatPicker } from '../repeat-picker.js';
-import { showMenu } from '../context-menu.js';
+} from './events.js';
+import { describeRule, shiftKey } from './repeat.js';
+import { repeatPicker } from './repeat-picker.js';
+import { showMenu } from '../../context-menu.js';
 
 // Reminder choices (minutes before the start; all-day events start at 9:00).
 const REMIND_TIMED = [[null, 'No reminder'], [0, 'At the start'], [5, '5 minutes before'], [10, '10 minutes before'], [15, '15 minutes before'], [30, '30 minutes before'], [60, '1 hour before'], [1440, '1 day before']];

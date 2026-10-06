@@ -17,9 +17,9 @@
 // note already had stays, shown as Notes above the columns. "Normal note"
 // (fromFlowText) takes the flow properties off again.
 
-import { h, askName } from '../ui.js';
-import { readProperties, writeProperty } from '../../shared/properties.js';
-import { stickyBlockRange, parseStickies, writeStickies } from '../../shared/stickies.js';
+import { h, askName } from '../../ui.js';
+import { readProperties, writeProperty } from '../../../shared/properties.js';
+import { stickyBlockRange, parseStickies, writeStickies } from '../../../shared/stickies.js';
 
 export const FLOW_FORMATS = {
   australs: {

@@ -3435,3 +3435,16 @@ button.heat-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 0; }
 .cal .cal-mcell { position: relative; }
 .cal .cal-mcell > [hidden] { display: none !important; }
 .cal .cal-colhead, .cal .cal-allday { padding-right: var(--scrollbar, 0px); }
+
+/* ---------- Settings → Widgets & Fidgets ---------- */
+.settings-nav-label ~ .settings-nav-label { margin-top: 18px; }
+.part-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+.part-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--line, rgb(var(--ink-rgb) / 0.12)); border-radius: 10px; background: var(--paper); }
+.part-card.is-off { opacity: 0.6; }
+.part-icon { display: inline-flex; padding: 7px; border-radius: 8px; background: rgb(var(--ink-rgb) / 0.06); color: var(--ink-2, var(--ink)); }
+.part-info { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.part-name { font-weight: 650; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.part-badge { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.08); color: var(--ink-3); }
+.part-what { font-size: 13px; color: var(--ink-2, var(--ink)); }
+.part-where { font-size: 12px; color: var(--ink-3); }
+.part-settings { flex-shrink: 0; align-self: center; }

@@ -12,6 +12,7 @@ const USE = {
   activity: 'activity', info: 'info-circle', drag: 'grip-vertical', chart: 'chart-bar', pen: 'pencil',
   flame: 'flame', player: 'player-play', stop: 'player-stop', skip: 'player-skip-forward',
   history: 'history', template: 'template', layers: 'stack-2', sticky: 'note', bookmark: 'bookmark', bookmarks: 'bookmarks', link: 'link',
+  table: 'table', widget: 'puzzle', fidget: 'layout-dashboard', inbox: 'inbox', database: 'database', book: 'book', flow: 'messages',
 };
 
 const dir = new URL('../node_modules/@tabler/icons/icons/outline/', import.meta.url);

@@ -2,7 +2,7 @@
 // top strip, type on it, change its colour or throw it away. The layer only
 // draws; where stickies are stored is up to the page (see renderer.js).
 
-import { h } from './ui.js';
+import { h } from '../../ui.js';
 
 const WIDTH = 184;
 

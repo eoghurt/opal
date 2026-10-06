@@ -2,8 +2,8 @@
 // (🔔 on the event's line) and timed tasks (⏰), and shows a Mac notification
 // when each one is due. Nothing is stored — it's all worked out from the notes.
 
-import { dayKey, addDays, dayPath, parseEvents, parseSeries, occurrences, clock, REPEATS_PATH, ALL_DAY_REMIND_AT, keyToDate } from './calendar/events.js';
-import { parseTasks, TASKS_FOLDER } from './tasks/tasks.js';
+import { dayKey, addDays, dayPath, parseEvents, parseSeries, occurrences, clock, REPEATS_PATH, ALL_DAY_REMIND_AT, keyToDate } from './events.js';
+import { parseTasks, TASKS_FOLDER } from '../tasks/tasks.js';
 
 const LOOK_AHEAD = 36 * 60 * 60 * 1000;
 const RESCAN = 15 * 60 * 1000; // also catches midnight rolling over

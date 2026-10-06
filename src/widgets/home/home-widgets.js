@@ -16,14 +16,14 @@
 //       readLogbook(), readFile(path), timer (the PrepTimer), bookmarks (see bookmarks.js)
 //   home.destroy()
 
-import { h, icon } from '../ui.js';
+import { h, icon } from '../../ui.js';
 import { LogbookView } from './logbook-view.js';
-import { BookmarkList } from '../bookmarks.js';
-import { renderHeatmap } from '../heatmap.js';
-import { showMenu } from '../context-menu.js';
-import { noteName, relativeDay } from '../format.js';
-import { clock, dayKey, addDays, startOfWeek } from '../calendar/events.js';
-import { dueSides, todayKey } from '../flashcards/schedule.js';
+import { BookmarkList } from '../../bookmarks.js';
+import { renderHeatmap } from '../heatmap/heatmap.js';
+import { showMenu } from '../../context-menu.js';
+import { noteName, relativeDay } from '../../format.js';
+import { clock, dayKey, addDays, startOfWeek } from '../../fidgets/calendar/events.js';
+import { dueSides, todayKey } from '../../fidgets/flashcards/schedule.js';
 
 export const WIDGETS = [
   { id: 'clock', name: 'Clock', icon: 'clock', size: 'small', desc: 'The time and date.' },

@@ -7,7 +7,7 @@
 //   io: save({ chapters, exclude }), compile(chapterPaths) → saved path | null,
 //       openFile(path), words(path) → number
 
-import { h } from '../ui.js';
+import { h } from '../../ui.js';
 
 export class ManuscriptView {
   constructor(container, { folderName, notes, settings, io }) {

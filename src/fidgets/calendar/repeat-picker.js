@@ -1,8 +1,8 @@
 // The Repeat menu used by calendar events and tasks: quick choices, plus
 // "Custom…" for things like "every 2 weeks on Mon, Wed" or "every 3 days".
 
-import { h } from './ui.js';
-import { RULES, UNITS, WEEKDAYS, parseRule, formatRule, describeRule } from './calendar/repeat.js';
+import { h } from '../../ui.js';
+import { RULES, UNITS, WEEKDAYS, parseRule, formatRule, describeRule } from './repeat.js';
 
 const CUSTOM = '__custom';
 

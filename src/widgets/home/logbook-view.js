@@ -3,11 +3,11 @@
 // see exactly what happened; everything in that list opens.
 // It's shown in pieces as the home page's widgets (see `slots`).
 
-import { h } from '../ui.js';
-import { makePanel } from '../panel.js';
-import { noteName } from '../format.js';
-import { clock, dayKey, keyToDate, startOfWeek, addDays } from '../calendar/events.js';
-import { periodRange, shiftPeriod, daysIn, summarise, dayScore, loadEvents, loadTasksDone } from '../logbook/activity.js';
+import { h } from '../../ui.js';
+import { makePanel } from '../../panel.js';
+import { noteName } from '../../format.js';
+import { clock, dayKey, keyToDate, startOfWeek, addDays } from '../../fidgets/calendar/events.js';
+import { periodRange, shiftPeriod, daysIn, summarise, dayScore, loadEvents, loadTasksDone } from './activity.js';
 
 const LEVELS = 4; // heatmap steps above "nothing"
 

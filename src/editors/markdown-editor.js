@@ -15,8 +15,8 @@ import { Prec } from '@codemirror/state';
 import { livePreview, formatBar, formatKeymap } from './markdown-live.js';
 import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
 import { frontmatterRange } from '../../shared/frontmatter.js';
-import { tableBlocks, insertTable } from '../tables/table-widget.js';
-import { trackerBlocks } from '../heatmap.js';
+import { tableBlocks, insertTable } from '../widgets/tables/table-widget.js';
+import { trackerBlocks } from '../widgets/heatmap/heatmap.js';
 import { linkPreview, wikilinkCompletions } from './markdown-links.js';
 import { keymap } from '@codemirror/view';
 

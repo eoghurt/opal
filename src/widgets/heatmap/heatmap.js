@@ -9,7 +9,7 @@
 
 import { EditorView, WidgetType, Decoration } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
-import { h, icon } from './ui.js';
+import { h, icon } from '../../ui.js';
 
 const LEVELS = 4;
 const DAY_MS = 86400000;

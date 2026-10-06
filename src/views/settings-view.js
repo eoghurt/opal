@@ -6,10 +6,16 @@
 //   io: setSection(id), setLook(change), setPalette(name), saveSettings(patch),
 //       switchVault(), revealVault()
 // extraSections: [{ id, label, icon, title, desc, render() → element }] added by
-// other parts of Opal (the home page's widgets, tabs).
+// other parts of Opal (the home page's widgets); they go in the Widgets &
+// Fidgets group unless they say otherwise (group: 'opal').
+//
+// The sections come in two groups: Opal's own settings, and Widgets & Fidgets
+// (an overview of every widget and fidget, then each one's settings).
 
 import { h, icon } from '../ui.js';
 import { themePicker, paletteGrid } from './palettes-view.js';
+import { WIDGETS } from '../widgets/index.js';
+import { FIDGETS } from '../fidgets/index.js';
 
 export const DEFAULT_SETTINGS = {
   pomodoro: { focus: 25, short: 5, long: 15, rounds: 4, autoStart: true },
@@ -65,13 +71,16 @@ function heading(text) {
   return h('h2', { class: 'set-h2' }, text);
 }
 
+const GROUPS = [['opal', 'Settings'], ['parts', 'Widgets & Fidgets']];
+
 const SECTIONS = [
-  { id: 'appearance', label: 'Appearance', icon: 'palette', title: 'Appearance.', desc: 'The theme is the look of the whole app; the palette colours your folders, pages and events.' },
-  { id: 'timer', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer in the top bar: a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
-  { id: 'tabs', label: 'Tabs', icon: 'columns', title: 'Tabs.', desc: 'Pages open in tabs, like Obsidian. ⌘-click anything to open it in a new tab; a pinned tab keeps its page.' },
-  { id: 'vault', label: 'Vault', icon: 'folderOpen', title: 'Vault.', desc: 'The folder of notes Opal is showing, and where Opal keeps its own things.' },
-  { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard', title: 'Shortcuts.', desc: 'Keys that work everywhere in Opal.' },
-  { id: 'about', label: 'About', icon: 'info', title: 'About Opal.', desc: 'Notes that live in plain files.' },
+  { id: 'appearance', group: 'opal', label: 'Appearance', icon: 'palette', title: 'Appearance.', desc: 'The theme is the look of the whole app; the palette colours your folders, pages and events.' },
+  { id: 'tabs', group: 'opal', label: 'Tabs', icon: 'columns', title: 'Tabs.', desc: 'Pages open in tabs, like Obsidian. ⌘-click anything to open it in a new tab; a pinned tab keeps its page.' },
+  { id: 'vault', group: 'opal', label: 'Vault', icon: 'folderOpen', title: 'Vault.', desc: 'The folder of notes Opal is showing, and where Opal keeps its own things.' },
+  { id: 'shortcuts', group: 'opal', label: 'Shortcuts', icon: 'keyboard', title: 'Shortcuts.', desc: 'Keys that work everywhere in Opal.' },
+  { id: 'about', group: 'opal', label: 'About', icon: 'info', title: 'About Opal.', desc: 'Notes that live in plain files.' },
+  { id: 'parts', group: 'parts', label: 'Overview', icon: 'widget', title: 'Widgets & Fidgets.', desc: 'Widgets are small things inside a page that do one job. Fidgets are bigger, and take up a whole page of their own.' },
+  { id: 'timer', group: 'parts', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer in the top bar: a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
 ];
 
 function appearance({ look, palette, io }) {
@@ -127,6 +136,27 @@ function vaultSection({ info, io }) {
   ];
 }
 
+// Every widget and fidget: what it is, where to find it, and its settings.
+function partsSection({ io }, sections) {
+  const card = (part) => h('div', { class: `part-card${part.off ? ' is-off' : ''}` },
+    h('span', { class: 'part-icon', 'aria-hidden': 'true' }, icon(part.icon, 18)),
+    h('div', { class: 'part-info' },
+      h('span', { class: 'part-name' }, part.name, part.off ? h('span', { class: 'part-badge' }, 'off for now') : null),
+      h('span', { class: 'part-what' }, part.what),
+      h('span', { class: 'part-where' }, part.where)),
+    part.settings && sections.some((s) => s.id === part.settings)
+      ? h('button', { class: 'set-btn part-settings', onclick: () => io.setSection(part.settings) }, 'Settings')
+      : null);
+  return [
+    heading('Widgets'),
+    h('p', { class: 'set-note' }, 'Small and simple: they live inside a note, the home page or the top bar.'),
+    h('div', { class: 'part-list' }, WIDGETS.map(card)),
+    heading('Fidgets'),
+    h('p', { class: 'set-note' }, 'Heavier: each one is a whole page of its own.'),
+    h('div', { class: 'part-list' }, FIDGETS.map(card)),
+  ];
+}
+
 function shortcuts() {
   return SHORTCUTS.map(([group, keys]) => h('div', { class: 'set-keys' },
     heading(group),
@@ -141,18 +171,24 @@ function about({ info }) {
 }
 
 export function renderSettings(container, opts) {
-  const sections = [...SECTIONS.slice(0, 1), ...(opts.extraSections || []), ...SECTIONS.slice(1)];
+  const extras = (opts.extraSections || []).map((s) => ({ group: 'parts', ...s }));
+  const parts = SECTIONS.filter((s) => s.group === 'parts');
+  const sections = [...SECTIONS.filter((s) => s.group === 'opal'), parts[0], ...extras, ...parts.slice(1)];
   const section = sections.find((s) => s.id === opts.section) || sections[0];
+  const tab = (s) => h('button', {
+    class: `settings-tab${s.id === section.id ? ' is-on' : ''}`,
+    'aria-current': s.id === section.id ? 'page' : null,
+    'data-section': s.id,
+    onclick: () => opts.io.setSection(s.id),
+  }, icon(s.icon, 15), s.label);
   const nav = h('nav', { class: 'settings-nav', 'aria-label': 'Settings sections' },
-    h('span', { class: 'mono-label settings-nav-label' }, 'Settings'),
-    sections.map((s) => h('button', {
-      class: `settings-tab${s.id === section.id ? ' is-on' : ''}`,
-      'aria-current': s.id === section.id ? 'page' : null,
-      'data-section': s.id,
-      onclick: () => opts.io.setSection(s.id),
-    }, icon(s.icon, 15), s.label)));
+    GROUPS.flatMap(([id, label]) => [
+      h('span', { class: 'mono-label settings-nav-label' }, label),
+      ...sections.filter((s) => s.group === id).map(tab),
+    ]));
   let body;
   if (section.render) body = section.render();
+  else if (section.id === 'parts') body = partsSection(opts, sections);
   else if (section.id === 'appearance') body = appearance(opts);
   else if (section.id === 'timer') body = timer(opts);
   else if (section.id === 'tabs') body = tabsSection(opts);

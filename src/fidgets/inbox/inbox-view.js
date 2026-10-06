@@ -5,7 +5,7 @@
 //   • Loose "- [ ]" checklist items sitting in any note, tickable right here.
 // Nothing is stored anywhere but the notes themselves.
 
-import { h, askName } from '../ui.js';
+import { h, askName } from '../../ui.js';
 import { parseTasks, replaceTask, addTask, toggleTask, dueLabel, todayKey } from '../tasks/tasks.js';
 import { clock, colorHex } from '../calendar/events.js';
 import { shiftKey } from '../calendar/repeat.js';

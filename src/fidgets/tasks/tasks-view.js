@@ -3,15 +3,15 @@
 // (or Option+↑/↓) to reorder them or move them to another list. Every change
 // is written straight back to the list's note (see tasks/tasks.js).
 
-import { h, askName } from '../ui.js';
-import { makePanel } from '../panel.js';
+import { h, askName } from '../../ui.js';
+import { makePanel } from '../../panel.js';
 import {
   parseTasks, replaceTask, addTask, toggleTask, moveTask, takeTask, placeTask,
   dueLabel, isOverdue, todayKey, DEFAULT_LIST,
-} from '../tasks/tasks.js';
+} from './tasks.js';
 import { shortRule } from '../calendar/repeat.js';
-import { repeatPicker } from '../repeat-picker.js';
-import { showMenu } from '../context-menu.js';
+import { repeatPicker } from '../calendar/repeat-picker.js';
+import { showMenu } from '../../context-menu.js';
 
 const PREFS_KEY = 'opal.tasks';
 
