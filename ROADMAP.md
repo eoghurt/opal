@@ -216,7 +216,8 @@ Ethan's:
   real board: tape, pins, clips, slight tilts.
 - **Debate fidget** (next to build; mockups: https://claude.ai/artifact/VATeYNgHVcDd2bGXRagRyG).
   Decided 2026-10-06:
-  - Layout: Debate page B (a sidebar of sections), with B2–B4 being weighed.
+  - Layout: B3 — a slim icon rail (Overview, Motions, Comps, Log, Board,
+    Training, Notes); its own overview page (B3 · Overview), not tiles.
   - Motion bank: design A (library + filters + selected motion); prep it for
     15 / 30 / 60 min (makes a note in Practice preps). No imbalanced labels.
   - Competition tracker: both the season list and a page per competition,
