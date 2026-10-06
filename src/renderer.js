@@ -57,6 +57,7 @@ import { openCreateItem } from './create-popover.js';
 import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
+import { MoneyView } from './fidgets/money/money-view.js';
 import { noteStructure } from './export/note-structure.js';
 import { docxFromChapters, docxFromTable, docxFromNote } from './export/docx.js';
 import { htmlFromNote } from './export/html.js';
@@ -109,6 +110,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onBack: () => goHistory(-1),
   onForward: () => goHistory(1),
   onReview: () => showReview(),
+  onMoney: () => showMoney(),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
   onInbox: INBOX_ENABLED ? () => showInbox() : null,
@@ -196,10 +198,14 @@ let homeEditing = false;
 
 let tasksView = null;
 let reviewView = null;
+let moneyView = null;
+let moneyState = { month: null, tab: 'overview' };
 let inboxView = null;
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
+  if (moneyView) moneyView.destroy();
+  moneyView = null;
   if (reviewView) reviewView.destroy();
   reviewView = null;
   if (tasksView && tasksView.destroy) tasksView.destroy();
@@ -401,9 +407,9 @@ function loadBacklinks() {
 // anything opened from it goes to a new tab. The tabs are saved in the
 // vault's .opal/workspace.json so they come back next time.
 
-const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review'];
-const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review' };
-const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review' };
+const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review', 'money'];
+const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review', money: 'Money' };
+const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review', money: 'money' };
 
 let tabs = []; // [{ id, pinned, pin: { emoji, color }, places: [place], at, scroll }]
 let activeTabId = null;
@@ -524,6 +530,7 @@ function goToPlace(place) {
   if (place.kind === 'settings') return showSettings();
   if (place.kind === 'inbox') return showInbox();
   if (place.kind === 'review') return showReview();
+  if (place.kind === 'money') return showMoney();
   return Promise.resolve();
 }
 
@@ -1275,6 +1282,7 @@ function openFolder(folderPath) {
 }
 
 function openFile(filePath) {
+  if (kindOf(filePath) === 'ledger') return showMoney(); // the Money page shows the Ledger files
   if (current && current.filePath === filePath && !wantsNewTab()) return Promise.resolve();
   return navigate(() => showNote(filePath));
 }
@@ -1694,6 +1702,37 @@ function showInbox() {
         await window.opal.writeFile(path, existing.trim() ? `${existing.replace(/\s+$/, '')}\n\n${body}\n` : `# ${name}\n\n${body}\n`);
         await reloadTree();
         await openFile(path);
+      },
+    });
+  });
+}
+
+// ---------- Money ----------
+
+function showMoney() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'money' };
+    setTitle('Money');
+    sidebar.setActive(null, null);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Money' }]);
+    viewEl.scrollTop = 0;
+    moneyView = new MoneyView(viewEl, {
+      month: moneyState.month,
+      tab: moneyState.tab,
+      io: {
+        read: () => window.opal.readLedger(),
+        writeTransactions: async (text) => {
+          await window.opal.writeLedger('transactions', text);
+          await reloadTree();
+        },
+        writeBudget: async (text) => {
+          await window.opal.writeLedger('budget', text);
+          await reloadTree();
+        },
+        onChange: (state) => { moneyState = state; },
       },
     });
   });
@@ -2298,6 +2337,8 @@ function refreshFiles() {
       calendar.reload();
     } else if (screen.kind === 'tasks' && tasksView) {
       tasksView.reload();
+    } else if (screen.kind === 'money' && moneyView) {
+      moneyView.reload();
     } else if (screen.kind === 'inbox' && inboxView) {
       inboxView.reload();
     } else if (screen.kind === 'home') {
@@ -2480,6 +2521,7 @@ window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => vault && openFolder('')); // the Logbook is on the home page now
 window.opal.onShowTasks(() => showTasks());
 window.opal.onShowInbox(() => showInbox());
+window.opal.onShowMoney(() => showMoney());
 window.opal.onOpenReminder(openReminder);
 window.opal.onSearch(startSearch);
 window.opal.onVaultChanged(loadVault);

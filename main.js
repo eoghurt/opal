@@ -1396,6 +1396,77 @@ function writeOpalJson(name, data) {
   return run;
 }
 
+// ---------- Money (the Obsidian Ledger plugin's files) ----------
+//
+// The Money page reads and writes plain-text Ledger files: the plugin's
+// transactions file (transactions.ledger unless its settings say otherwise)
+// and budget.ledger beside it. Only .ledger files inside the vault, never
+// hidden ones. The plugin's settings (file, currency, account names) are read
+// from .obsidian/plugins/ledger-obsidian/data.json when it's installed.
+
+async function ledgerSettings() {
+  if (!vaultPath) throw new Error('No vault is open.');
+  let saved = {};
+  try {
+    saved = JSON.parse(await fs.promises.readFile(path.join(vaultPath, '.obsidian', 'plugins', 'ledger-obsidian', 'data.json'), 'utf8')) || {};
+  } catch {
+    // Not installed, or never changed: the plugin's defaults.
+  }
+  const text = (v, fallback) => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
+  const ledgerFile = text(saved.ledgerFile, 'transactions.ledger');
+  const folder = path.posix.dirname(ledgerFile.replace(/\\/g, '/'));
+  return {
+    ledgerFile,
+    budgetFile: folder === '.' ? 'budget.ledger' : `${folder}/budget.ledger`,
+    currencySymbol: text(saved.currencySymbol, '$'),
+    prefixes: {
+      assets: text(saved.assetAccountsPrefix, 'Assets'),
+      expenses: text(saved.expenseAccountsPrefix, 'Expenses'),
+      income: text(saved.incomeAccountsPrefix, 'Income'),
+      liabilities: text(saved.liabilityAccountsPrefix, 'Liabilities'),
+    },
+  };
+}
+
+function resolveLedgerPath(relPath) {
+  if (!vaultPath) throw new Error('No vault is open.');
+  if (typeof relPath !== 'string') throw new Error('Invalid path.');
+  const full = path.resolve(vaultPath, relPath);
+  if (!full.startsWith(vaultPath + path.sep)) throw new Error('That path is outside the vault.');
+  if (path.relative(vaultPath, full).split(path.sep).some(isHidden)) throw new Error('That path is hidden.');
+  if (path.extname(full).toLowerCase() !== '.ledger') throw new Error('That is not a Ledger file.');
+  return full;
+}
+
+async function readLedgerFiles() {
+  const settings = await ledgerSettings();
+  const read = async (rel) => {
+    try {
+      return await fs.promises.readFile(resolveLedgerPath(rel), 'utf8');
+    } catch (err) {
+      if (err.code === 'ENOENT') return '';
+      throw err;
+    }
+  };
+  return { settings, transactions: await read(settings.ledgerFile), budget: await read(settings.budgetFile) };
+}
+
+// which: 'transactions' or 'budget'.
+async function writeLedgerFile(which, content) {
+  if (typeof content !== 'string' || content.length > 20_000_000) throw new Error('Invalid content.');
+  const settings = await ledgerSettings();
+  const full = resolveLedgerPath(which === 'budget' ? settings.budgetFile : settings.ledgerFile);
+  const existed = fs.existsSync(full);
+  const temp = path.join(path.dirname(full), `.${path.basename(full)}.opal-saving`);
+  await fs.promises.mkdir(path.dirname(full), { recursive: true });
+  await fs.promises.writeFile(temp, content, 'utf8');
+  await fs.promises.rename(temp, full);
+  if (existed) {
+    const { mtimeMs, size } = await fs.promises.stat(full);
+    ownWrites.set(full, { mtimeMs, size });
+  }
+}
+
 // Total words in the notes of a folder (and the folders inside it).
 async function folderWords(relFolder) {
   resolveFolderPath(relFolder || '');
@@ -1830,6 +1901,8 @@ ipcMain.handle('tracker:data', (_event, source) => trackerData(source));
 ipcMain.handle('tracker:notes', () => trackerNotes());
 ipcMain.handle('bookmarks:write', (_event, data) => writeBookmarks(data));
 ipcMain.handle('opal-json:read', (_event, name) => readOpalJson(name));
+ipcMain.handle('ledger:read', () => readLedgerFiles());
+ipcMain.handle('ledger:write', (_event, which, content) => writeLedgerFile(which, content));
 ipcMain.handle('opal-json:write', (_event, name, data) => writeOpalJson(name, data));
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), vault: vaultInfo() }));
 // Copies a line of text (a file path) for pasting elsewhere.
@@ -1942,6 +2015,7 @@ function buildMenu() {
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
         // Inbox is switched off for now: { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', … 'ui:show-inbox' }
         { label: 'Tasks', accelerator: 'CmdOrCtrl+Shift+T', click: () => { if (win) win.webContents.send('ui:show-tasks'); } },
+        { label: 'Money', accelerator: 'CmdOrCtrl+Shift+M', click: () => { if (win) win.webContents.send('ui:show-money'); } },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

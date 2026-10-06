@@ -17,6 +17,14 @@ export const FIDGETS = [
     files: ['fidgets/calendar/calendar-view.js', 'fidgets/calendar/events.js', 'fidgets/calendar/repeat.js', 'fidgets/calendar/repeat-picker.js', 'fidgets/calendar/reminders.js'],
   },
   {
+    id: 'money',
+    name: 'Money',
+    icon: 'money',
+    what: 'A month at a glance: net worth, spending against your budget, saving goals and income. Move budget between categories.',
+    where: 'The wallet button in the top bar (⌘⇧M). Kept in transactions.ledger and budget.ledger, the Obsidian Ledger plugin’s format.',
+    files: ['fidgets/money/money-view.js', 'fidgets/money/model.js', 'fidgets/money/ledger.js'],
+  },
+  {
     id: 'tasks',
     name: 'Tasks',
     icon: 'tasks',
