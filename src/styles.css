@@ -3887,3 +3887,121 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 .deb-topic-grid { display: flex; flex-direction: column; gap: 8px; }
 .deb-pick-topics { display: flex; flex-wrap: wrap; gap: 6px; }
 .deb-filter-row > .deb-pills { flex: 1; }
+
+/* ---------- Corkboard home (src/home/) ---------- */
+.cork-home { position: relative; width: 100%; height: 100%; min-height: 480px; overflow: hidden; background: #2a1a0e; }
+.cork-stage { position: absolute; left: 0; top: 0; width: 1440px; height: 860px; transform-origin: 0 0; font-family: 'Geist', sans-serif; }
+.cork-frame { position: absolute; inset: 0; background: #8a5a2e; }
+.cork-frame > svg { position: absolute; inset: 0; }
+.cork-board { position: absolute; left: 18px; top: 18px; width: 1404px; height: 824px; background: #c4915a; box-shadow: inset 0 3px 8px rgba(0,0,0,.45); overflow: hidden; }
+.cork-board > svg:first-child { position: absolute; inset: 0; }
+.cork-o { position: absolute; transition: transform .18s ease; }
+.cork-o:hover { z-index: 40; }
+.cork-lift:hover { transform: translateY(-4px) rotate(var(--r, 0deg)) scale(1.03); }
+.cork-sh { filter: drop-shadow(0 3px 3px rgba(0,0,0,.35)); }
+.cork-die { filter: drop-shadow(0 0 0 #fff) drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 4px 4px rgba(0,0,0,.35)); }
+.cork-pin { position: absolute; width: 15px; height: 15px; border-radius: 50%; z-index: 5; box-shadow: 0 4px 3px rgba(0,0,0,.35), inset -3px -3px 0 rgba(0,0,0,.2), inset 2px 2px 0 rgba(255,255,255,.35); }
+.cork-tape { position: absolute; background: rgba(232,222,196,.8); box-shadow: 0 1px 2px rgba(0,0,0,.1); clip-path: polygon(2% 0,98% 5%,100% 35%,97% 65%,100% 100%,3% 95%,0 70%,3% 35%); }
+.cork-washi { position: absolute; opacity: .88; clip-path: polygon(1% 0,99% 4%,100% 40%,98% 100%,2% 96%,0 60%); }
+.cork-cut { position: absolute; inset: 0; background-repeat: no-repeat; box-shadow: 0 4px 9px rgba(0,0,0,.38); }
+
+.cork-polaroid { width: 214px; padding: 10px 10px 42px; background: #fbfaf6; box-shadow: 0 10px 20px rgba(0,0,0,.35); box-sizing: border-box; }
+.cork-polaroid img { width: 194px; height: 160px; object-fit: cover; display: block; }
+.cork-polaroid-cap { position: absolute; left: 14px; bottom: 6px; font: 700 23px 'Caveat', cursive; color: #2b2622; filter: url(#cork-pen); }
+.cork-pencil { width: 230px; height: 16px; display: flex; }
+.cork-pencil span:nth-child(1) { width: 22px; background: #f2b8b0; border-radius: 4px 0 0 4px; }
+.cork-pencil span:nth-child(2) { width: 12px; background: #b9bcc2; }
+.cork-pencil span:nth-child(3) { flex: 1; background: linear-gradient(#f7cf3d, #e9b10f 60%, #c99a0c); }
+.cork-pencil span:nth-child(4) { width: 26px; background: #e8cfa4; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.cork-film { background: #141414; padding: 12px 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 10px 18px rgba(0,0,0,.4); }
+.cork-film::before, .cork-film::after { content: ""; position: absolute; top: 0; bottom: 0; width: 4px; background: repeating-linear-gradient(#141414 0 4px, #e9e2d0 4px 8px); }
+.cork-film::before { left: 2px; } .cork-film::after { right: 2px; }
+.cork-film img { width: 96px; height: 72px; object-fit: cover; filter: grayscale(1) contrast(1.2); }
+.cork-badge { width: 66px; height: 66px; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 6px 8px rgba(0,0,0,.4), inset 0 -3px 0 rgba(0,0,0,.2); }
+.cork-badge span, .cork-badge svg { filter: url(#cork-worn); }
+
+/* the calendar and its clip */
+.cork-calendar { position: absolute; left: 0; top: 0; }
+.cork-cal { position: relative; width: 560px; height: 830px; overflow: hidden; box-shadow: 0 2px 3px rgba(0,0,0,.12), 0 18px 30px rgba(40,25,10,.28);
+  background-image: radial-gradient(#e7cf6e 1px, transparent 1.6px), radial-gradient(#9ec0e4 1px, transparent 1.6px), radial-gradient(#f0a796 1px, transparent 1.6px), radial-gradient(#b8dd8c 1px, transparent 1.5px);
+  background-size: 23px 19px, 31px 27px, 17px 29px, 37px 23px; background-position: 0 0, 7px 11px, 13px 3px, 19px 15px; }
+.cork-cal-art { position: absolute; left: 0; top: 0; width: 560px; height: 430px; overflow: hidden; }
+.cork-cal-cell { position: absolute; border: 0; background: transparent; padding: 0; cursor: pointer; text-align: left; }
+.cork-cal-cell:hover { background: rgba(233,185,73,.2); }
+.cork-cal-evs { position: absolute; left: 5px; right: 4px; top: 21px; display: flex; flex-direction: column; gap: 1px; }
+.cork-cal-ev { display: block; font: 13px/1.02 'Gochi Hand', cursive; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cork-cal-nav { position: absolute; top: 784px; width: 40px; height: 36px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; border-radius: 8px; }
+.cork-cal-nav:hover { background: rgba(0,0,0,.06); }
+.cork-bulldog { position: absolute; left: 150px; top: 44px; width: 132px; height: 62px; z-index: 12; transform: rotate(-1.6deg); filter: drop-shadow(0 5px 5px rgba(0,0,0,.4)); pointer-events: none; }
+.cork-bulldog span:nth-child(1) { position: absolute; left: 46px; top: 0; width: 40px; height: 28px; border-radius: 50%; border: 5px solid #b89a52; border-bottom-color: transparent; box-sizing: border-box; }
+.cork-bulldog span:nth-child(2) { position: absolute; left: 0; top: 18px; width: 132px; height: 40px; border-radius: 6px 6px 16px 16px; background: linear-gradient(#efd58a, #c9a24a 55%, #a8843a); box-shadow: inset 0 2px 0 rgba(255,255,255,.45); }
+.cork-bulldog span:nth-child(3) { position: absolute; left: 58px; top: 24px; width: 16px; height: 16px; border-radius: 50%; background: #2a1a0e; box-shadow: inset 0 2px 2px rgba(0,0,0,.6); }
+.cork-bulldog svg { position: absolute; left: 30px; top: 42px; }
+
+/* the passport */
+.cork-passport { width: 1200px; height: 886px; }
+.cork-passport-page { position: absolute; inset: 0; clip-path: polygon(6% 8.5%, 50% 6.5%, 95.5% 6.8%, 97.5% 93%, 50% 94%, 6.5% 94%); }
+.cork-passport-page img { width: 1200px; height: 886px; display: block; }
+.cork-passport-patch { position: absolute; background: #f2e7e2; box-shadow: 0 0 3px 2px #f2e7e2; display: grid; place-items: center; pointer-events: none; }
+.cork-passport-patch span { font: 600 15px/1 'Archivo Narrow', sans-serif; letter-spacing: .02em; white-space: nowrap; filter: url(#cork-stamp); opacity: .85; }
+.cork-stamp { position: absolute; border: 0; padding: 0; background: transparent; cursor: pointer; transition: backdrop-filter .15s ease; }
+.cork-stamp:hover { backdrop-filter: contrast(1.35) saturate(2.3) brightness(.9); }
+.cork-stamp.is-later { cursor: default; }
+.cork-stamp-tip { position: absolute; left: 50%; bottom: -36px; transform: translateX(-50%); white-space: nowrap; font: 500 19px 'Geist Mono', monospace; letter-spacing: .14em; text-transform: uppercase; color: #4b4038; background: #fffdf8; padding: 5px 12px; border-radius: 5px; box-shadow: 0 2px 6px rgba(0,0,0,.2); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.cork-stamp:hover .cork-stamp-tip, .cork-stamp:focus-visible .cork-stamp-tip { opacity: 1; }
+
+/* today's receipt */
+.cork-receipt { position: relative; background: #f8f7f3; padding: 26px 16px 22px; box-shadow: 0 10px 18px rgba(0,0,0,.3);
+  clip-path: polygon(0 0, 100% 0, 100% 98%, 96% 100%, 92% 98%, 88% 100%, 84% 98%, 80% 100%, 76% 98%, 72% 100%, 68% 98%, 64% 100%, 60% 98%, 56% 100%, 52% 98%, 48% 100%, 44% 98%, 40% 100%, 36% 98%, 32% 100%, 28% 98%, 24% 100%, 20% 98%, 16% 100%, 12% 98%, 8% 100%, 4% 98%, 0 100%); }
+.cork-rc { display: block; font: 19px/1.05 'VT323', monospace; color: #2b2622; filter: url(#cork-thermal); }
+.cork-rc.is-split { display: flex; justify-content: space-between; gap: 6px; }
+.cork-rc.is-center { text-align: center; }
+.cork-rc.is-big { font-size: 26px; }
+.cork-rc.is-small { font-size: 15px; }
+.cork-rc.is-dim { color: #6a645c; }
+.cork-rc.is-gap { margin: 8px 0 4px; }
+.cork-rc.is-rule { border-top: 1px dashed #8a837a; margin-top: 6px; padding-top: 4px; }
+.cork-rc.is-total { font-size: 24px; margin-top: 2px; }
+.cork-rc-row { position: relative; display: flex; width: 100%; border: 0; background: none; padding: 2px 0 2px 22px; cursor: pointer; text-align: left; }
+.cork-rc-row:hover { background: rgba(0,0,0,.035); }
+.cork-rc-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.cork-rc-item { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cork-tick { position: absolute; left: -4px; top: 2px; pointer-events: none; }
+.cork-barcode { margin: 10px auto 4px; width: 190px; height: 36px; filter: url(#cork-thermal);
+  background: repeating-linear-gradient(90deg, #2b2622 0 2px, transparent 2px 4px, #2b2622 4px 5px, transparent 5px 8px, #2b2622 8px 11px, transparent 11px 12px, #2b2622 12px 13px, transparent 13px 16px); }
+.cork-binder { position: absolute; left: 76px; top: -26px; width: 100px; height: 46px; z-index: 3; }
+.cork-binder span:nth-child(1) { position: absolute; left: 20px; top: 0; width: 60px; height: 22px; border: 4px solid #b9bcc2; border-bottom: 0; border-radius: 30px 30px 0 0; box-sizing: border-box; }
+.cork-binder span:nth-child(2) { position: absolute; left: 0; top: 16px; width: 100px; height: 30px; border-radius: 4px 4px 10px 10px; background: linear-gradient(#e2464a, #b4262c); box-shadow: 0 4px 6px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.3); }
+.cork-binder span:nth-child(3) { position: absolute; left: 44px; top: 24px; width: 12px; height: 12px; border-radius: 50%; background: #3a2414; box-shadow: inset 0 1px 2px rgba(0,0,0,.6); }
+
+/* the quote card */
+.cork-quote { width: 230px; padding: 24px 16px 10px; box-sizing: border-box; background: #fffdf5; background-image: repeating-linear-gradient(transparent 0 21px, #c7d7ea 21px 22px); box-shadow: 0 8px 16px rgba(0,0,0,.3); }
+.cork-quote::before { content: ""; position: absolute; left: 0; right: 0; top: 21px; height: 1.5px; background: #f2a7a7; }
+.cork-quote-text { font: 14px/22px 'Courier Prime', monospace; color: #1f2937; }
+.cork-quote-foot { display: flex; justify-content: space-between; align-items: center; }
+.cork-quote-who { font: 12px 'Courier Prime', monospace; color: #555; }
+.cork-quote-next { width: 30px; height: 30px; display: grid; place-items: center; border: 0; background: none; cursor: pointer; color: #555; border-radius: 6px; }
+.cork-quote-next:hover { background: rgba(0,0,0,.06); }
+.cork-goldclip { position: absolute; left: 80px; top: -18px; width: 70px; height: 34px; }
+.cork-goldclip span:nth-child(1) { position: absolute; left: 22px; top: 0; width: 26px; height: 26px; border-radius: 50%; border: 4px solid #c9a24a; box-sizing: border-box; }
+.cork-goldclip span:nth-child(2) { position: absolute; left: 0; top: 14px; width: 70px; height: 20px; border-radius: 3px 3px 8px 8px; background: linear-gradient(#e8c66a, #b8902f); box-shadow: 0 3px 5px rgba(0,0,0,.35); }
+
+/* the folders: motel key tags */
+.cork-keys { position: relative; width: 1660px; height: 380px; }
+.cork-keys-rack { position: absolute; left: 0; right: 0; top: 0; height: 34px; border-radius: 4px; box-shadow: 0 6px 10px rgba(0,0,0,.3), inset 0 2px 0 rgba(255,220,170,.3);
+  background: repeating-linear-gradient(178deg, rgba(60,30,10,.12) 0 2px, transparent 2px 9px), linear-gradient(#a97445, #8a5a30 60%, #6f4522); }
+.cork-key { position: absolute; top: 28px; width: 150px; height: 330px; border: 0; padding: 0; background: none; cursor: pointer; }
+.cork-key-hook { position: absolute; left: 58px; top: -16px; z-index: 2; }
+.cork-key-swing { position: absolute; inset: 0; transform-origin: 75px 8px; will-change: transform; }
+.cork-key-ring { position: absolute; left: 41px; top: 8px; }
+.cork-key-body { position: absolute; left: 0; top: 40px; width: 150px; height: 290px; filter: drop-shadow(0 6px 7px rgba(0,0,0,.22)); }
+.cork-key:hover .cork-key-body { filter: drop-shadow(0 12px 12px rgba(0,0,0,.32)); }
+.cork-key-face { position: absolute; left: 0; top: 40px; width: 150px; height: 290px; display: flex; flex-direction: column; align-items: center; font-family: 'Jost', sans-serif; text-align: center; pointer-events: none; }
+.cork-key-top { height: 66px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; box-sizing: border-box; }
+.cork-key-title { display: block; font-weight: 800; text-transform: uppercase; letter-spacing: .005em; line-height: .92; overflow-wrap: break-word; }
+.cork-key-sub, .cork-key-bar { display: block; max-width: 104px; margin-top: 5px; font-weight: 700; font-size: 6.6px; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cork-key-bar { padding: 2px 6px; border-radius: 2px; }
+.cork-key-gap { flex: 1; }
+.cork-key-num { display: block; font-weight: 500; font-size: 33px; line-height: 1; margin-bottom: 6px; }
+.cork-key-medal { display: grid; place-items: center; border-radius: 50%; }
+.cork-key-foot { height: 58px; flex: none; }

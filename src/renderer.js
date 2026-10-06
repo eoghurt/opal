@@ -21,6 +21,15 @@ import '@fontsource/nanum-pen-script/latin-400.css';
 import '@fontsource-variable/mona-sans/wght.css';
 import '@fontsource/monaspace-neon/latin-400.css';
 import '@fontsource/monaspace-neon/latin-500.css';
+// The corkboard home: key tags, the receipt, the quote card, calendar writing.
+import '@fontsource/jost/latin-500.css';
+import '@fontsource/jost/latin-700.css';
+import '@fontsource/jost/latin-800.css';
+import '@fontsource/vt323/latin-400.css';
+import '@fontsource/courier-prime/latin-400.css';
+import '@fontsource/gochi-hand/latin-400.css';
+import '@fontsource/anton/latin-400.css';
+import '@fontsource/archivo-narrow/latin-600.css';
 
 import { Sidebar } from './sidebar.js';
 import { Chrome } from './chrome.js';
@@ -42,13 +51,13 @@ import { HomeWidgets, WIDGETS, parseLayout, formatLayout } from './widgets/home/
 import { readProperties, writeProperty } from '../shared/properties.js';
 import { TasksView } from './fidgets/tasks/tasks-view.js';
 import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, todayKey } from './fidgets/tasks/tasks.js';
-import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences } from './fidgets/calendar/events.js';
+import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences, colorHex } from './fidgets/calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderSettings, withDefaults } from './views/settings-view.js';
 import { applyPalette } from './palettes.js';
 import { applyTheme, currentLook } from './themes.js';
 import { askName, h, scribbleArrow } from './ui.js';
-import { findFile, findFolder, flattenFiles } from './tree.js';
+import { findFile, findFolder, flattenFiles, countNotes } from './tree.js';
 import { noteName, parentOf, relativeDay } from './format.js';
 import { Reminders } from './fidgets/calendar/reminders.js';
 import { openSearch } from './search.js';
@@ -59,6 +68,7 @@ import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
 import { DebateView } from './fidgets/debate/debate-view.js';
+import { Corkboard } from './home/corkboard.js';
 import { FIDGETS } from './fidgets/index.js';
 import { noteStructure } from './export/note-structure.js';
 import { docxFromChapters, docxFromTable, docxFromNote } from './export/docx.js';
@@ -206,6 +216,7 @@ let debateView = null;
 let debateState = null;
 let moneyState = { month: null, tab: 'overview' };
 let inboxView = null;
+let corkboard = null;
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
@@ -222,6 +233,8 @@ function leaveCalendar() {
   calendar = null;
   if (homeWidgets) homeWidgets.destroy();
   homeWidgets = null;
+  if (corkboard) corkboard.destroy();
+  corkboard = null;
 }
 
 async function flushHomeStickies() {
@@ -872,6 +885,10 @@ function showHome(folderPath, notice) {
   setTitle(folder.name);
   sidebar.setActive('folder', folderPath);
   showCrumbs(crumbsFor(folderPath));
+  if (!folderPath && vaultSettings.homeStyle !== 'classic') {
+    showCorkboard();
+    return;
+  }
   const home = renderFolderHome(viewEl, {
     folder,
     isRoot: !folderPath,
@@ -924,6 +941,67 @@ function showHome(folderPath, notice) {
   describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
   addButton.refresh();
+}
+
+// ---------- The corkboard home ----------
+//
+// The vault's home page as a pinboard (src/home/corkboard.js). Switch it off
+// in Settings › Appearance, or right-click the frame, for the classic home.
+
+function showCorkboard() {
+  homeStickies = null;
+  viewEl.scrollTop = 0;
+  corkboard = new Corkboard(viewEl, {
+    openFidget: (id) => FIDGET_PAGES[id] && FIDGET_PAGES[id](),
+    openFolder: (path) => openFolder(path),
+    openDay: (year, month, day) => showCalendar(new Date(year, month, day)),
+    loadMonth: loadMonthEvents,
+    loadToday: async () => {
+      const today = todayKey();
+      return (await loadAllTasks()).filter((t) => t.due === today);
+    },
+    toggleTask: (task) => toggleTaskDone(task),
+    folders: () => tree.filter((n) => n.type === 'folder' && !n.name.startsWith('.')).map((n) => ({
+      name: n.name,
+      path: n.path,
+      subfolders: n.children.filter((c) => c.type === 'folder').map((c) => c.name),
+      notes: countNotes(n),
+    })),
+    quotes: () => (Array.isArray(vaultSettings.homeQuotes) ? vaultSettings.homeQuotes : []),
+    onMenu: (event) => showMenu(event, {
+      items: [
+        { label: 'New note', onSelect: () => newNote('') },
+        { label: 'New folder', onSelect: () => newFolder('') },
+        'separator',
+        { label: 'Classic home page', hint: 'folders and widgets', onSelect: () => setHomeStyle('classic') },
+      ],
+    }),
+  });
+  addButton.refresh();
+}
+
+async function setHomeStyle(style) {
+  await saveVaultSettings({ homeStyle: style });
+  if (screen.kind === 'home' && !screen.folderPath) showHome('');
+}
+
+// Every event in a month for the corkboard calendar: { day: [{ text, color, cont }] }.
+async function loadMonthEvents(year, month) {
+  const days = new Date(year, month + 1, 0).getDate();
+  const keys = Array.from({ length: days }, (_, i) => dayKey(new Date(year, month, i + 1)));
+  const lists = await Promise.all(keys.map((key) => loadDayEvents(key).catch(() => [])));
+  const byDay = {};
+  const add = (day, entry) => (byDay[day] = byDay[day] || []).push(entry);
+  lists.forEach((events, i) => {
+    events.sort((a, b) => a.start - b.start).forEach((ev) => {
+      const color = colorHex(ev.primary);
+      add(i + 1, { text: ev.title || ev.text, color });
+      if (ev.endDay) {
+        for (let d = i + 2; d <= days && keys[d - 1] <= ev.endDay; d++) add(d, { text: ev.title || ev.text, color, cont: true });
+      }
+    });
+  });
+  return byDay;
 }
 
 // ---------- Bookmarks ----------
@@ -2485,6 +2563,8 @@ function refreshFiles() {
       debateView.reload();
     } else if (screen.kind === 'inbox' && inboxView) {
       inboxView.reload();
+    } else if (screen.kind === 'home' && corkboard) {
+      corkboard.refresh();
     } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
       // Typing the folder's name or description: redraw once that's finished.

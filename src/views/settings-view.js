@@ -83,8 +83,11 @@ const SECTIONS = [
   { id: 'timer', group: 'parts', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer in the top bar: a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
 ];
 
-function appearance({ look, palette, io }) {
+function appearance({ look, palette, settings, io }) {
   return [
+    heading('Home page'),
+    row('Corkboard', 'The vault’s home page as a pinboard: the calendar, the passport of fidgets, today’s receipt, the folder key tags. Off shows the classic folder list.',
+      toggle(settings.homeStyle !== 'classic', (on) => io.saveSettings({ homeStyle: on ? 'corkboard' : 'classic' }), 'Corkboard home page')),
     heading('Light or dark'),
     themePicker(look, io.setLook),
     heading('Palette'),
