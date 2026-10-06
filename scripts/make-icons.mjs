@@ -13,6 +13,7 @@ const USE = {
   flame: 'flame', player: 'player-play', stop: 'player-stop', skip: 'player-skip-forward',
   history: 'history', template: 'template', layers: 'stack-2', sticky: 'note', bookmark: 'bookmark', bookmarks: 'bookmarks', link: 'link',
   table: 'table', widget: 'puzzle', fidget: 'layout-dashboard', inbox: 'inbox', database: 'database', book: 'book', flow: 'messages', money: 'wallet',
+  debate: 'podium', motions: 'list-details', trophy: 'trophy', logRound: 'pencil-plus', kanban: 'layout-kanban', training: 'barbell', notebook: 'notebook', star: 'star', unlink: 'unlink', external: 'external-link',
 };
 
 const dir = new URL('../node_modules/@tabler/icons/icons/outline/', import.meta.url);

@@ -30,6 +30,16 @@ export const FIDGETS = [
     files: ['fidgets/money/money-view.js', 'fidgets/money/model.js', 'fidgets/money/ledger.js'],
   },
   {
+    id: 'debate',
+    name: 'Debate',
+    icon: 'debate',
+    page: true, // a page of its own: a tile on the home page
+    short: 'Motions, rounds, feedback',
+    what: 'Your debate folder in one place: a motion bank to prep from, competitions and rounds, the two feedback forms, the fix board, training and notes.',
+    where: 'The podium button in the top bar (⌘⇧B). Reads and writes the notes in your Debate folder.',
+    files: ['fidgets/debate/debate-view.js', 'fidgets/debate/debate-forms.js', 'fidgets/debate/debate-more.js', 'fidgets/debate/motions.js', 'fidgets/debate/records.js', 'fidgets/debate/board.js'],
+  },
+  {
     id: 'tasks',
     page: true, // a page of its own: a tile on the home page
     short: 'Lists and due dates',

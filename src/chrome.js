@@ -31,7 +31,7 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks, onMoney }) {
+  constructor(topbar, footer, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks, onMoney, onDebate }) {
     this.topbar = topbar;
     this.footer = footer;
     this.onHome = onHome;
@@ -45,6 +45,7 @@ export class Chrome {
     this.onLogbook = onLogbook;
     this.onReview = onReview;
     this.onMoney = onMoney;
+    this.onDebate = onDebate;
     this.cardsDue = 0;
     this.timerSlot = null; // the prep timer's own element (see timer.js)
     this.tabSlot = null; // the tab strip (see tabs.js)
@@ -152,6 +153,7 @@ export class Chrome {
           badge: badge(this.cardsDue, 999),
         }),
         !this.onMoney ? null : link('money', 'money', 'Money', () => this.onMoney(), { title: 'Money (⌘⇧M)' }),
+        !this.onDebate ? null : link('debate', 'debate', 'Debate', () => this.onDebate(), { title: 'Debate (⌘⇧B)' }),
         this.timerSlot,
         link('settings', 'settings', 'Settings', () => this.onSettings(), { class: 'bar-settings', title: 'Settings (⌘,)' }),
       ].filter(Boolean)),

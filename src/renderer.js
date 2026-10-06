@@ -58,6 +58,7 @@ import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
+import { DebateView } from './fidgets/debate/debate-view.js';
 import { FIDGETS } from './fidgets/index.js';
 import { noteStructure } from './export/note-structure.js';
 import { docxFromChapters, docxFromTable, docxFromNote } from './export/docx.js';
@@ -112,6 +113,7 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onForward: () => goHistory(1),
   onReview: () => showReview(),
   onMoney: () => showMoney(),
+  onDebate: () => showDebate(),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
   onInbox: INBOX_ENABLED ? () => showInbox() : null,
@@ -200,11 +202,15 @@ let homeEditing = false;
 let tasksView = null;
 let reviewView = null;
 let moneyView = null;
+let debateView = null;
+let debateState = null;
 let moneyState = { month: null, tab: 'overview' };
 let inboxView = null;
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
+  if (debateView) debateView.destroy();
+  debateView = null;
   if (moneyView) moneyView.destroy();
   moneyView = null;
   if (reviewView) reviewView.destroy();
@@ -408,9 +414,9 @@ function loadBacklinks() {
 // anything opened from it goes to a new tab. The tabs are saved in the
 // vault's .opal/workspace.json so they come back next time.
 
-const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review', 'money'];
-const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review', money: 'Money' };
-const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review', money: 'money' };
+const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review', 'money', 'debate'];
+const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review', money: 'Money', debate: 'Debate' };
+const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review', money: 'money', debate: 'debate' };
 
 let tabs = []; // [{ id, pinned, pin: { emoji, color }, places: [place], at, scroll }]
 let activeTabId = null;
@@ -532,6 +538,7 @@ function goToPlace(place) {
   if (place.kind === 'inbox') return showInbox();
   if (place.kind === 'review') return showReview();
   if (place.kind === 'money') return showMoney();
+  if (place.kind === 'debate') return showDebate();
   return Promise.resolve();
 }
 
@@ -1709,10 +1716,88 @@ function showInbox() {
   });
 }
 
+// ---------- Debate ----------
+
+// The debate folder: the vault's first folder called "Debate" (nearest the top).
+function debateFolder() {
+  let level = findFolder(tree, '', vault.name).children;
+  while (level.length) {
+    const found = level.find((n) => n.type === 'folder' && n.name.toLowerCase() === 'debate');
+    if (found) return found;
+    level = level.filter((n) => n.type === 'folder').flatMap((n) => n.children);
+  }
+  return null;
+}
+
+function showDebate() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'debate' };
+    setTitle('Debate');
+    sidebar.setActive(null, null);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Debate' }]);
+    viewEl.scrollTop = 0;
+    let folder = debateFolder();
+    if (!folder) {
+      await window.opal.createFolder('Debate', '');
+      await reloadTree();
+      folder = debateFolder();
+    }
+    const folderPath = folder.path;
+    // A name not taken yet in a folder ("Name", "Name 2", …).
+    const freeName = (dir, name) => {
+      const taken = new Set(flattenFiles(tree).map((f) => f.path.toLowerCase()));
+      let n = name;
+      for (let i = 2; taken.has(`${dir}/${n}.md`.toLowerCase()); i++) n = `${name} ${i}`;
+      return n;
+    };
+    const ensureFolder = async (dir) => {
+      const parts = dir.split('/');
+      for (let i = 1; i <= parts.length; i++) {
+        const sub = parts.slice(0, i).join('/');
+        if (!findFolder(tree, sub, vault.name)) await window.opal.createFolder(parts[i - 1], parts.slice(0, i - 1).join('/'));
+      }
+    };
+    debateView = new DebateView(viewEl, {
+      page: debateState,
+      io: {
+        folder: folderPath,
+        files: () => {
+          const node = findFolder(tree, folderPath, vault.name);
+          return node ? flattenFiles(node.children).map((f) => ({ path: f.path, name: f.name })) : [];
+        },
+        read: (path) => window.opal.readFile(path),
+        write: async (path, text) => {
+          await window.opal.writeFile(path, text);
+        },
+        create: async (dir, name, text) => {
+          await ensureFolder(dir);
+          await reloadTree();
+          const path = await window.opal.createNote(freeName(dir, name), dir);
+          await window.opal.writeFile(path, text);
+          await reloadTree();
+          return path;
+        },
+        move: async (path, dir) => {
+          await ensureFolder(dir);
+          const next = await window.opal.moveItem(path, 'file', dir);
+          await reloadTree();
+          return next;
+        },
+        open: (path) => openFile(path),
+        startPrep: (minutes) => prepTimer.start(minutes),
+        onChange: (state) => { debateState = state; },
+      },
+    });
+  });
+}
+
 // ---------- Money ----------
 
 // The fidget tiles at the top of the vault's home page.
-const FIDGET_PAGES = { money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), flashcards: () => showReview() };
+const FIDGET_PAGES = { money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), debate: () => showDebate(), flashcards: () => showReview() };
 function homeFidgets() {
   const order = Object.keys(FIDGET_PAGES);
   return FIDGETS.filter((f) => f.page && !f.off && FIDGET_PAGES[f.id]).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)).map((f, i) => ({
@@ -2356,6 +2441,8 @@ function refreshFiles() {
       tasksView.reload();
     } else if (screen.kind === 'money' && moneyView) {
       moneyView.reload();
+    } else if (screen.kind === 'debate' && debateView) {
+      debateView.reload();
     } else if (screen.kind === 'inbox' && inboxView) {
       inboxView.reload();
     } else if (screen.kind === 'home') {
@@ -2539,6 +2626,7 @@ window.opal.onShowLogbook(() => vault && openFolder('')); // the Logbook is on t
 window.opal.onShowTasks(() => showTasks());
 window.opal.onShowInbox(() => showInbox());
 window.opal.onShowMoney(() => showMoney());
+window.opal.onShowDebate(() => showDebate());
 window.opal.onOpenReminder(openReminder);
 window.opal.onSearch(startSearch);
 window.opal.onVaultChanged(loadVault);

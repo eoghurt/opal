@@ -214,7 +214,7 @@ Ethan's:
 - **Money manager** — built (see above); investing still to come.
 - **Boards** — a Pinterest-style pinboard of images and notes, styled like a
   real board: tape, pins, clips, slight tilts.
-- **Debate fidget** (next to build; mockups: https://claude.ai/artifact/VATeYNgHVcDd2bGXRagRyG).
+- **Debate fidget** — built 2026-10-06 (mockups: https://claude.ai/artifact/VATeYNgHVcDd2bGXRagRyG).
   Decided 2026-10-06:
   - Layout: B3 — a slim icon rail (Overview, Motions, Comps, Log, Board,
     Training, Notes); its own overview page (B3 · Overview), not tiles;

@@ -2016,6 +2016,7 @@ function buildMenu() {
         // Inbox is switched off for now: { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', … 'ui:show-inbox' }
         { label: 'Tasks', accelerator: 'CmdOrCtrl+Shift+T', click: () => { if (win) win.webContents.send('ui:show-tasks'); } },
         { label: 'Money', accelerator: 'CmdOrCtrl+Shift+M', click: () => { if (win) win.webContents.send('ui:show-money'); } },
+        { label: 'Debate', accelerator: 'CmdOrCtrl+Shift+B', click: () => { if (win) win.webContents.send('ui:show-debate'); } },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

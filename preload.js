@@ -94,6 +94,7 @@ contextBridge.exposeInMainWorld('opal', {
   onShowLogbook: (callback) => ipcRenderer.on('ui:show-logbook', () => callback()),
   onShowTasks: (callback) => ipcRenderer.on('ui:show-tasks', () => callback()),
   onShowMoney: (callback) => ipcRenderer.on('ui:show-money', () => callback()),
+  onShowDebate: (callback) => ipcRenderer.on('ui:show-debate', () => callback()),
   onShowInbox: (callback) => ipcRenderer.on('ui:show-inbox', () => callback()),
   onSearch: (callback) => ipcRenderer.on('ui:search', (_event, mode) => callback(mode)),
   onOpenReminder: (callback) => ipcRenderer.on('ui:open-reminder', (_event, open) => callback(open)),
