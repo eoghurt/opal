@@ -3539,3 +3539,14 @@ button.heat-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 0; }
   .money-entry, .money-entry:has(.money-entry-date) { grid-template-columns: minmax(0, 1fr) auto; }
   .money-entry .money-cat, .money-entry-date { display: none; }
 }
+
+/* ---------- Home page: fidget tiles (above the folders) ---------- */
+.home-fidgets { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; padding: 4px 32px 22px; }
+.fidget-tile { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 0; border-radius: 14px; background: var(--paper-2); color: var(--ink); text-align: left; cursor: pointer; box-shadow: var(--lift-soft, none); transition: transform 0.12s ease, background 0.12s ease; }
+.fidget-tile:hover { background: var(--paper-3, var(--paper-2)); transform: translateY(-1px); }
+.fidget-tile:focus-visible { outline: 2px solid var(--accent, var(--ink)); outline-offset: 2px; }
+.fidget-tile-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 11px; background: color-mix(in srgb, var(--tile-c) 22%, transparent); color: color-mix(in srgb, var(--tile-c) 70%, var(--ink)); }
+.fidget-tile-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fidget-tile-name { font-size: 15px; font-weight: 650; }
+.fidget-tile-sub { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) { .home-fidgets { padding: 4px 16px 18px; } }

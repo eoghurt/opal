@@ -1,9 +1,10 @@
 // Folder home: the page you see when you open a folder (or the vault itself).
 // Big title, the folder's subfolders as coloured folder tiles, and its notes
-// as scrapbook cards. The vault's own page also has the home widgets
-// (mountWidgets, see home-widgets.js) between the title and the folders.
+// as scrapbook cards. The vault's own page also has tiles for the fidgets
+// (Money, Calendar…) above the folders, and the home widgets (mountWidgets,
+// see home-widgets.js) below them.
 
-import { h, scribbleArrow } from '../ui.js';
+import { h, icon, scribbleArrow } from '../ui.js';
 import { progressBar } from './note-view.js';
 import { slotFor } from '../palettes.js';
 import { colorOf } from '../item-colors.js';
@@ -15,7 +16,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase, loadManuscript, mountManuscript, mountWidgets }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase, loadManuscript, mountManuscript, mountWidgets, fidgets }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -74,8 +75,17 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
 
   const sections = [head];
   if (notice) sections.unshift(h('div', { class: 'home-notice' }, notice));
+  // The vault's own page: the fidgets first (Money, Calendar…), then the
+  // subfolders, then the widgets, then loose notes.
+  if (fidgets && fidgets.length) {
+    sections.push(h('section', { class: 'home-fidgets', 'aria-label': 'Fidgets' },
+      fidgets.map((f) => h('button', { class: 'fidget-tile', style: `--tile-c: var(--c${f.slot})`, onclick: f.open, title: f.what },
+        h('span', { class: 'fidget-tile-icon', 'aria-hidden': 'true' }, icon(f.icon, 20)),
+        h('span', { class: 'fidget-tile-text' },
+          h('span', { class: 'fidget-tile-name' }, f.name),
+          h('span', { class: 'fidget-tile-sub' }, f.sub))))));
+  }
   const widgetSlot = mountWidgets ? h('section', { class: 'home-widgets', 'aria-label': 'Home widgets' }) : null;
-  if (widgetSlot) sections.push(widgetSlot);
 
   const previewSlots = new Map(); // note path → elements waiting for its preview text
   const wantPreview = (path, el) => {
@@ -87,6 +97,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
     sections.push(h('section', { class: 'home-folders', 'aria-label': `Folders in ${folder.name}` },
       subfolders.map((sub) => arrangeable(folderTile(sub, onOpenFolder, wantPreview, onColorMenu), sub, onRearrange))));
   }
+  if (widgetSlot) sections.push(widgetSlot);
 
   if (files.length) {
     sections.push(h('section', { class: 'home-cards', 'aria-label': `Notes in ${folder.name}` },

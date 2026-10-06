@@ -193,13 +193,25 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   ⌘Z undo, ⇧⌘Z redo; titles edited in place; switch an event to a task and
   back; popovers stay on screen; a Tasks switch hides tasks.
 
+## Money, and a tidier look (done)
+- **Money** fidget (design A): a month at a glance — net worth, spending
+  against the budget, saving goals, income, recent entries; Budget, Saving,
+  Income and History pages; quick add ("Lunch 12.50 food"); edit and delete.
+  Stored in the Obsidian Ledger plugin's `transactions.ledger` (its format,
+  its settings) and a `budget.ledger` beside it (Ledger's monthly budget
+  format). Move money between categories for one month; carry leftovers over;
+  goals are Assets:Savings accounts. Investing left out for now. ⌘⇧M.
+- **Home page** — fidget tiles first (Money, Calendar, Tasks, Review), then
+  the folders, then the widgets, then loose notes.
+- **Themes** — Minimal only, light or dark (Scrapbook and GitHub retired).
+- **Dark mode** — scrollbars and built-in controls are dark too.
+
 ## Fidget ideas
 Ethan's:
 - **Bouldering tracker** — problems by gym, wall, grade and colour; sends,
   flashes and attempts; projects in progress; a grade pyramid and progress
   over time.
-- **Money manager** — budgeting, saving, investing and income in one place:
-  accounts, monthly budget by category, savings goals, income from jobs.
+- **Money manager** — built (see above); investing still to come.
 - **Boards** — a Pinterest-style pinboard of images and notes, styled like a
   real board: tape, pins, clips, slight tilts.
 - **Debate competition tracker** — competitions, rounds, motions, sides,

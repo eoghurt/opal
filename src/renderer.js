@@ -58,6 +58,7 @@ import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
+import { FIDGETS } from './fidgets/index.js';
 import { noteStructure } from './export/note-structure.js';
 import { docxFromChapters, docxFromTable, docxFromNote } from './export/docx.js';
 import { htmlFromNote } from './export/html.js';
@@ -886,6 +887,7 @@ function showHome(folderPath, notice) {
     }),
     loadWordTarget: async () => parseInt(String(getProp(await window.opal.readFolderSettings(folderPath), 'word-target') || ''), 10) || null,
     mountWidgets: folderPath ? null : (slot) => mountHomeWidgets(slot),
+    fidgets: folderPath ? null : homeFidgets(),
   });
   describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
@@ -1708,6 +1710,21 @@ function showInbox() {
 }
 
 // ---------- Money ----------
+
+// The fidget tiles at the top of the vault's home page.
+const FIDGET_PAGES = { money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), flashcards: () => showReview() };
+function homeFidgets() {
+  const order = Object.keys(FIDGET_PAGES);
+  return FIDGETS.filter((f) => f.page && !f.off && FIDGET_PAGES[f.id]).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)).map((f, i) => ({
+    id: f.id,
+    name: f.name === 'Flashcard review' ? 'Review' : f.name,
+    icon: f.icon,
+    what: f.what,
+    sub: f.id === 'flashcards' && cardsDueCount ? `${cardsDueCount} card${cardsDueCount === 1 ? '' : 's'} due` : f.short,
+    slot: (i % 5) + 1,
+    open: () => FIDGET_PAGES[f.id](),
+  }));
+}
 
 function showMoney() {
   if (!vault) return Promise.resolve();

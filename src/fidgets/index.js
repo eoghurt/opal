@@ -5,11 +5,14 @@
 // live inside a page.)
 //
 // This list is what Settings → Widgets & Fidgets shows. `where` says how you
-// open the fidget; `files` are its code; `off` means it's switched off for now.
+// open the fidget; `files` are its code; `off` means it's switched off for now;
+// `page` ones get a tile at the top of the home page, with `short` under it.
 
 export const FIDGETS = [
   {
     id: 'calendar',
+    page: true, // a page of its own: a tile on the home page
+    short: 'Days, weeks, months',
     name: 'Calendar',
     icon: 'calendar',
     what: 'Day, week and month views of your events and tasks; repeats, reminders and colours.',
@@ -18,6 +21,8 @@ export const FIDGETS = [
   },
   {
     id: 'money',
+    page: true, // a page of its own: a tile on the home page
+    short: 'Budget and saving',
     name: 'Money',
     icon: 'money',
     what: 'A month at a glance: net worth, spending against your budget, saving goals and income. Move budget between categories.',
@@ -26,6 +31,8 @@ export const FIDGETS = [
   },
   {
     id: 'tasks',
+    page: true, // a page of its own: a tile on the home page
+    short: 'Lists and due dates',
     name: 'Tasks',
     icon: 'tasks',
     what: 'Task lists like Google Tasks: due dates, times, stars, repeats and subtasks.',
@@ -43,6 +50,8 @@ export const FIDGETS = [
   },
   {
     id: 'flashcards',
+    page: true, // a page of its own: a tile on the home page
+    short: 'Cards to review',
     name: 'Flashcard review',
     icon: 'review',
     what: 'Due cards one at a time, with Again / Hard / Good / Easy.',
