@@ -3,7 +3,7 @@
 
 import { h, icon } from '../ui.js';
 import { PALETTES } from '../palettes.js';
-import { THEMES, MODES } from '../themes.js';
+import { MODES } from '../themes.js';
 
 const STRIP_WEIGHTS = [3, 2, 2, 1, 1];
 
@@ -41,32 +41,14 @@ export function paletteNow(active) {
     strip(current.colors, 'now-using-strip'));
 }
 
-// The theme cards and light / dark. onLook({ theme } | { mode }).
+// Light, dark or match the Mac. onLook({ theme, mode }).
 export function themePicker(look, onLook) {
-  const theme = THEMES.find((t) => t.id === look.theme) || THEMES[0];
-  return h('section', { class: 'theme-picker', 'aria-label': 'Theme' },
-    h('div', { class: 'theme-row' },
-      THEMES.map((t) => {
-        const on = t.id === theme.id;
-        return h('button', {
-          class: `theme-card${on ? ' is-active' : ''}`,
-          'aria-pressed': String(on),
-          onclick: () => onLook({ theme: t.id }),
-        },
-        h('span', { class: 'theme-preview', 'aria-hidden': 'true', style: `background: ${t.swatch[0]}` },
-          h('span', { class: 'theme-preview-bar', style: `background: ${t.swatch[1]}` }),
-          h('span', { class: 'theme-preview-line', style: `background: ${t.swatch[1]}` }),
-          h('span', { class: 'theme-preview-line is-short', style: `background: ${t.swatch[3]}` }),
-          h('span', { class: 'theme-preview-dot', style: `background: ${t.swatch[2]}` })),
-        h('span', { class: 'theme-name' }, t.name),
-        h('span', { class: 'theme-byline' }, t.byline));
-      })),
+  // One theme now (Minimal): just light, dark or match the Mac.
+  return h('section', { class: 'theme-picker', 'aria-label': 'Light or dark' },
     h('div', { class: 'theme-modes', role: 'group', 'aria-label': 'Light or dark' },
       MODES.map((m) => h('button', {
         class: `theme-mode${look.mode === m.id ? ' is-on' : ''}`,
         'aria-pressed': String(look.mode === m.id),
-        disabled: !theme.dark || null,
-        onclick: () => onLook({ mode: m.id }),
-      }, m.name)),
-      theme.dark ? null : h('span', { class: 'theme-mode-note' }, 'Scrapbook is light only')));
+        onclick: () => onLook({ theme: 'minimal', mode: m.id }),
+      }, m.name))));
 }

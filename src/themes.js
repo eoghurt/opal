@@ -1,11 +1,9 @@
-// Themes: the whole look of the app. Scrapbook is the original; Minimal and
-// GitHub also come in light and dark. The theme sets data-theme and
-// data-mode on <html>; themes.css does the rest.
+// The look of the app: Minimal, in light or dark (or matching the Mac).
+// (Scrapbook and GitHub were retired; a saved choice of either shows as
+// Minimal.) Sets data-theme and data-mode on <html>; themes.css does the rest.
 
 export const THEMES = [
-  { id: 'scrapbook', name: 'Scrapbook', byline: 'bordered cells, handwriting, tape', dark: false, swatch: ['#EFEBE3', '#16140F', '#FF6B4A', '#FFD23F'] },
   { id: 'minimal', name: 'Minimal', byline: 'quiet paper, one blue accent', dark: true, swatch: ['#FAFAF8', '#1C1C1E', '#3B2CF5', '#E6E6E9'] },
-  { id: 'github', name: 'GitHub', byline: 'tabs, file trees, activity grids', dark: true, swatch: ['#0D1117', '#E6EDF3', '#4493F8', '#238636'] },
 ];
 
 export const MODES = [
@@ -15,7 +13,7 @@ export const MODES = [
 ];
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
-let current = { theme: 'scrapbook', mode: 'light' };
+let current = { theme: 'minimal', mode: 'light' };
 
 function paint() {
   const theme = THEMES.find((t) => t.id === current.theme) || THEMES[0];

@@ -83,7 +83,7 @@ if (initialPalette) applyPalette(initialPalette);
 // …and the theme, for the same reason.
 {
   const params = new URLSearchParams(location.search);
-  applyTheme({ theme: params.get('theme') || 'scrapbook', mode: params.get('mode') || 'light' });
+  applyTheme({ theme: params.get('theme') || 'minimal', mode: params.get('mode') || 'light' });
 }
 
 let vault = null;

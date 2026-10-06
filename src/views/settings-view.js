@@ -74,7 +74,7 @@ function heading(text) {
 const GROUPS = [['opal', 'Settings'], ['parts', 'Widgets & Fidgets']];
 
 const SECTIONS = [
-  { id: 'appearance', group: 'opal', label: 'Appearance', icon: 'palette', title: 'Appearance.', desc: 'The theme is the look of the whole app; the palette colours your folders, pages and events.' },
+  { id: 'appearance', group: 'opal', label: 'Appearance', icon: 'palette', title: 'Appearance.', desc: 'Light or dark for the whole app; the palette colours your folders, pages and events.' },
   { id: 'tabs', group: 'opal', label: 'Tabs', icon: 'columns', title: 'Tabs.', desc: 'Pages open in tabs, like Obsidian. ⌘-click anything to open it in a new tab; a pinned tab keeps its page.' },
   { id: 'vault', group: 'opal', label: 'Vault', icon: 'folderOpen', title: 'Vault.', desc: 'The folder of notes Opal is showing, and where Opal keeps its own things.' },
   { id: 'shortcuts', group: 'opal', label: 'Shortcuts', icon: 'keyboard', title: 'Shortcuts.', desc: 'Keys that work everywhere in Opal.' },
@@ -85,7 +85,7 @@ const SECTIONS = [
 
 function appearance({ look, palette, io }) {
   return [
-    heading('Theme'),
+    heading('Light or dark'),
     themePicker(look, io.setLook),
     heading('Palette'),
     paletteGrid(palette, io.setPalette),

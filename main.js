@@ -947,13 +947,13 @@ function setPalette(name) {
   return name;
 }
 
-// The theme (Scrapbook, Minimal or GitHub) and light / dark / match the Mac.
-const THEMES = ['scrapbook', 'minimal', 'github'];
+// The theme (Minimal; the others were retired) and light / dark / match the Mac.
+const THEMES = ['minimal'];
 const MODES = ['light', 'dark', 'auto'];
 
 function getLook() {
   const { theme, mode } = loadSettings();
-  return { theme: THEMES.includes(theme) ? theme : 'scrapbook', mode: MODES.includes(mode) ? mode : 'light' };
+  return { theme: THEMES.includes(theme) ? theme : 'minimal', mode: MODES.includes(mode) ? mode : 'light' };
 }
 
 function setLook(look) {
@@ -964,9 +964,9 @@ function setLook(look) {
   return next;
 }
 
-// Window frame, scroll bars and menus follow the chosen mode (Scrapbook is always light).
-function applyNativeTheme({ theme, mode }) {
-  nativeTheme.themeSource = theme === 'scrapbook' || mode === 'light' ? 'light' : mode === 'dark' ? 'dark' : 'system';
+// Window frame, scroll bars and menus follow the chosen mode.
+function applyNativeTheme({ mode }) {
+  nativeTheme.themeSource = mode === 'light' ? 'light' : mode === 'dark' ? 'dark' : 'system';
 }
 
 // Asks the window to save any unsaved typing, and waits until it has.

@@ -39,7 +39,7 @@ ok "a new timed event's preview says Untitled" '[[ $(C "document.querySelector(\
 C --key Escape >/dev/null
 # Month bars sit over their days in every theme (Minimal once broke them)
 C "[...document.querySelectorAll('.cal-seg')].find(b=>b.textContent==='Month').click(); 1" >/dev/null; sleep 1.2
-for th in "scrapbook light" "minimal light" "minimal dark" "github dark"; do set -- ${=th}
+for th in "minimal light" "minimal dark"; do set -- ${=th}
   C "document.documentElement.dataset.theme='$1'; document.documentElement.dataset.mode='$2'; 1" >/dev/null; sleep 0.4
   ok "month bars lie across their days ($1 $2)" '[[ $(C "(()=>{const b=[...document.querySelectorAll(\".cal-mbar\")].find(x=>x.textContent.includes(\"School camp\")); const fri=document.querySelector(\".cal-mcell[data-key=\\\"2026-10-02\\\"]\").getBoundingClientRect(); const sun=document.querySelector(\".cal-mcell[data-key=\\\"2026-10-04\\\"]\").getBoundingClientRect(); const r=b.getBoundingClientRect(); return getComputedStyle(b).position + \"|\" + (r.left>=fri.left-1 && r.left<fri.left+12 && r.right>sun.right-12 && r.top>fri.top && r.bottom<fri.bottom)})()") == "\"absolute|true\"" ]]'
 done
