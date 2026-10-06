@@ -14,6 +14,8 @@ const USE = {
   history: 'history', template: 'template', layers: 'stack-2', sticky: 'note', bookmark: 'bookmark', bookmarks: 'bookmarks', link: 'link',
   table: 'table', widget: 'puzzle', fidget: 'layout-dashboard', inbox: 'inbox', database: 'database', book: 'book', flow: 'messages', money: 'wallet',
   debate: 'podium', motions: 'list-details', trophy: 'trophy', logRound: 'pencil-plus', kanban: 'layout-kanban', training: 'barbell', notebook: 'notebook', star: 'star', unlink: 'unlink', external: 'external-link',
+  // Debate topics (see fidgets/debate/motions.js TOPIC_LOOKS).
+  t_africa: 'world', t_animals: 'paw', t_art: 'palette', t_asia: 'world-latitude', t_business_work: 'briefcase', t_children: 'baby-carriage', t_cities: 'building-skyscraper', t_criminal_justice: 'shield-lock', t_culture: 'masks-theater', t_development: 'trending-up', t_economics: 'chart-line', t_education_academia: 'school', t_environment: 'leaf', t_europe: 'world-longitude', t_feminism: 'gender-female', t_international_relations: 'flag', t_latin_america: 'world-pin', t_law: 'scale', t_lgbtq: 'rainbow', t_media: 'news', t_medical: 'stethoscope', t_middle_east: 'map-2', t_military: 'shield', t_minority_communities: 'users-group', t_philosophy: 'bulb', t_politics: 'building-bank', t_religion: 'pray', t_romance_sexuality: 'heart', t_science: 'flask', t_social_justice: 'friends', t_sports: 'ball-football', t_technology_ai: 'cpu',
 };
 
 const dir = new URL('../node_modules/@tabler/icons/icons/outline/', import.meta.url);

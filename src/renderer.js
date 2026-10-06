@@ -430,12 +430,25 @@ function currentPlace() {
   if (!screen) return null;
   if (screen.kind === 'home') return { kind: 'home', folderPath: screen.folderPath };
   if (screen.kind === 'note') return { kind: 'note', filePath: screen.filePath };
+  // Money and Debate remember which page (or tab and month) is showing, so
+  // back and forward step through them too.
+  if (screen.kind === 'money') return { kind: 'money', sub: { month: moneyState.month || null, tab: moneyState.tab || 'overview' } };
+  if (screen.kind === 'debate') return { kind: 'debate', sub: debatePlace(debateState) };
   if (PLACE_KINDS.includes(screen.kind)) return { kind: screen.kind };
   return null;
 }
 
+// The part of the Debate page's state worth going back to.
+function debatePlace(state) {
+  const s = state || {};
+  const out = { page: s.page || 'overview' };
+  for (const key of ['path', 'tab', 'comp']) if (typeof s[key] === 'string' || typeof s[key] === 'number') out[key] = s[key];
+  return out;
+}
+
 function samePlace(a, b) {
-  return Boolean(a && b && a.kind === b.kind && a.folderPath === b.folderPath && a.filePath === b.filePath);
+  return Boolean(a && b && a.kind === b.kind && a.folderPath === b.folderPath && a.filePath === b.filePath
+    && JSON.stringify(a.sub || null) === JSON.stringify(b.sub || null));
 }
 
 function makeTab(place = null, pinned = false, pin = null) {
@@ -537,8 +550,14 @@ function goToPlace(place) {
   if (place.kind === 'settings') return showSettings();
   if (place.kind === 'inbox') return showInbox();
   if (place.kind === 'review') return showReview();
-  if (place.kind === 'money') return showMoney();
-  if (place.kind === 'debate') return showDebate();
+  if (place.kind === 'money') {
+    if (place.sub) moneyState = { month: place.sub.month || null, tab: place.sub.tab || 'overview' };
+    return showMoney();
+  }
+  if (place.kind === 'debate') {
+    if (place.sub) debateState = { ...place.sub };
+    return showDebate();
+  }
   return Promise.resolve();
 }
 
@@ -778,6 +797,13 @@ async function restoreTabs() {
     if (place.kind === 'note' && typeof place.filePath === 'string' && findFile(tree, place.filePath)) return { kind: 'note', filePath: place.filePath };
     if (place.kind === 'home' && typeof (place.folderPath ?? '') === 'string' && findFolder(tree, place.folderPath || '', vault.name)) return { kind: 'home', folderPath: place.folderPath || '' };
     if (place.kind === 'logbook') return { kind: 'home', folderPath: '' }; // now on the home page
+    if (place.kind === 'money' || place.kind === 'debate') {
+      const sub = place.sub && typeof place.sub === 'object' ? place.sub : null;
+      if (!sub) return { kind: place.kind };
+      return place.kind === 'money'
+        ? { kind: 'money', sub: { month: /^\d{4}-\d{2}$/.test(sub.month || '') ? sub.month : null, tab: typeof sub.tab === 'string' ? sub.tab : 'overview' } }
+        : { kind: 'debate', sub: debatePlace(sub) };
+    }
     if (PLACE_KINDS.includes(place.kind) && (place.kind !== 'inbox' || INBOX_ENABLED)) return { kind: place.kind };
     return null;
   };
@@ -1788,7 +1814,11 @@ function showDebate() {
         },
         open: (path) => openFile(path),
         startPrep: (minutes) => prepTimer.start(minutes),
-        onChange: (state) => { debateState = state; },
+        // The page reports { page: { page, path, … } }.
+        onChange: (state) => {
+          debateState = state && state.page && typeof state.page === 'object' ? state.page : state;
+          remember();
+        },
       },
     });
   });
@@ -1834,7 +1864,10 @@ function showMoney() {
           await window.opal.writeLedger('budget', text);
           await reloadTree();
         },
-        onChange: (state) => { moneyState = state; },
+        onChange: (state) => {
+          moneyState = state;
+          remember();
+        },
       },
     });
   });

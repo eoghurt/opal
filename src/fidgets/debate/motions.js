@@ -15,15 +15,41 @@
 // Opal's own marks go at the end of a motion's line, as Obsidian tags:
 //   #starred            a starred motion
 //   #version/<name>     motions that are versions of each other (any file)
-//   #topic/<name>       its topic, one of TOPICS
+//   #topic/<name>       its topics (up to 3), from TOPICS
 
 // The topics motions are sorted into.
 export const TOPICS = ['Africa', 'Animals', 'Art', 'Asia', 'Business/Work', 'Children', 'Cities', 'Criminal Justice', 'Culture', 'Development', 'Economics', 'Education/Academia', 'Environment', 'Europe', 'Feminism', 'International Relations', 'Latin America', 'Law', 'LGBTQ+', 'Media', 'Medical', 'Middle East', 'Military', 'Minority Communities', 'Philosophy', 'Politics', 'Religion', 'Romance/Sexuality', 'Science', 'Social Justice', 'Sports', 'Technology/AI'];
+
+// Each topic's colour and symbol (an icon name in icons.js).
+const COLORS = { Africa: '#C9971C', Animals: '#3E8E5E', Art: '#B45FB0', Asia: '#D9604C', 'Business/Work': '#A0785E', Children: '#C2A93E', Cities: '#7D8896', 'Criminal Justice': '#C04A5A', Culture: '#C9507A', Development: '#8FA23A', Economics: '#1F9A7D', 'Education/Academia': '#3F82C9', Environment: '#6E9A44', Europe: '#5F82B8', Feminism: '#D0457E', 'International Relations': '#4A63C2', 'Latin America': '#D98A3D', Law: '#8F65D9', 'LGBTQ+': '#9B8FE6', Media: '#4A9ED9', Medical: '#26A0A8', 'Middle East': '#D9692E', Military: '#C5553F', 'Minority Communities': '#D98AA0', Philosophy: '#6E6EE6', Politics: '#4D6DE0', Religion: '#A55BAA', 'Romance/Sexuality': '#E0607E', Science: '#76A083', 'Social Justice': '#B89A33', Sports: '#3FA34D', 'Technology/AI': '#3AAFC9' };
+export const MAX_TOPICS = 3;
+export function topicLook(topic) {
+  return { color: COLORS[topic] || '#8E8E93', icon: `t_${String(topic).toLowerCase().replace(/\+/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}` };
+}
 
 // "Criminal Justice" → "criminal-justice" (the tag's name), and back.
 export function topicSlug(topic) {
   return String(topic).toLowerCase().replace(/\+/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
+// The topics tagged on a line, in order, at most 3.
+export function topicsOf(line) {
+  const out = [];
+  for (const m of String(line).matchAll(/\s#topic\/([\w-]+)/gi)) {
+    const t = topicFromSlug(m[1]);
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, MAX_TOPICS);
+}
+
+// A line with its topic tags replaced by these.
+export function setLineTopics(line, topics) {
+  const bare = String(line).replace(/\s+#topic\/[\w-]+\b/gi, '').replace(/\s+$/, '');
+  const tags = topics.slice(0, MAX_TOPICS).map((t) => ` #topic/${topicSlug(t)}`).join('');
+  // Keep #starred / #version after the topics, as Opal writes them.
+  const keep = (bare.match(/(\s+#(?:starred|version\/[\w-]+)\b)+$/) || [''])[0];
+  return `${bare.slice(0, bare.length - keep.length)}${tags}${keep}`;
+}
+
 export function topicFromSlug(slug) {
   return TOPICS.find((t) => topicSlug(t) === String(slug).toLowerCase()) || '';
 }
@@ -121,7 +147,7 @@ export function parseMotionNote(text, { path, source }) {
       const motion = {
         text: split.text,
         info: split.info,
-        topic: topicFromSlug((/\s#topic\/([\w-]+)/i.exec(raw) || [])[1] || ''),
+        topics: topicsOf(raw),
         oldTopic: split.topic,
         inlineInfo: Boolean(split.info),
         infoLine: null,
@@ -150,8 +176,7 @@ export function prepMotion(text) {
   const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && l !== '---');
   const first = lines[0] ? clean(lines[0]) : '';
   const info = lines[1] && /^IS:/i.test(lines[1]) ? lines[1].replace(/^IS:\s*/i, '') : '';
-  const topic = topicFromSlug((/\s#topic\/([\w-]+)/i.exec(lines[0] || '') || [])[1] || '');
-  return first ? { text: first, info, topic } : null;
+  return first ? { text: first, info, topics: topicsOf(lines[0] || '') } : null;
 }
 
 // Words that matter, for comparing two motions.
