@@ -206,7 +206,7 @@ export function formatBudget({ limits, moves, goals, rollover }, currency = '$')
     '; Opal’s Money page keeps this file; spending is in transactions.ledger.',
     '',
   ];
-  const accounts = Object.keys(limits).filter((a) => limits[a]);
+  const accounts = Object.keys(limits).filter((a) => limits[a] != null);
   if (accounts.length) {
     out.push('~ Monthly');
     for (const a of accounts) out.push(`    ${a}    ${formatAmount(limits[a], currency)}`);

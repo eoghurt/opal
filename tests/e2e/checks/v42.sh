@@ -6,21 +6,25 @@ C "document.querySelector('.bar-tools [title^=\"Money\"]').click(); 1" >/dev/nul
 tab() { C "[...document.querySelectorAll('.money-tab')].find(b=>b.textContent==='$1').click(); 1" >/dev/null; sleep 0.6; }
 # Budget: add three categories
 tab Budget
-addcat() { C "(()=>{const f=[...document.querySelectorAll('.money-inline')].find(f=>f.querySelector('[aria-label=\"New category name\"]')); f.querySelector('[aria-label=\"New category name\"]').value='$1'; f.querySelector('[aria-label=\"Its monthly budget\"]').value='$2'; f.requestSubmit(); return 1})()" >/dev/null; sleep 1; }
+addcat() { C "(()=>{const b=[...document.querySelectorAll('.money-add-cats .money-chip')].find(b=>b.textContent==='$1'); b.click(); return 1})()" >/dev/null; sleep 1; C "(()=>{const r=[...document.querySelectorAll('.money-brow')].find(r=>r.textContent.includes('$1')); const i=r.querySelector('.money-amount'); i.value='$2'; i.dispatchEvent(new Event('change')); return 1})()" >/dev/null; sleep 1; }
 addcat Food 250; addcat "Going out" 150; addcat Subscriptions 40
-ok "categories go into budget.ledger as a Ledger monthly budget" 'grep -q "^~ Monthly$" "$B" && grep -q "^    Expenses:Food    \$250.00$" "$B" && grep -q "^    Expenses:Going out    \$150.00$" "$B" && grep -q "^    Assets:Budget$" "$B"'
-# Quick add on History
-tab History
-C "(()=>{const i=document.querySelector('.money-quick'); i.value='Woolworths 42.10 food'; i.form.requestSubmit(); return 1})()" >/dev/null; sleep 1.2
-ok "quick add writes the plugin's format to transactions.ledger" '[[ "$(cat "$L")" == "$T Woolworths
+ok "suggested categories are added with a click; amounts go into budget.ledger" 'grep -q "^~ Monthly$" "$B" && grep -q "^    Expenses:Food    \$250.00$" "$B" && grep -q "^    Expenses:Going out    \$150.00$" "$B" && grep -q "^    Assets:Budget$" "$B"'
+# + New category from the budget page (only its name is typed)
+C "(()=>{[...document.querySelectorAll('.money-add-cats .money-chip')].find(b=>b.textContent==='+ New').click(); const i=document.querySelector('.money-chip-input'); i.value='climbing'; i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); return 1})()" >/dev/null; sleep 1.2
+ok "+ New makes a category of your own (Climbing)" 'grep -q "^    Expenses:Climbing    \$0.00$" "$B"'
+# Adding entries: title and amount typed, everything else clicked
+add() { # kind title amount choice
+C "document.querySelector('.money-head .money-add').click(); 1" >/dev/null; sleep 0.4
+C "(()=>{const p=document.querySelector('.money-pop'); [...p.querySelectorAll('.money-kind')].find(b=>b.textContent==='$1').click(); p.querySelector('[aria-label=Title]').value='$2'; p.querySelector('.money-amount-big').value='$3'; const c=[...p.querySelectorAll('.money-field')][0].querySelectorAll('.money-chip'); [...c].find(b=>b.textContent==='$4').click(); p.requestSubmit(); return 1})()" >/dev/null; sleep 1.2; }
+ok "the add box only has two typing boxes (title and amount)" '[[ $(C "(()=>{document.querySelector(\".money-head .money-add\").click(); const n=document.querySelectorAll(\".money-pop input:not([type=date])\").length; document.querySelector(\".money-pop .money-btn\").click(); return n})()") == 2 ]]'
+add Spend Woolworths 42.10 Food
+ok "spending: picked category, default account, today — in the plugin's format" '[[ "$(head -3 "$L")" == "$T Woolworths
     Expenses:Food    \$42.10
     Assets:Everyday" ]]'
-C "(()=>{const i=document.querySelector('.money-quick'); i.value='Dinner with the team 138.50 going'; i.form.requestSubmit(); return 1})()" >/dev/null; sleep 1.2
-ok "…a short category name finds the category (going → Going out); entries have a blank line between" 'grep -q "^    Expenses:Going out    \$138.50$" "$L" && [[ $(grep -c "^$" "$L") == 1 ]]'
-# Income through the + Add popover
-C "document.querySelector('.money-add').click(); 1" >/dev/null; sleep 0.4
-C "(()=>{const p=document.querySelector('.money-pop'); [...p.querySelectorAll('.money-kind')].find(b=>b.textContent==='Income').click(); p.querySelector('[aria-label=What]').value='Tutoring · Year 9 maths'; p.querySelector('[aria-label=Amount]').value='80'; p.querySelector('[aria-label=Job]').value='Income:Tutoring'; p.requestSubmit(); return 1})()" >/dev/null; sleep 1.2
-ok "income: money into the account, from an Income account" 'grep -A2 "Tutoring · Year 9 maths" "$L" | grep -q "^    Assets:Everyday    \$80.00$" && grep -A2 "Tutoring · Year 9 maths" "$L" | grep -q "^    Income:Tutoring$"'
+add Spend "Dinner with the team" 138.50 "Going out"
+ok "…entries have a blank line between" 'grep -q "^    Expenses:Going out    \$138.50$" "$L" && [[ $(grep -c "^$" "$L") == 1 ]]'
+add Income "Tutoring · Year 9 maths" 80 Tutoring
+ok "income: a suggested job (Tutoring) is one click; money goes into the account" 'grep -A2 "Tutoring · Year 9 maths" "$L" | grep -q "^    Assets:Everyday    \$80.00$" && grep -A2 "Tutoring · Year 9 maths" "$L" | grep -q "^    Income:Tutoring$"'
 # Move money: $20 from Subscriptions to Going out (this month only)
 tab Budget
 C "(()=>{const f=document.querySelector('.money-move'); f.querySelector('[aria-label=\"Amount to move\"]').value='20'; f.querySelector('[aria-label=\"Move from\"]').value='Expenses:Subscriptions'; f.querySelector('[aria-label=\"Move to\"]').value='Expenses:Going out'; f.requestSubmit(); return 1})()" >/dev/null; sleep 1.2
@@ -44,7 +48,7 @@ ok "…Going out (\$138.50 of \$170) isn't flagged; nothing is over" '[[ $(C "do
 # Edit an entry: Woolworths 42.10 → 52.10
 tab History
 C "[...document.querySelectorAll('.money-entry')].find(r=>r.textContent.includes('Woolworths')).click(); 1" >/dev/null; sleep 0.4
-C "(()=>{const p=document.querySelector('.money-pop'); p.querySelector('[aria-label=Amount]').value='52.10'; p.requestSubmit(); return 1})()" >/dev/null; sleep 1.2
+C "(()=>{const p=document.querySelector('.money-pop'); p.querySelector('.money-amount-big').value='52.10'; p.requestSubmit(); return 1})()" >/dev/null; sleep 1.2
 ok "editing an entry rewrites it in place" 'grep -q "^    Expenses:Food    \$52.10$" "$L" && ! grep -q "42.10" "$L" && [[ $(grep -c "Woolworths" "$L") == 1 ]]'
 # Delete an entry
 C "[...document.querySelectorAll('.money-entry')].find(r=>r.textContent.includes('Dinner')).querySelector('.money-x').click(); 1" >/dev/null; sleep 0.5

@@ -12,8 +12,15 @@
 
 import { h, askChoice } from '../../ui.js';
 import { slotFor } from '../../palettes.js';
-import { parseLedger, parseBudget, formatBudget, appendTransaction, replaceTransaction, formatAmount, parseAmount } from './ledger.js';
+import { parseLedger, parseBudget, formatBudget, appendTransaction, replaceTransaction, formatAmount } from './ledger.js';
 import { MoneyModel, monthOf, shiftMonth, shortName, budgetHints } from './model.js';
+
+// Suggested categories, jobs and accounts: one click to use, no typing.
+const SUGGESTED = {
+  spend: ['Food', 'Groceries', 'Transport', 'Going out', 'Shopping', 'Subscriptions', 'Bills', 'Phone', 'Health', 'School', 'Sport', 'Gifts', 'Fun', 'Travel'],
+  income: ['Work', 'Tutoring', 'Coaching', 'Allowance', 'Gifts', 'Selling things'],
+  accounts: ['Everyday', 'Cash', 'Savings'],
+};
 
 const TABS = [['overview', 'Overview'], ['budget', 'Budget'], ['saving', 'Saving'], ['income', 'Income'], ['history', 'History']];
 
@@ -254,6 +261,82 @@ export class MoneyView {
       h('span', { class: 'money-num' }, this.money(g.have), h('span', { class: 'money-muted' }, ` of ${this.money(g.target)}`)));
   }
 
+  // A row of choices as buttons: `options` [{ value, label, color, suggested }].
+  // "+ New" (when `onNew` is given) asks for a name in place and adds it.
+  // → { el, value(), set(value) }
+  chips(options, selected, { label, onNew, onPick } = {}) {
+    let value = selected;
+    const el = h('div', { class: 'money-chips', role: 'radiogroup', 'aria-label': label });
+    const draw = () => {
+      el.replaceChildren(...options.map((o) => h('button', {
+        type: 'button',
+        class: `money-chip${o.value === value ? ' is-on' : ''}${o.suggested ? ' is-suggested' : ''}`,
+        role: 'radio',
+        'aria-checked': String(o.value === value),
+        title: o.suggested ? 'Suggested — click to use' : null,
+        onclick: () => { value = o.value; draw(); if (onPick) onPick(value); },
+      }, o.color ? this.dot(o.color) : null, o.label)),
+      onNew ? this.newChip(label, (name) => {
+        const option = onNew(name);
+        if (!option) return;
+        if (!options.some((o) => o.value === option.value)) options.push(option);
+        value = option.value;
+        draw();
+        if (onPick) onPick(value);
+      }) : '');
+    };
+    draw();
+    return { el, value: () => value, set: (v) => { value = v; draw(); } };
+  }
+
+  // "+ New": turns into a small name box; Enter adds, Escape cancels.
+  newChip(label, onName) {
+    const button = h('button', { type: 'button', class: 'money-chip is-new' }, '+ New');
+    button.addEventListener('click', () => {
+      const input = h('input', { class: 'money-chip-input', placeholder: 'Name', 'aria-label': `New ${String(label || '').toLowerCase()}` });
+      let finished = false;
+      const done = (keep) => {
+        if (finished) return;
+        finished = true;
+        const name = input.value.trim().replace(/[:;]/g, ' ').replace(/\s+/g, ' ');
+        if (keep && name) onName(name.replace(/^./, (c) => c.toUpperCase()));
+        else input.replaceWith(button);
+      };
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); }
+        if (e.key === 'Escape') { e.stopPropagation(); done(false); }
+      });
+      input.addEventListener('blur', () => done(true));
+      button.replaceWith(input);
+      input.focus();
+    });
+    return button;
+  }
+
+  // Choices for each kind of entry: yours first, then suggestions not used yet.
+  optionsFor(kind) {
+    const model = this.model;
+    const p = model.p;
+    const all = model.allAccounts();
+    const mine = (test) => [...new Set(all.filter(test).map((a) => a.split(':').slice(0, kind === 'move' ? 3 : 2).join(':')))];
+    const make = (account, suggested) => ({ value: account, label: shortName(account).split(':').pop(), color: kind === 'income' ? null : this.colorOf(shortName(account)), suggested });
+    const withSuggestions = (accounts, prefix, names) => [
+      ...accounts.map((a) => make(a, false)),
+      ...names.map((n) => `${prefix}:${n}`).filter((a) => !accounts.includes(a)).map((a) => make(a, true)),
+    ];
+    if (kind === 'spend') return withSuggestions(model.categories(), p.expenses, SUGGESTED.spend);
+    if (kind === 'income') return withSuggestions(mine((a) => model.is(a, 'income')), p.income, SUGGESTED.income);
+    if (kind === 'move') {
+      const goals = model.goals().map((g) => g.account);
+      const accounts = mine((a) => model.is(a, 'assets') && a !== `${p.assets}:Budget`);
+      return withSuggestions([...new Set([...goals, ...accounts])], p.assets, ['Savings']);
+    }
+    // Accounts money is paid from / into.
+    const accounts = [...new Set(all.filter((a) => (model.is(a, 'assets') && !a.includes(':Savings') && a !== `${p.assets}:Budget`) || model.is(a, 'liabilities')).map((a) => a.split(':').slice(0, 2).join(':')))];
+    if (!accounts.includes(model.defaultAccount())) accounts.unshift(model.defaultAccount());
+    return withSuggestions(accounts, p.assets, SUGGESTED.accounts.filter((n) => n !== 'Savings'));
+  }
+
   // ---------- Budget ----------
 
   budgetPage(m) {
@@ -265,10 +348,7 @@ export class MoneyView {
       const amount = h('input', { class: 'money-input money-amount', type: 'number', min: '0', step: '1', value: String(this.budgetData.limits[b.account] || ''), placeholder: '0', 'aria-label': `${b.name} monthly budget` });
       amount.addEventListener('change', () => {
         const v = parseFloat(amount.value);
-        this.changeBudget((budget) => {
-          if (Number.isFinite(v) && v > 0) budget.limits[b.account] = v;
-          else delete budget.limits[b.account];
-        });
+        this.changeBudget((budget) => { budget.limits[b.account] = Number.isFinite(v) && v > 0 ? v : 0; });
       });
       const roll = h('button', {
         class: `set-toggle${b.rollover ? ' is-on' : ''}`,
@@ -292,21 +372,25 @@ export class MoneyView {
             b.planned !== (this.budgetData.limits[b.account] || 0) ? ` · ${this.money(b.planned - (this.budgetData.limits[b.account] || 0), { sign: true })} moved` : '',
             b.carried ? ` · ${this.money(b.carried, { sign: true })} carried` : '')),
         h('span', { class: 'money-brow-roll' }, roll, h('span', { class: 'money-muted' }, 'carry over')),
-        h('button', { class: 'money-btn', onclick: () => this.moveForm.prefill(b.account) }, 'Move…'));
+        h('button', { class: 'money-btn', onclick: () => this.moveForm.prefill(b.account) }, 'Move…'),
+        this.budgetData.limits[b.account] != null ? h('button', {
+          class: 'money-x',
+          'aria-label': `Take ${b.name} out of the budget`,
+          title: 'Take out of the budget (its spending stays)',
+          onclick: () => this.changeBudget((budget) => { delete budget.limits[b.account]; }),
+        }, '×') : h('span'));
     });
 
-    // Add a category.
-    const newName = h('input', { class: 'money-input', placeholder: 'New category, e.g. Gifts', 'aria-label': 'New category name' });
-    const newAmount = h('input', { class: 'money-input money-amount', type: 'number', min: '0', placeholder: '0', 'aria-label': 'Its monthly budget' });
-    const addCategory = h('form', { class: 'money-inline' }, newName, h('span', { class: 'money-muted' }, this.currency), newAmount,
-      h('button', { class: 'money-btn', type: 'submit' }, 'Add category'));
-    addCategory.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = newName.value.trim().replace(/:/g, ' ');
-      const v = parseFloat(newAmount.value);
-      if (!name) return;
-      this.changeBudget((budget) => { budget.limits[`${this.model.p.expenses}:${name}`] = Number.isFinite(v) && v > 0 ? v : 0.01; });
-    });
+    // Add a category: a suggestion, or + New. Its amount is set in its row.
+    const addAccount = (account) => this.changeBudget((budget) => { if (budget.limits[account] == null) budget.limits[account] = 0; });
+    const unbudgeted = this.optionsFor('spend').filter((o) => this.budgetData.limits[o.value] == null);
+    const addCategory = h('div', { class: 'money-add-cats' },
+      h('span', { class: 'money-muted' }, 'Add a category'),
+      this.chips(unbudgeted.map((o) => ({ ...o, suggested: true })), null, {
+        label: 'Category',
+        onPick: (account) => addAccount(account),
+        onNew: (name) => { addAccount(`${this.model.p.expenses}:${name}`); return null; },
+      }).el);
 
     this.moveForm = this.moveMoney(m);
     const hintCard = hints.tight.length || hints.spare.length ? this.card('Suggestions', null,
@@ -435,119 +519,115 @@ export class MoneyView {
     }
     return h('div', { class: 'money-body' },
       this.card(`Everything in ${monthLabel(this.monthKey)}`, h('span', { class: 'money-muted' }, `${m.entries.length} entries`),
-        this.quickAdd(),
         days.size ? [...days.entries()].map(([date, txs]) => h('div', { class: 'money-day' },
           h('div', { class: 'money-day-label' }, dayLabel(date)),
           txs.map((tx) => this.entryRow(tx)))) : this.emptyHint('Nothing this month.')));
   }
 
-  // "Boost juice 8.90 food" → a spending entry.
-  parseQuick(text) {
-    const words = text.trim().split(/\s+/);
-    const at = words.findIndex((w) => parseAmount(w.replace(/^\$/, '')) && /\d/.test(w));
-    if (at === -1) return null;
-    const amount = Math.abs(parseAmount(words[at].replace(/^\$/, '')).amount);
-    const payee = words.slice(0, at).join(' ');
-    const rest = words.slice(at + 1).join(' ').toLowerCase();
-    const cats = this.model.categories();
-    const category = rest
-      ? cats.find((c) => shortName(c).toLowerCase() === rest) || cats.find((c) => shortName(c).toLowerCase().startsWith(rest)) || `${this.model.p.expenses}:${rest.replace(/^./, (c) => c.toUpperCase())}`
-      : cats[0] || `${this.model.p.expenses}:Other`;
-    return { date: today(), payee: payee || shortName(category), postings: [{ account: category, amount }, { account: this.model.defaultAccount(), amount: null }] };
-  }
-
-  quickAdd() {
-    const input = h('input', { class: 'money-input money-quick', placeholder: 'Quick add: what, how much, category — e.g. Boost juice 8.90 food', 'aria-label': 'Quick add' });
-    const form = h('form', { class: 'money-inline' }, input, h('button', { class: 'money-add', type: 'submit' }, 'Add'));
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const entry = this.parseQuick(input.value);
-      if (!entry) {
-        input.setCustomValidity('Put an amount in, e.g. “Lunch 12.50 food”.');
-        input.reportValidity();
-        return;
-      }
-      this.addEntry(entry);
-    });
-    input.addEventListener('input', () => input.setCustomValidity(''));
-    return form;
-  }
-
   // ---------- Adding and editing an entry ----------
 
+  // Add (or edit) an entry: type the title and the amount; everything else
+  // is picked from buttons.
   openAdd(anchor, { kind = 'spend', edit = null } = {}) {
     this.closePop();
     const model = this.model;
-    const two = edit && edit.postings.length === 2;
-    if (edit && !two) {
+    if (edit && edit.postings.length !== 2) {
       alert('This entry has more than two lines, so it can only be changed in transactions.ledger itself (or deleted here).');
       return;
     }
     const state = { kind: edit ? model.kindOf(edit) : kind };
     if (state.kind === 'transfer' || state.kind === 'save') state.kind = 'move';
-    const p = model.p;
-    const listId = `money-accounts-${Math.random().toString(36).slice(2, 7)}`;
-    const payeeList = `${listId}-p`;
-    const what = h('input', { class: 'money-input', placeholder: 'What', list: payeeList, 'aria-label': 'What', value: edit ? edit.payee : '' });
-    const amount = h('input', { class: 'money-input money-amount', type: 'number', step: '0.01', min: '0', placeholder: '0.00', 'aria-label': 'Amount', value: edit ? String(Math.abs(model.shownAmount(edit))) : '' });
-    const date = h('input', { class: 'money-input', type: 'date', 'aria-label': 'Date', value: edit ? edit.date : today() });
-    const into = h('input', { class: 'money-input', list: listId, 'aria-label': 'Category' });
-    const out = h('input', { class: 'money-input', list: listId, 'aria-label': 'Account', value: model.defaultAccount() });
-    const intoLabel = h('span');
-    const outLabel = h('span');
+    // An entry being edited: the posting with the amount is "into", the
+    // balancing one is "out".
+    let into = null;
+    let out = model.defaultAccount();
     if (edit) {
-      // The posting with the amount is "into"; the balancing one is "out".
       const [a, b] = edit.postings;
       const first = state.kind === 'income' ? (model.is(a.account, 'income') ? a : b) : state.kind === 'spend' ? (model.is(a.account, 'expenses') ? a : b) : (a.amount > 0 ? a : b);
-      into.value = first.account;
-      out.value = (first === a ? b : a).account;
+      into = state.kind === 'move' ? first.account : model.categoryOf(first.account) === first.account ? first.account : first.account;
+      out = (first === a ? b : a).account;
     }
-    const kindBtn = (id, label) => h('button', { type: 'button', class: `money-kind${state.kind === id ? ' is-on' : ''}`, 'data-kind': id, onclick: () => { state.kind = id; sync(true); } }, label);
-    const kinds = h('div', { class: 'money-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('spend', 'Spend'), kindBtn('income', 'Income'), kindBtn('move', 'Move / save'));
-    const sync = (reset) => {
-      kinds.querySelectorAll('.money-kind').forEach((b) => b.classList.toggle('is-on', b.dataset.kind === state.kind));
-      if (state.kind === 'spend') {
-        intoLabel.textContent = 'Category';
-        outLabel.textContent = 'Paid from';
-        if (reset) into.value = model.categories()[0] || `${p.expenses}:Food`;
-      } else if (state.kind === 'income') {
-        intoLabel.textContent = 'Job';
-        outLabel.textContent = 'Paid into';
-        if (reset) into.value = model.allAccounts().find((a) => model.is(a, 'income')) || `${p.income}:Work`;
-      } else {
-        intoLabel.textContent = 'To';
-        outLabel.textContent = 'From';
-        if (reset) into.value = model.goals()[0]?.account || `${p.assets}:Savings`;
-      }
-      into.setAttribute('aria-label', intoLabel.textContent);
-      out.setAttribute('aria-label', outLabel.textContent);
+    const title = h('input', { class: 'money-input money-title-in', placeholder: 'Title', 'aria-label': 'Title', value: edit ? edit.payee : '' });
+    const amount = h('input', { class: 'money-input money-amount money-amount-big', type: 'number', inputmode: 'decimal', step: '0.01', min: '0', placeholder: '0.00', 'aria-label': `Amount in ${this.currency}`, value: edit ? String(Math.abs(model.shownAmount(edit))) : '' });
+
+    // Date: Today / Yesterday / a day picked from the calendar.
+    const day = (offset) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
-    if (!edit) sync(true);
-    else sync(false);
+    let date = edit ? edit.date : today();
+    const picker = h('input', { type: 'date', class: 'money-date-picker', 'aria-label': 'Pick a day', value: date });
+    const dateOptions = () => {
+      const opts = [{ value: day(0), label: 'Today' }, { value: day(-1), label: 'Yesterday' }];
+      if (!opts.some((o) => o.value === date)) opts.push({ value: date, label: new Date(`${date}T12:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) });
+      return opts;
+    };
+    const dateWrap = h('div', { class: 'money-date' });
+    const drawDate = () => {
+      const chips = this.chips(dateOptions(), date, { label: 'Date', onPick: (v) => { date = v; } });
+      const pick = h('button', { type: 'button', class: 'money-chip', onclick: () => (picker.showPicker ? picker.showPicker() : picker.click()) }, 'Pick a day…');
+      dateWrap.replaceChildren(chips.el, pick, picker);
+    };
+    picker.addEventListener('change', () => { if (picker.value) { date = picker.value; drawDate(); } });
+    drawDate();
+
+    const intoWrap = h('div', { class: 'money-field' });
+    const outWrap = h('div', { class: 'money-field' });
+    let intoChips = null;
+    let outChips = null;
+    const named = (kindOf, name) => {
+      const p = model.p;
+      if (kindOf === 'spend') return { value: `${p.expenses}:${name}`, label: name, color: this.colorOf(name) };
+      if (kindOf === 'income') return { value: `${p.income}:${name}`, label: name };
+      if (kindOf === 'move') return { value: `${p.assets}:Savings:${name}`, label: name, color: this.colorOf(name) };
+      return { value: `${p.assets}:${name}`, label: name };
+    };
+    const drawPickers = (keep) => {
+      const intoTitle = { spend: 'Category', income: 'Job', move: 'To' }[state.kind];
+      const outTitle = { spend: 'Paid from', income: 'Paid into', move: 'From' }[state.kind];
+      const intoOptions = this.optionsFor(state.kind);
+      if (keep && into && !intoOptions.some((o) => o.value === into)) intoOptions.unshift({ value: into, label: shortName(into).split(':').pop(), color: this.colorOf(shortName(into)) });
+      const first = keep && into ? into : (intoOptions.find((o) => !o.suggested) || intoOptions[0] || {}).value;
+      intoChips = this.chips(intoOptions, first, { label: intoTitle, onNew: (n) => named(state.kind, n) });
+      const outOptions = this.optionsFor('account');
+      if (out && !outOptions.some((o) => o.value === out)) outOptions.unshift({ value: out, label: shortName(out) });
+      outChips = this.chips(outOptions, out, { label: outTitle, onNew: (n) => named('account', n), onPick: (v) => { out = v; } });
+      intoWrap.replaceChildren(h('span', null, intoTitle), intoChips.el);
+      outWrap.replaceChildren(h('span', null, outTitle), outChips.el);
+    };
+    const kindBtn = (id, label) => h('button', { type: 'button', class: `money-kind${state.kind === id ? ' is-on' : ''}`, 'data-kind': id, onclick: () => {
+      state.kind = id;
+      kinds.querySelectorAll('.money-kind').forEach((b) => b.classList.toggle('is-on', b.dataset.kind === id));
+      drawPickers(false);
+    } }, label);
+    const kinds = h('div', { class: 'money-kinds', role: 'group', 'aria-label': 'Kind' }, kindBtn('spend', 'Spend'), kindBtn('income', 'Income'), kindBtn('move', 'Save / move'));
+    drawPickers(Boolean(edit));
+
     const save = () => {
       const v = parseFloat(amount.value);
       if (!(v > 0)) {
         amount.focus();
         return;
       }
-      const account = (s) => s.trim().replace(/\s*:\s*/g, ':');
-      let postings;
-      if (state.kind === 'income') postings = [{ account: account(out.value), amount: v }, { account: account(into.value), amount: null }];
-      else postings = [{ account: account(into.value), amount: v }, { account: account(out.value), amount: null }];
-      const entry = { date: date.value || today(), payee: what.value.trim() || shortName(account(into.value)), postings };
+      const target = intoChips.value();
+      const from = outChips.value();
+      if (!target || !from) return;
+      const postings = state.kind === 'income'
+        ? [{ account: from, amount: v }, { account: target, amount: null }]
+        : [{ account: target, amount: v }, { account: from, amount: null }];
+      const entry = { date, payee: title.value.trim() || shortName(target).split(':').pop(), postings };
       if (edit) this.change('transactions', (text) => replaceTransaction(text, edit, entry, this.currency));
       else this.addEntry(entry);
     };
     const pop = h('form', { class: 'money-pop', role: 'dialog', 'aria-label': edit ? 'Edit entry' : 'Add an entry' },
-      h('datalist', { id: listId }, model.allAccounts().map((a) => h('option', { value: a }))),
-      h('datalist', { id: payeeList }, model.payees().map((a) => h('option', { value: a }))),
       kinds,
-      h('label', { class: 'money-field' }, h('span', null, 'What'), what),
-      h('div', { class: 'money-inline' },
-        h('label', { class: 'money-field' }, h('span', null, 'Amount'), h('span', { class: 'money-inline' }, h('span', { class: 'money-muted' }, this.currency), amount)),
-        h('label', { class: 'money-field' }, h('span', null, 'Date'), date)),
-      h('label', { class: 'money-field' }, intoLabel, into),
-      h('label', { class: 'money-field' }, outLabel, out),
+      h('div', { class: 'money-pop-main' },
+        title,
+        h('label', { class: 'money-amount-wrap' }, h('span', { class: 'money-muted' }, this.currency), amount)),
+      intoWrap,
+      outWrap,
+      h('div', { class: 'money-field' }, h('span', null, 'When'), dateWrap),
       h('div', { class: 'money-inline' },
         h('button', { class: 'money-add', type: 'submit' }, edit ? 'Save' : 'Add'),
         h('button', { class: 'money-btn', type: 'button', onclick: () => this.closePop() }, 'Cancel'),
@@ -564,8 +644,7 @@ export class MoneyView {
     let left = box.right - host.left - width;
     left = Math.max(8, Math.min(left, host.width - width - 8));
     let top = box.bottom - host.top + 8;
-    const room = window.innerHeight - box.bottom;
-    if (room < height + 16) top = Math.max(8, box.top - host.top - height - 8);
+    if (window.innerHeight - box.bottom < height + 16) top = Math.max(8, box.top - host.top - height - 8);
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
     this.pop = pop;
@@ -577,7 +656,7 @@ export class MoneyView {
       document.removeEventListener('pointerdown', outside);
       document.removeEventListener('keydown', escape);
     };
-    (edit ? amount : what).focus();
+    (edit ? amount : title).focus();
   }
 
   closePop() {
