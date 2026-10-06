@@ -163,4 +163,9 @@ C "[...document.querySelectorAll('.deb-comp-row')].find(r=>r.innerText.startsWit
 ctx "document.querySelector('.deb-round-row:not(.is-head)')"
 pickItem "Delete the round"; C "[...document.querySelectorAll('.ask-choice')].find(b=>b.textContent==='Delete').click(); 1" >/dev/null; sleep 2
 ok "…a round's menu deletes its note (to the Trash)" '[ ! -f "$D/Rounds/SO26-R2.md" ]'
-ok "the top bar keeps only Search and Settings" '[[ $(C "[...document.querySelectorAll(\".bar-tools > *\")].map(b=>b.getAttribute(\"aria-label\")||b.title).join(\",\")") == "\"Search,Settings\"" ]]'
+ok "the top bar keeps Search, the timer and Settings" '[[ $(C "[...document.querySelectorAll(\".bar-tools > *\")].map(b=>b.className.split(\" \").pop()).join(\",\")") == "\"bar-search,bar-timer,bar-settings\"" ]]'
+# New tab goes to the far right, even with the first tab active.
+C "document.querySelector('.tab-new').click(); 1" >/dev/null; sleep 1
+C "document.querySelector('.tab').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0})); 1" >/dev/null; sleep 1
+C "document.querySelector('.tab-new').click(); 1" >/dev/null; sleep 1
+ok "a new tab opens at the far right" '[[ $(C "[...document.querySelectorAll(\".tab\")].pop().classList.contains(\"is-active\")") == "true" ]]'

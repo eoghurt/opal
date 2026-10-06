@@ -135,8 +135,9 @@ export class Chrome {
       this.tabSlot,
       h('div', { class: 'bar-tools' }, ...[
         link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
-        // Bookmarks, Calendar, Tasks, Review, Money, Debate and the timer used
-        // to sit here; they're on the home page tiles, the menus and shortcuts.
+        // Bookmarks, Calendar, Tasks, Review, Money and Debate used to sit here;
+        // they're on the home page tiles, the menus and shortcuts.
+        this.timerSlot,
         link('settings', 'settings', 'Settings', () => this.onSettings(), { class: 'bar-settings', title: 'Settings (⌘,)' }),
       ].filter(Boolean)),
     ].filter(Boolean));

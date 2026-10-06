@@ -604,12 +604,11 @@ async function activateTab(id) {
   saveWorkspace();
 }
 
-// A new tab after the active one, showing the vault's home page.
+// A new tab at the far right, showing the vault's home page.
 function newTab() {
   if (!vault) return;
-  const tab = activeTab();
   const fresh = makeTab();
-  tabs.splice(tab ? tabs.indexOf(tab) + 1 : tabs.length, 0, fresh);
+  tabs.push(fresh);
   activeTabId = fresh.id;
   drawTabs();
   openFolder('');

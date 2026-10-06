@@ -80,7 +80,7 @@ const SECTIONS = [
   { id: 'shortcuts', group: 'opal', label: 'Shortcuts', icon: 'keyboard', title: 'Shortcuts.', desc: 'Keys that work everywhere in Opal.' },
   { id: 'about', group: 'opal', label: 'About', icon: 'info', title: 'About Opal.', desc: 'Notes that live in plain files.' },
   { id: 'parts', group: 'parts', label: 'Overview', icon: 'widget', title: 'Widgets & Fidgets.', desc: 'Widgets are small things inside a page that do one job. Fidgets are bigger, and take up a whole page of their own.' },
-  { id: 'timer', group: 'parts', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer (on the home page, and behind Start prep in Debate): a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
+  { id: 'timer', group: 'parts', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer in the top bar: a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
 ];
 
 function appearance({ look, palette, io }) {
@@ -149,7 +149,7 @@ function partsSection({ io }, sections) {
       : null);
   return [
     heading('Widgets'),
-    h('p', { class: 'set-note' }, 'Small and simple: they live inside a note or on the home page.'),
+    h('p', { class: 'set-note' }, 'Small and simple: they live inside a note, the home page or the top bar.'),
     h('div', { class: 'part-list' }, WIDGETS.map(card)),
     heading('Fidgets'),
     h('p', { class: 'set-note' }, 'Heavier: each one is a whole page of its own.'),
