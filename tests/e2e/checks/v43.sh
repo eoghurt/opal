@@ -2,7 +2,7 @@
 C --key Escape >/dev/null
 D="$V/Clubs/Debate"; mkdir -p "$D/Motions/Practice preps" "$D/Feedback/1 Do Now" "$D/Feedback/2 In Progress" "$D/Feedback/3 Parked" "$D/Feedback/4 Done" "$D/Training"
 printf -- '**Grandfinals**\nTHBT cities should ban cars\n- Cars include taxis.\n\n**Inrounds**\nTHW abolish homework\n' > "$D/Motions/Spring Open 2026.md"
-printf -- 'Round 1 - THBT cities should ban private cars (transport)* *Private cars exclude buses.*\n\n==Round 2 - THR social media (tech)==\n\n---\n**Related**\n' > "$D/Motions/Autumn Cup 2026.md"
+printf -- 'Round 1 - THBT cities should ban private cars* *Private cars exclude buses.* #topic/cities\n\n==Round 2 - THR social media== #topic/media\n\n---\n**Related**\n' > "$D/Motions/Autumn Cup 2026.md"
 printf -- 'Ideas\n- THP a world without exams\n' > "$D/Motions/Motion ideas.md"
 printf -- 'THW abolish homework\n### Aff\nKids need rest\n### Neg\n' > "$D/Motions/Practice preps/Homework.md"
 cat > "$D/Schools Record.md" <<'EOF'
@@ -88,9 +88,15 @@ C "document.querySelector('.bar-tools [title^=\"Debate\"]').click(); 1" >/dev/nu
 rail() { C "[...document.querySelectorAll('.deb-rail-btn')].find(b=>b.textContent==='$1').click(); 1" >/dev/null; sleep 0.8; }
 ok "the Debate page finds the folder named Debate (Clubs/Debate)" '[[ $(C "document.querySelector(\".deb-h1\")?.textContent") == "\"The floor is yours.\"" ]]'
 rail Motions
-ok "motions are read as written: 5 from the notes, prep note matched, info slide and topic split off" '[[ $(C "(()=>{const rows=[...document.querySelectorAll(\".deb-motion-row\")].map(r=>r.innerText); return rows.length+\"|\"+rows.some(t=>t.includes(\"Prepped\")&&t.includes(\"abolish homework\"))+\"|\"+rows.some(t=>t.includes(\"transport\")&&t.includes(\"ban private cars\")&&!t.includes(\"exclude\"))})()") == "\"5|true|true\"" ]]'
+ok "motions are read as written: 5 from the notes, prep note matched, info slide split off" '[[ $(C "(()=>{const rows=[...document.querySelectorAll(\".deb-motion-row\")].map(r=>r.innerText); return rows.length+\"|\"+rows.some(t=>t.includes(\"Prepped\")&&t.includes(\"abolish homework\"))+\"|\"+rows.some(t=>t.includes(\"ban private cars\")&&!t.includes(\"exclude\"))})()") == "\"5|true|true\"" ]]'
+ok "the topic filter offers the 32 topics, counting #topic tags (Cities 1, Media 1)" '[[ $(C "(()=>{const c=[...[...document.querySelectorAll(\".deb-filter-row\")].find(r=>r.innerText.startsWith(\"Topic\")).querySelectorAll(\".deb-chip\")]; return c.length+\"|\"+c.find(b=>b.innerText.startsWith(\"Cities\")).innerText.replace(/\\s+/g,\" \")})()") == "\"33|Cities 1\"" ]]'
+C "[...document.querySelectorAll('.deb-motion-main')].find(b=>b.innerText.includes('abolish homework')&&!b.innerText.includes('Practice')).click(); 1" >/dev/null; sleep 0.4
+C "[...document.querySelectorAll('.deb-detail .deb-btn')].find(b=>b.textContent==='Edit').click(); 1" >/dev/null; sleep 0.4
+C "(()=>{const p=document.querySelector('.deb-pop'); const t=p.querySelector('textarea[aria-label=Motion]'); t.value='THW ban homework'; const i=p.querySelector('textarea[aria-label=\"Info slide\"]'); i.value='Homework means set tasks.'; [...p.querySelectorAll('.deb-chip')].find(b=>b.textContent==='Education/Academia').click(); return 1})()" >/dev/null; sleep 0.2
+C "[...document.querySelectorAll('.deb-pop .deb-btn')].find(b=>b.textContent==='Save').click(); 1" >/dev/null; sleep 2
+ok "editing a motion rewrites its line (wording, topic tag) and adds its info slide under it" 'grep -q "^THW ban homework #topic/education-academia$" "$D/Motions/Spring Open 2026.md" && grep -A1 "^THW ban homework" "$D/Motions/Spring Open 2026.md" | grep -q "^- Homework means set tasks.$"'
 C "[...document.querySelectorAll('.deb-motion-row')].find(r=>r.innerText.includes('ban private cars')).querySelector('.deb-star').click(); 1" >/dev/null; sleep 1.5
-ok "starring adds #starred to the motion's line" 'grep -q "ban private cars (transport)\* \*Private cars exclude buses.\* #starred$" "$D/Motions/Autumn Cup 2026.md"'
+ok "starring adds #starred to the motion's line" 'grep -q "ban private cars\* \*Private cars exclude buses.\* #topic/cities #starred$" "$D/Motions/Autumn Cup 2026.md"'
 C "[...document.querySelectorAll('.deb-motion-main')].find(b=>b.innerText.includes('ban private cars')).click(); 1" >/dev/null; sleep 0.5
 C "[...document.querySelectorAll('.deb-link')].find(b=>/look.* like this/.test(b.textContent)).click(); 1" >/dev/null; sleep 0.4
 C "[...document.querySelectorAll('.deb-pick')].find(b=>b.textContent.includes('ban cars')).click(); 1" >/dev/null; sleep 2

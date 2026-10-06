@@ -10,7 +10,7 @@
 //       open(path), startPrep(minutes), onChange({ page })
 
 import { h, icon, askChoice } from '../../ui.js';
-import { parseMotionNote, prepMotion, likeness, wordingDiff, setLineTag, changeMotionLine, versionName } from './motions.js';
+import { parseMotionNote, prepMotion, likeness, wordingDiff, setLineTag, changeMotionLine, versionName, editMotion, TOPICS, topicSlug } from './motions.js';
 import { readCompetition, readRound, readRecord, broke, speakerRank, isBP, placing, median, DIMENSIONS } from './records.js';
 import { COLUMNS, readCard, readTrainingPlan, readDrillLog, readDashboard } from './board.js';
 import { formsPages } from './debate-forms.js';
@@ -92,7 +92,7 @@ export class DebateView {
       if (!p.text) continue;
       const match = motions.find((m) => m.text === p.text || likeness(m.text, p.text) > 0.8);
       if (match) match.prep = p;
-      else motions.push({ id: p.path, text: p.text, info: p.info || '', topic: '', round: '', source: 'Practice preps', path: p.path, line: 0, raw: p.text, starred: false, version: null, prep: p, fromPrep: true });
+      else motions.push({ id: p.path, text: p.text, info: p.info || '', topic: p.topic || '', round: '', source: 'Practice preps', path: p.path, line: 0, raw: (prepTexts[preps.indexOf(p)] || '').split('\n')[0], starred: false, version: null, prep: p, fromPrep: true, inlineInfo: false, infoLine: p.info ? 1 : null });
     }
     this.data = {
       files,
@@ -400,11 +400,11 @@ export class DebateView {
   motionsPage() {
     const all = this.data.motions;
     const sources = ['All', ...new Set(all.map((m) => m.source))];
-    const topics = [...new Set(all.map((m) => m.topic).filter(Boolean))];
+    const topicCount = (t) => all.filter((m) => m.topic === t).length;
     const ui = this.ui;
     const q = ui.search.trim().toLowerCase();
     const list = all.filter((m) => (ui.source === 'All' || m.source === ui.source)
-      && (!ui.topic || m.topic === ui.topic)
+      && (!ui.topic || (ui.topic === 'none' ? !m.topic : m.topic === ui.topic))
       && (!ui.show.starred || m.starred)
       && (!ui.show.unprepped || !m.prep)
       && (!ui.show.run || m.run)
@@ -428,8 +428,9 @@ export class DebateView {
     const filters = h('section', { class: 'deb-filters', 'aria-label': 'Filters' },
       h('div', { class: 'deb-filter-row' }, h('span', { class: 'deb-filter-label' }, 'From'),
         sources.map((s) => this.chip(h('span', null, s, h('small', null, ` ${count(s)}`)), ui.source === s, () => { ui.source = s; this.render(); }))),
-      topics.length ? h('div', { class: 'deb-filter-row' }, h('span', { class: 'deb-filter-label' }, 'Topic'),
-        topics.map((t) => this.chip(t, ui.topic === t, () => { ui.topic = ui.topic === t ? null : t; this.render(); }, 'is-small'))) : null,
+      h('div', { class: 'deb-filter-row' }, h('span', { class: 'deb-filter-label' }, 'Topic'),
+        TOPICS.map((t) => this.chip(h('span', null, t, topicCount(t) ? h('small', null, ` ${topicCount(t)}`) : null), ui.topic === t, () => { ui.topic = ui.topic === t ? null : t; this.render(); }, `is-small${topicCount(t) ? '' : ' is-empty'}`)),
+        ui.topic === '' ? null : this.chip(h('span', null, 'No topic', h('small', null, ` ${all.filter((m) => !m.topic).length}`)), ui.topic === 'none', () => { ui.topic = ui.topic === 'none' ? null : 'none'; this.render(); }, 'is-small')),
       h('div', { class: 'deb-filter-row' }, h('span', { class: 'deb-filter-label' }, 'Show'),
         toggle('starred', 'Starred'), toggle('unprepped', 'Not prepped yet'), toggle('run', 'Run in a round'), toggle('versions', 'Has other versions')));
 
@@ -493,8 +494,11 @@ export class DebateView {
     const neg = m.prep ? side('Neg|Opp') : '';
     return h('aside', { class: 'deb-detail', 'aria-label': 'Selected motion' },
       h('div', { class: 'deb-detail-top' },
-        h('span', { class: 'deb-muted' }, [m.source, m.round, m.topic].filter(Boolean).join(' · ')),
-        m.fromPrep ? null : this.starButton(m)),
+        h('span', { class: 'deb-muted' }, [m.source, m.round].filter(Boolean).join(' · ')),
+        h('span', { class: 'deb-inline' },
+          this.button('Edit', (e) => this.editMotionPop(m, e.currentTarget), 'ghost'),
+          m.fromPrep ? null : this.starButton(m))),
+      h('div', { class: 'deb-chips' }, m.topic ? h('button', { type: 'button', class: 'deb-tag is-topic', onclick: () => { this.ui.topic = m.topic; this.render(); } }, m.topic) : h('button', { type: 'button', class: 'deb-tag is-none', onclick: (e) => this.editMotionPop(m, e.currentTarget) }, '+ Topic')),
       h('h2', { class: 'deb-detail-motion' }, m.text),
       m.info ? h('div', { class: 'deb-info' }, h('b', null, 'Info slide. '), m.info) : null,
       m.prep ? h('div', { class: 'deb-sides' },
@@ -514,6 +518,37 @@ export class DebateView {
         h('div', { class: 'deb-inline' },
           this.button('+ Link a version', (e) => this.linkPicker(m, e.currentTarget), 'dashed'),
           looksLike.length ? h('button', { type: 'button', class: 'deb-link', onclick: (e) => this.linkPicker(m, e.currentTarget, looksLike.map((x) => x.o)) }, `${looksLike.length} more look${looksLike.length === 1 ? 's' : ''} like this · check`) : null)));
+  }
+
+  // Change a motion's wording, info slide and topic, in its note.
+  editMotionPop(m, anchor) {
+    const text = h('textarea', { class: 'deb-textarea', 'aria-label': 'Motion' });
+    text.value = m.text;
+    const info = h('textarea', { class: 'deb-textarea is-short', placeholder: 'Info slide (optional)', 'aria-label': 'Info slide' });
+    info.value = m.info || '';
+    let topic = m.topic || '';
+    const chips = h('div', { class: 'deb-chips' });
+    const draw = () => chips.replaceChildren(...TOPICS.map((t) => this.chip(t, topic === t, () => { topic = topic === t ? '' : t; draw(); }, 'is-small')));
+    draw();
+    const save = () => {
+      const wording = text.value.trim().replace(/\s+/g, ' ');
+      if (!wording) return;
+      const newInfo = info.value.trim().replace(/\s*\n\s*/g, ' ');
+      this.save(async () => {
+        let note = await this.io.read(m.path);
+        if (wording !== m.text || newInfo !== (m.info || '')) note = editMotion(note, m, { text: wording, info: newInfo });
+        const lines = note.split('\n');
+        // The line may have moved by one if an info line was added above nothing; find it again.
+        const at = lines.findIndex((l, i) => i >= m.line - 1 && l.replace(/\u00a0/g, ' ').includes(wording.split(' ').slice(0, 6).join(' ')));
+        if (at !== -1) lines[at] = setLineTag(lines[at], topic ? `topic/${topicSlug(topic)}` : 'topic/x', Boolean(topic));
+        await this.io.write(m.path, lines.join('\n'));
+      });
+    };
+    this.openPop(anchor, h('div', { class: 'deb-pop-body is-edit' },
+      h('b', null, 'Edit motion'), text, info,
+      h('span', { class: 'deb-small' }, 'Topic'), chips,
+      h('div', { class: 'deb-inline' }, this.button('Save', save, 'primary'), this.button('Cancel', () => this.closePop(), 'ghost'))));
+    text.focus();
   }
 
   // Link `m` with another motion as versions of each other.
@@ -552,6 +587,10 @@ export class DebateView {
     let target = notes.find((p) => /motion ideas/i.test(p)) || notes[0];
     const text = h('textarea', { class: 'deb-textarea', placeholder: 'THW …', 'aria-label': 'Motion' });
     const info = h('textarea', { class: 'deb-textarea is-short', placeholder: 'Info slide (optional)', 'aria-label': 'Info slide' });
+    let topic = '';
+    const topics = h('div', { class: 'deb-chips' });
+    const drawTopics = () => topics.replaceChildren(...TOPICS.map((t) => this.chip(t, topic === t, () => { topic = topic === t ? '' : t; drawTopics(); }, 'is-small')));
+    drawTopics();
     const where = h('div', { class: 'deb-chips' });
     const drawWhere = () => where.replaceChildren(...notes.map((p) => this.chip(p.split('/').pop().replace(/\.md$/i, ''), p === target, () => { target = p; drawWhere(); }, 'is-small')));
     drawWhere();
@@ -563,14 +602,15 @@ export class DebateView {
         const lines = current.replace(/\s*$/, '').split('\n');
         const footer = lines.indexOf('---', lines[0] === '---' ? lines.indexOf('---', 1) + 1 : 0);
         const listy = /motion ideas/i.test(target);
-        const add = [listy ? `- ${motion}` : motion, ...(info.value.trim() ? [listy ? `\t- IS: ${info.value.trim()}` : `- ${info.value.trim()}`] : [])];
+        const tag = topic ? ` #topic/${topicSlug(topic)}` : '';
+        const add = [listy ? `- ${motion}${tag}` : `${motion}${tag}`, ...(info.value.trim() ? [listy ? `\t- IS: ${info.value.trim()}` : `- ${info.value.trim()}`] : [])];
         if (footer > 0) lines.splice(footer, 0, ...add, '');
         else lines.push('', ...add);
         await this.io.write(target, `${lines.join('\n')}\n`);
       });
     };
     this.openPop(anchor, h('div', { class: 'deb-pop-body' },
-      h('b', null, 'New motion'), text, info, h('span', { class: 'deb-small' }, 'Goes into'), where,
+      h('b', null, 'New motion'), text, info, h('span', { class: 'deb-small' }, 'Topic'), topics, h('span', { class: 'deb-small' }, 'Goes into'), where,
       h('div', { class: 'deb-inline' }, this.button('Add', add, 'primary'), this.button('Cancel', () => this.closePop(), 'ghost'))));
     text.focus();
   }

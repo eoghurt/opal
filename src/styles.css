@@ -3858,3 +3858,10 @@ button.heat-cell:hover { outline: 1.5px solid var(--ink); outline-offset: 0; }
   .deb-overview-boxes { grid-template-columns: 1fr; }
 }
 .deb-version-text del { color: var(--ink-3); text-decoration-color: var(--deb-warn); }
+/* Debate: the selected motion stays in view while the list scrolls. */
+.deb-split > .deb-detail { position: sticky; top: 12px; max-height: calc(100vh - 150px); overflow-y: auto; }
+.deb-pop-body.is-edit { width: 460px; }
+.deb-pop:has(.is-edit) { width: 500px; }
+.deb-chip.is-empty { color: var(--ink-3); }
+.deb-tag.is-topic { border: 0; cursor: pointer; background: var(--deb-tint); color: var(--deb-tint-ink); }
+.deb-tag.is-none { border: 1px dashed var(--line); background: transparent; color: var(--ink-3); cursor: pointer; }
