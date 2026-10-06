@@ -217,9 +217,14 @@ Ethan's:
 - **Debate fidget** (next to build; mockups: https://claude.ai/artifact/VATeYNgHVcDd2bGXRagRyG).
   Decided 2026-10-06:
   - Layout: B3 — a slim icon rail (Overview, Motions, Comps, Log, Board,
-    Training, Notes); its own overview page (B3 · Overview), not tiles.
+    Training, Notes); its own overview page (B3 · Overview), not tiles;
+    the motion-for-prep card is see-through dark blue.
   - Motion bank: design A (library + filters + selected motion); prep it for
     15 / 30 / 60 min (makes a note in Practice preps). No imbalanced labels.
+    Star motions (#starred on the motion's line). Link reworded versions of a
+    motion across competitions (a shared #version/<name> tag on each line);
+    the selected motion lists its other versions with changed words
+    highlighted, and Opal suggests look-alikes to link.
   - Competition tracker: both the season list and a page per competition,
     and each competition page has a tournament overview to reflect on the
     whole tournament.
