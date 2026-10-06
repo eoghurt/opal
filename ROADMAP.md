@@ -214,11 +214,18 @@ Ethan's:
 - **Money manager** — built (see above); investing still to come.
 - **Boards** — a Pinterest-style pinboard of images and notes, styled like a
   real board: tape, pins, clips, slight tilts.
-- **Debate competition tracker** — competitions, rounds, motions, sides,
-  results and speaker scores, with the forms system and feedback system
-  folded in: feedback from every round gathered by skill, so patterns show.
-
-More to think about:
+- **Debate fidget** (next to build; mockups: https://claude.ai/artifact/VATeYNgHVcDd2bGXRagRyG).
+  Decided 2026-10-06:
+  - Layout: Debate page B (a sidebar of sections), with B2–B4 being weighed.
+  - Motion bank: design A (library + filters + selected motion); prep it for
+    15 / 30 / 60 min (makes a note in Practice preps). No imbalanced labels.
+  - Competition tracker: both the season list and a page per competition,
+    and each competition page has a tournament overview to reflect on the
+    whole tournament.
+  - Opal hosts the two feedback forms (no Microsoft Forms / Excel / script);
+    rounds are saved by Round ID (COMP-R#) and link to motions and cards.
+  - The Schools Record table becomes one note per competition
+    (Debate/Competitions/), properties for the details.
 - **Exam planner** — WACE exam countdown, each subject's syllabus dot points
   ticked off as revised, linked to flashcards and practice tests.
 - **Practice test log** — scores per subject and topic over time, marks lost
