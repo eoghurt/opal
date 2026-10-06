@@ -375,6 +375,10 @@ export class DebateView {
     const date = now.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
     return h('div', { class: 'deb-page' },
       this.head(`Debate · ${date}`, 'The floor is yours.', this.button('+ Log a round', () => this.go('log', { tab: 1 }), 'primary')),
+      // Before the competition notes exist, the record tables are the way in.
+      !comps.length && this.data.schoolsPath ? h('section', { class: 'deb-notice' },
+        h('span', null, h('b', null, 'Bring in your competition history. '), 'Opal makes one note per competition from your Schools Record and Adjudication Record (the tables stay as they are). Then the timeline, speaker ranks and records fill in.'),
+        this.button('Make the notes', () => this.importCompetitions(), 'primary')) : null,
       timeline,
       h('div', { class: 'deb-row' }, motionCard, chain),
       h('div', { class: 'deb-grid3' }, waitingCard, ladderCard, lastCard));
