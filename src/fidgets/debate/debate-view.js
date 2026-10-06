@@ -7,7 +7,8 @@
 //   new DebateView(container, { page, io })
 //   io: folder, files() → [{ path, name }], read(path), write(path, text),
 //       create(folder, name, text) → path, move(path, folder) → path,
-//       open(path), startPrep(minutes), onChange({ page })
+//       open(path), reveal(path), copy(text), trash(path), startPrep(minutes),
+//       onChange({ page })
 
 import { h, icon, askChoice } from '../../ui.js';
 import { parseMotionNote, prepMotion, likeness, wordingDiff, setLineTag, changeMotionLine, versionName, editMotion, TOPICS, topicSlug, topicLook, setLineTopics, MAX_TOPICS } from './motions.js';
@@ -15,6 +16,7 @@ import { readCompetition, readRound, readRecord, broke, speakerRank, isBP, placi
 import { COLUMNS, readCard, readTrainingPlan, readDrillLog, readDashboard } from './board.js';
 import { formsPages } from './debate-forms.js';
 import { morePages } from './debate-more.js';
+import { menuPages } from './debate-menus.js';
 
 const RAIL = [
   ['overview', 'Overview', 'fidget'],
@@ -387,12 +389,12 @@ export class DebateView {
   ticket(r) {
     const p = placing(r.result);
     const good = /^win$/i.test(r.result) || (p && p <= 2);
-    return h('button', { type: 'button', class: 'deb-ticket', onclick: () => this.go('log', { tab: r.form2 ? 1 : 2, path: r.path }) },
+    return this.withMenu(h('button', { type: 'button', class: 'deb-ticket', onclick: () => this.go('log', { tab: r.form2 ? 1 : 2, path: r.path }) },
       h('span', { class: `deb-ticket-stripe${good ? ' is-good' : ''}` }),
       h('span', { class: 'deb-ticket-text' },
         h('span', { class: 'deb-mono' }, `${r.round_id}${r.position ? ` · ${r.position}` : ''}`),
         h('small', null, r.motion || '')),
-      h('span', { class: `deb-ticket-result${good ? ' is-good' : ''}` }, p ? `${p}${['st', 'nd', 'rd', 'th'][p - 1]}` : (r.result || '').slice(0, 1).toUpperCase()));
+      h('span', { class: `deb-ticket-result${good ? ' is-good' : ''}` }, p ? `${p}${['st', 'nd', 'rd', 'th'][p - 1]}` : (r.result || '').slice(0, 1).toUpperCase())), () => this.roundMenu(r));
   }
 
   // ---------- Motions ----------
@@ -447,7 +449,7 @@ export class DebateView {
 
     const rows = list.map((m) => {
       const versions = this.versionsOf(m).length;
-      return h('div', { class: `deb-motion-row${selected && m.id === selected.id ? ' is-on' : ''}` },
+      return this.withMenu(h('div', { class: `deb-motion-row${selected && m.id === selected.id ? ' is-on' : ''}` },
         h('button', { type: 'button', class: 'deb-motion-main', onclick: () => { this.state.id = m.id; this.render(); } },
           h('span', { class: 'deb-motion-meta' },
             [m.source, m.round].filter(Boolean).join(' · '),
@@ -456,7 +458,7 @@ export class DebateView {
             m.run ? h('span', { class: 'deb-badge is-blue' }, 'Run in a round') : null,
             versions ? h('span', { class: 'deb-badge' }, `${versions + 1} versions`) : null),
           h('span', { class: 'deb-motion-text' }, m.text)),
-        m.fromPrep ? null : this.starButton(m));
+        m.fromPrep ? null : this.starButton(m)), (el) => this.motionMenu(m, el));
     });
 
     return h('div', { class: 'deb-page' },
@@ -723,6 +725,6 @@ export class DebateView {
 }
 
 // The other pages live in their own files.
-Object.assign(DebateView.prototype, formsPages, morePages);
+Object.assign(DebateView.prototype, formsPages, morePages, menuPages);
 
 export { DIMENSIONS, askChoice };

@@ -4,7 +4,7 @@ T=$(date +%Y-%m-%d)
 f="$V/Calendar/$T.md"; [ -f "$f" ] || printf -- "# $T\n\n" > "$f"
 printf -- "- 10:00–11:00 Lab report\n- 21:00–22:30 Late call\n" >> "$f"
 printf -- '- [ ] Read chapter 4 📅 %s ⏰ 14:00–15:00\n' $T >> "$V/Tasks/My Tasks.md"; sleep 2
-clickText .bar-link Calendar 1.5; C "document.querySelector('.cal-today')?.click(); 1" >/dev/null; sleep 0.8; clickText .cal-seg Week
+fidget Calendar; C "document.querySelector('.cal-today')?.click(); 1" >/dev/null; sleep 0.8; clickText .cal-seg Week
 # A helper in the window: swipe sideways (or up/down) by a number of days (weeks in Month), then wait for it to settle.
 C "window.__swipe=async(units,axis='x')=>{const win=document.querySelector('.cal-mscroll')||document.querySelector('.cal-daytrack').parentElement; const unit=axis==='x'?win.clientWidth/7:win.clientHeight/6; const main=document.querySelector('.cal-main'); const steps=12; let mid=null; for(let i=0;i<steps;i++){ main.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaX:axis==='x'?units*unit/steps:0,deltaY:axis==='y'?units*unit/steps:0})); await new Promise(r=>setTimeout(r,16)); if(i===6) mid=(document.querySelector('.cal-track')||{}).style?.transform; } await new Promise(r=>setTimeout(r,700)); return mid; }; 1" >/dev/null
 first() { C "document.querySelector('.cal-h1').textContent" | tr -d '"'; }

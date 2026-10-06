@@ -1,6 +1,5 @@
 // Widgets: small things that live inside a page and do one simple job —
-// a heatmap in a note, a table, the clock on the home page, the timer in the
-// top bar. Each one sits in its own folder here.
+// a heatmap in a note, a table, the clock on the home page, the timer. Each one sits in its own folder here.
 //
 // (Their opposite are fidgets — see ../fidgets/index.js — which are whole
 // pages of their own, like the calendar.)
@@ -48,7 +47,7 @@ export const WIDGETS = [
     name: 'Timer',
     icon: 'timer',
     what: 'A countdown for prep, or Pomodoro focus and breaks; each session goes in the home page’s numbers.',
-    where: 'In the top bar (and as a home page widget).',
+    where: 'On the home page (the Timer widget); Start prep in Debate runs it too.',
     files: ['widgets/timer/timer.js'],
     settings: 'timer',
   },

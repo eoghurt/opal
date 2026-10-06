@@ -11,6 +11,7 @@
 //       writeBudget(text), onChange({ month, tab })
 
 import { h, askChoice } from '../../ui.js';
+import { showMenu } from '../../context-menu.js';
 import { slotFor } from '../../palettes.js';
 import { parseLedger, parseBudget, formatBudget, appendTransaction, replaceTransaction, formatAmount } from './ledger.js';
 import { MoneyModel, monthOf, shiftMonth, shortName, budgetHints } from './model.js';
@@ -94,6 +95,80 @@ export class MoneyView {
     Object.assign(this, patch);
     this.io.onChange({ month: this.monthKey, tab: this.tab });
     this.render();
+  }
+
+  // Right-click or double-click → a menu of things to do with it.
+  withMenu(el, build) {
+    const open = (e) => {
+      if (e.target.closest('input, textarea, select')) return;
+      this.closePop();
+      showMenu(e, build(el));
+    };
+    el.addEventListener('contextmenu', open);
+    el.addEventListener('dblclick', open);
+    return el;
+  }
+
+  fileItems(which) {
+    const path = which === 'budget' ? this.settings.budgetFile : this.settings.ledgerFile;
+    const name = path.split('/').pop();
+    return [
+      this.io.reveal ? { label: `Show ${name} in Finder`, onSelect: () => this.io.reveal(path) } : null,
+      this.io.copy ? { label: 'Copy its vault path', onSelect: () => this.io.copy(path) } : null,
+    ];
+  }
+
+  entryMenu(tx, el) {
+    return {
+      title: `${tx.payee || 'Entry'} · ${tx.date}`,
+      items: [
+        { label: 'Edit…', onSelect: () => this.openAdd(el, { edit: tx }) },
+        { label: 'Duplicate as today', onSelect: () => this.addEntry({ date: today(), payee: tx.payee, postings: tx.postings.map((p, i) => ({ account: p.account, amount: i === tx.postings.length - 1 && p.implied ? null : p.amount })) }) },
+        this.io.copy ? { label: 'Copy the entry', hint: 'as Ledger text', onSelect: () => this.io.copy(tx.raw) } : null,
+        'separator',
+        ...this.fileItems('transactions'),
+        'separator',
+        { label: 'Delete', danger: true, onSelect: () => this.deleteEntry(tx) },
+      ],
+    };
+  }
+
+  budgetMenu(b) {
+    const inBudget = this.budgetData.limits[b.account] != null;
+    return {
+      title: b.name,
+      items: [
+        { label: 'Move money from here…', onSelect: () => this.moveForm && this.moveForm.prefill(b.account) },
+        { label: 'Move money here…', onSelect: () => this.moveForm && this.moveForm.prefill(null, b.account) },
+        { label: b.rollover ? 'Stop carrying leftovers over' : 'Carry leftovers into next month', onSelect: () => this.changeBudget((budget) => {
+          if (budget.rollover[b.account]) delete budget.rollover[b.account];
+          else budget.rollover[b.account] = this.monthKey;
+        }) },
+        { label: `See ${b.name} entries`, onSelect: () => this.go({ tab: 'history' }) },
+        'separator',
+        ...this.fileItems('budget'),
+        inBudget ? 'separator' : null,
+        inBudget ? { label: 'Take out of the budget', hint: 'its spending stays', danger: true, onSelect: () => this.changeBudget((budget) => { delete budget.limits[b.account]; }) } : null,
+      ],
+    };
+  }
+
+  goalMenu(g, el) {
+    const input = () => el.querySelector('input');
+    return {
+      title: g.name,
+      items: [
+        { label: 'Put money in…', onSelect: () => input() && input().focus() },
+        { label: 'Take money out…', onSelect: () => input() && input().focus() },
+        'separator',
+        ...this.fileItems('budget'),
+        'separator',
+        { label: 'Remove the goal', hint: 'its money stays', danger: true, onSelect: async () => {
+          const ok = await askChoice(`Remove the goal “${g.name}”? Its money and entries stay.`, [{ label: 'Remove goal', value: 'yes' }]);
+          if (ok) this.changeBudget((budget) => { budget.goals = budget.goals.filter((x) => x.account !== g.account); });
+        } },
+      ],
+    };
   }
 
   // ---------- Writing ----------
@@ -220,10 +295,10 @@ export class MoneyView {
 
   budgetBar(b) {
     const over = b.left < 0;
-    return h('div', { class: 'money-budget-row' },
+    return this.withMenu(h('div', { class: 'money-budget-row' },
       h('span', { class: 'money-cat' }, this.dot(this.colorOf(b.name)), b.name),
       b.available > 0 ? this.bar(b.spent / b.available, this.colorOf(b.name), over) : h('span', { class: 'money-muted' }, 'no budget'),
-      h('span', { class: 'money-num' }, this.money(b.spent), b.available > 0 ? h('span', { class: 'money-muted' }, ` / ${this.money(b.available)}`) : null));
+      h('span', { class: 'money-num' }, this.money(b.spent), b.available > 0 ? h('span', { class: 'money-muted' }, ` / ${this.money(b.available)}`) : null)), () => this.budgetMenu(b));
   }
 
   tightNotes(m) {
@@ -243,9 +318,9 @@ export class MoneyView {
       h('span', { class: 'money-num money-entry-amount' }, shown),
       short ? null : h('button', { class: 'money-x', 'aria-label': `Delete ${tx.payee}`, title: 'Delete', onclick: (e) => { e.stopPropagation(); this.deleteEntry(tx); } }, '×'));
     const edit = () => this.openAdd(row, { edit: tx });
-    row.addEventListener('click', edit);
+    row.addEventListener('click', (e) => { if (e.detail <= 1) edit(); });
     row.addEventListener('keydown', (e) => { if (e.key === 'Enter') edit(); });
-    return row;
+    return this.withMenu(row, () => this.entryMenu(tx, row));
   }
 
   async deleteEntry(tx) {
@@ -361,7 +436,7 @@ export class MoneyView {
           else budget.rollover[b.account] = this.monthKey;
         }),
       }, h('span', { class: 'set-toggle-knob' }));
-      return h('div', { class: 'money-brow' },
+      return this.withMenu(h('div', { class: 'money-brow' },
         h('span', { class: 'money-cat' }, this.dot(this.colorOf(b.name)), b.name),
         h('label', { class: 'money-brow-amount' }, h('span', { class: 'money-muted' }, `${this.currency}`), amount, h('span', { class: 'money-muted' }, '/ month')),
         h('div', { class: 'money-brow-bar' },
@@ -378,7 +453,7 @@ export class MoneyView {
           'aria-label': `Take ${b.name} out of the budget`,
           title: 'Take out of the budget (its spending stays)',
           onclick: () => this.changeBudget((budget) => { delete budget.limits[b.account]; }),
-        }, '×') : h('span'));
+        }, '×') : h('span')), () => this.budgetMenu(b));
     });
 
     // Add a category: a suggestion, or + New. Its amount is set in its row.
@@ -469,11 +544,11 @@ export class MoneyView {
         const ok = await askChoice(`Remove the goal “${g.name}”? Its money and entries stay.`, [{ label: 'Remove goal', value: 'yes' }]);
         if (ok) this.changeBudget((budget) => { budget.goals = budget.goals.filter((x) => x.account !== g.account); });
       } }, '×');
-      return h('section', { class: 'money-card money-goal-card' },
+      return this.withMenu(h('section', { class: 'money-card money-goal-card' },
         h('div', { class: 'money-card-head' }, h('h2', null, g.name), remove),
         this.goalRow(g),
         g.by && g.have < g.target ? h('p', { class: 'money-muted money-small' }, this.perMonth(g)) : null,
-        form);
+        form), (el) => this.goalMenu(g, el));
     });
     const name = h('input', { class: 'money-input', placeholder: 'What for, e.g. Climbing shoes', 'aria-label': 'Goal name' });
     const target = h('input', { class: 'money-input money-amount', type: 'number', min: '1', placeholder: '0', 'aria-label': 'Target amount' });

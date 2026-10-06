@@ -2,7 +2,7 @@
 C --key Escape >/dev/null
 T=$(date +%Y-%m-%d); MON=$(date +%Y-%m); NEXT=$(date -v+1m +%Y-%m)
 L="$V/transactions.ledger"; B="$V/budget.ledger"
-C "document.querySelector('.bar-tools [title^=\"Money\"]').click(); 1" >/dev/null; sleep 1.2
+fidget Money
 tab() { C "[...document.querySelectorAll('.money-tab')].find(b=>b.textContent==='$1').click(); 1" >/dev/null; sleep 0.6; }
 # Budget: add three categories
 tab Budget
@@ -60,3 +60,9 @@ ok "transactions.ledger shows in the sidebar" '[[ $(C "[...document.querySelecto
 printf -- '\n2026-01-15 * Old savings\n  * Assets:Savings:Climbing shoes    $30.00\n  * Assets:Everyday\n' >> "$L"; sleep 2
 tab Saving
 ok "entries written elsewhere (with ✓ marks) are read too: the goal now has \$80" '[[ $(C "document.querySelector(\".money-goal-card .money-num\").textContent") == "\"\$80 of \$220\"" ]]'
+# Menus
+C "[...document.querySelectorAll('.money-tab')].find(b=>b.textContent==='History').click(); 1" >/dev/null; sleep 0.6
+C "(()=>{const r=[...document.querySelectorAll('.money-entry')].find(r=>r.innerText.includes('Woolworths')); r.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300})); return 1})()" >/dev/null; sleep 0.4
+ok "right-clicking an entry offers edit, duplicate, Finder and delete" '[[ $(C "[...document.querySelectorAll(\".ctx-item\")].map(b=>b.textContent).join(\"|\")") == *"Edit…"*"Duplicate as today"*"Show transactions.ledger in Finder"*"Delete"* ]]'
+C "[...document.querySelectorAll('.ctx-item')].find(b=>b.textContent.startsWith('Duplicate')).click(); 1" >/dev/null; sleep 1.5
+ok "…Duplicate adds the same entry again" '[[ $(grep -c "Woolworths" "$L") == 2 ]]'

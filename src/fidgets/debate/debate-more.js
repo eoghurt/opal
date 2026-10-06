@@ -27,10 +27,10 @@ export const morePages = {
       const inCol = cards.filter((k) => k.column === col.folder);
       return h('section', { class: 'deb-column', 'aria-label': col.name },
         h('div', { class: 'deb-column-head' }, h('h2', null, `${col.folder.slice(0, 1)} ${col.name}`), h('span', { class: `deb-mono${col.cap && inCol.length >= col.cap ? ' is-warn' : ''}` }, col.cap ? `${inCol.length} / ${col.cap}` : String(inCol.length))),
-        inCol.length ? inCol.map((k) => h('button', { type: 'button', class: `deb-board-card${open && k.path === open.path ? ' is-on' : ''}`, onclick: () => { this.state.path = k.path; this.render(); } },
+        inCol.length ? inCol.map((k) => this.withMenu(h('button', { type: 'button', class: `deb-board-card${open && k.path === open.path ? ' is-on' : ''}`, onclick: () => { this.state.path = k.path; this.render(); } },
           h('span', { class: `deb-tag ${DIM_COLORS[clusterOf(k.dimension)]}` }, clusterOf(k.dimension)),
           h('b', null, k.title),
-          h('small', null, k.column === '2 In Progress' ? `trial ${k.trial.filter((t) => t.result).length} of ${k.trial.length || 3}` : k.rounds.join(', ')))) : h('p', { class: 'deb-empty is-small' }, '—'));
+          h('small', null, k.column === '2 In Progress' ? `trial ${k.trial.filter((t) => t.result).length} of ${k.trial.length || 3}` : k.rounds.join(', '))), () => this.cardMenu(k))) : h('p', { class: 'deb-empty is-small' }, '—'));
     });
     const reviewDue = (() => {
       const parked = cards.filter((k) => k.column === '3 Parked' && k.opened);
@@ -50,18 +50,7 @@ export const morePages = {
 
   cardDetail(k) {
     const write = (change) => this.save(async () => this.io.write(k.path, change(await this.io.read(k.path))));
-    const moveTo = async (col) => {
-      if (col.cap && this.data.cards.filter((c) => c.column === col.folder).length >= col.cap) {
-        alert(`${col.folder} already has ${col.cap} cards. Running 3 fixes at once means you can't tell which one moved the result — finish or park one first.`);
-        return;
-      }
-      await this.save(async () => {
-        const text = setStatus(await this.io.read(k.path), col.status, todayKey());
-        await this.io.write(k.path, text);
-        const path = await this.io.move(k.path, `${this.io.folder}/Feedback/${col.folder}`);
-        this.state.path = path;
-      });
-    };
+    const moveTo = (col) => this.moveCard(k, col);
     const levels = ['Mini', 'Micro', 'Macro'];
     return h('article', { class: 'deb-detail is-card', 'aria-label': k.title },
       h('div', { class: 'deb-detail-top' },
@@ -88,6 +77,20 @@ export const morePages = {
         h('span', { class: 'deb-small' }, 'Move to'),
         COLUMNS.filter((c) => c.folder !== k.column).map((c) => this.button(c.name, () => moveTo(c), 'ghost')),
         this.button('Open the note', () => this.io.open(k.path), 'ghost')));
+  },
+
+  // Moves a card to another column (its note moves folder; the cap holds).
+  async moveCard(k, col) {
+    if (col.cap && this.data.cards.filter((c) => c.column === col.folder).length >= col.cap) {
+      alert(`${col.folder} already has ${col.cap} cards. Running 3 fixes at once means you can't tell which one moved the result — finish or park one first.`);
+      return;
+    }
+    await this.save(async () => {
+      const text = setStatus(await this.io.read(k.path), col.status, todayKey());
+      await this.io.write(k.path, text);
+      const path = await this.io.move(k.path, `${this.io.folder}/Feedback/${col.folder}`);
+      this.state.path = path;
+    });
   },
 
   // ---------- Training ----------
@@ -136,7 +139,12 @@ export const morePages = {
     const drills = this.card('Drill bank', lean.length ? h('span', { class: 'deb-muted' }, `Phase ${phase.n} leans on ${lean.join(', ')}`) : null,
       plan.drills.map((d) => {
         const matches = fixWords && `${d.fixes} ${d.name}`.toLowerCase().includes(fixWords === 'flowing' ? 'round vision' : fixWords);
-        return h('div', { class: `deb-drill${matches ? ' is-match' : ''}` },
+        const log = () => this.save(async () => {
+          const path = this.data.logPath;
+          if (path) await this.io.write(path, addDrillLog(await this.io.read(path), todayKey(), d));
+          else await this.io.create(`${this.io.folder}/Training`, 'Drill log', addDrillLog('', todayKey(), d));
+        }).then(() => this.flash(`Logged · ${d.name}`));
+        return this.withMenu(h('div', { class: `deb-drill${matches ? ' is-match' : ''}` },
           h('span', { class: 'deb-mono deb-muted' }, String(d.n).padStart(2, '0')),
           h('span', { class: 'deb-drill-name' },
             h('b', null, d.name, lean.includes(d.n) ? h('span', { class: 'deb-badge is-purple' }, `phase ${phase.n}`) : null, matches ? h('span', { class: 'deb-badge is-amber' }, 'matches your fix') : null),
@@ -144,11 +152,7 @@ export const morePages = {
           h('span', { class: 'deb-small deb-right' }, d.fixes),
           h('span', { class: 'deb-mono deb-muted deb-right' }, d.time),
           h('span', { class: 'deb-mono deb-muted deb-right' }, counts[d.n] ? `${counts[d.n]}×` : ''),
-          this.button('Log', () => this.save(async () => {
-            const path = this.data.logPath;
-            if (path) await this.io.write(path, addDrillLog(await this.io.read(path), todayKey(), d));
-            else await this.io.create(`${this.io.folder}/Training`, 'Drill log', addDrillLog('', todayKey(), d));
-          }).then(() => this.flash(`Logged · ${d.name}`)), 'ghost'));
+          this.button('Log', log, 'ghost')), () => this.drillMenu(d, log));
       }));
 
     let areaNow = -1;
@@ -212,10 +216,10 @@ export const morePages = {
     const tile = (f) => {
       const [label, cls] = kind(f.name);
       const sub = this.rel(f.path).split('/').slice(1, -1).join(' / ');
-      return h('button', { type: 'button', class: 'deb-note', onclick: () => this.io.open(f.path) },
+      return this.withMenu(h('button', { type: 'button', class: 'deb-note', onclick: () => this.io.open(f.path) },
         h('span', { class: `deb-tag ${cls}` }, label),
         h('b', null, f.name.replace(/\.[^.]+$/, '')),
-        sub ? h('small', null, sub) : null);
+        sub ? h('small', null, sub) : null), () => this.noteMenu(f));
     };
     const order = ['In Debate', 'Notes', 'Matter Files', 'Speeches'];
     const names = [...shelves.keys()].sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99) || a.localeCompare(b));

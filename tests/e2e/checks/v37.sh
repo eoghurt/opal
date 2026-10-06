@@ -1,7 +1,7 @@
 # ---- Calendar: Untitled previews, connected multi-day events, drag to make and stretch them ----
 C --key Escape >/dev/null
 f="$V/Calendar/2026-10-02.md"; [ -f "$f" ] || printf -- "# 2026-10-02\n\n" > "$f"; printf -- "- all day School camp → 2026-10-06\n" >> "$f"; sleep 2
-C "[...document.querySelectorAll('.bar-link')].find(b=>b.textContent==='Calendar').click(); 1" >/dev/null; sleep 1.5
+fidget Calendar
 C "(()=>{ window.__go=(d,m)=>1; return 1 })()" >/dev/null
 C "document.querySelector('.cal-today')?.click(); [...document.querySelectorAll('.cal-seg')].find(b=>b.textContent==='Month').click(); 1" >/dev/null; sleep 1.3
 ok "month view: a multi-day event is one bar per week, not a piece per day" '[[ $(C "[...document.querySelectorAll(\".cal-mbar\")].filter(b=>b.textContent.includes(\"School camp\")).length + \"|\" + [...document.querySelectorAll(\".cal-mcell .cal-chip\")].filter(b=>b.textContent.includes(\"School camp\")).length") == "\"2|0\"" ]]'

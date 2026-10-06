@@ -84,7 +84,7 @@ Milestone. A clean 7-minute speech.
 Phase 1 leans on 9.
 EOF
 sleep 2.5
-C "document.querySelector('.bar-tools [title^=\"Debate\"]').click(); 1" >/dev/null; sleep 1.5
+fidget Debate
 rail() { C "[...document.querySelectorAll('.deb-rail-btn')].find(b=>b.textContent==='$1').click(); 1" >/dev/null; sleep 0.8; }
 ok "the Debate page finds the folder named Debate (Clubs/Debate)" '[[ $(C "document.querySelector(\".deb-h1\")?.textContent") == "\"The floor is yours.\"" ]]'
 rail Motions
@@ -147,3 +147,20 @@ ok "logging a drill writes Training/Drill log.md" 'grep -q " · 9 Flow reconstru
 rail Overview
 ok "the overview shows the gating chain from Form 2 and the fix trial waiting" '[[ $(C "document.querySelector(\".deb-chain-box.is-weak\")?.innerText.split(\"\\n\")[0]") == "\"Flowing and tracking\"" && $(C "[...document.querySelectorAll(\".deb-wait\")].some(w=>w.innerText.startsWith(\"Fix trial +2\"))") == "true" ]]'
 ok "no errors" '[[ $(C "JSON.stringify(window.__errs||[])") == "\"[]\"" ]]'
+# Menus (right-click / double-click)
+ctx() { C "(()=>{const el=$1; el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300})); return 1})()" >/dev/null; sleep 0.4; }
+pickItem() { C "[...document.querySelectorAll('.ctx-item')].find(b=>b.textContent.startsWith('$1')).click(); 1" >/dev/null; sleep 0.5; }
+C "[...document.querySelectorAll('.deb-rail-btn')].find(b=>b.textContent==='Motions').click(); 1" >/dev/null; sleep 0.8
+ctx "[...document.querySelectorAll('.deb-motion-row')].find(r=>r.innerText.includes('world without exams'))"
+ok "right-clicking a motion offers edit, topics, prep, Finder and delete" '[[ $(C "[...document.querySelectorAll(\".ctx-item\")].map(b=>b.textContent).join(\"|\")") == *"Edit…"*"Topics…"*"Prep · 30 min"*"Show in Finder"*"Delete the motion"* ]]'
+pickItem "Delete the motion"; C "[...document.querySelectorAll('.ask-choice')].find(b=>b.textContent==='Delete').click(); 1" >/dev/null; sleep 2
+ok "…Delete takes its line out of the note" '! grep -q "world without exams" "$D/Motions/Motion ideas.md" && grep -q "^Ideas$" "$D/Motions/Motion ideas.md"'
+C "[...document.querySelectorAll('.deb-rail-btn')].find(b=>b.textContent==='Comps').click(); 1" >/dev/null; sleep 0.8
+ctx "[...document.querySelectorAll('.deb-comp-row')].find(r=>r.innerText.startsWith('Spring Open'))"
+ok "right-clicking a competition offers log a round, open the note, Finder and delete" '[[ $(C "[...document.querySelectorAll(\".ctx-item\")].map(b=>b.textContent).join(\"|\")") == *"Log a round here"*"Open the note"*"Show in Finder"*"Delete the competition"* ]]'
+C --key Escape >/dev/null
+C "[...document.querySelectorAll('.deb-comp-row')].find(r=>r.innerText.startsWith('Spring Open')).click(); 1" >/dev/null; sleep 0.8
+ctx "document.querySelector('.deb-round-row:not(.is-head)')"
+pickItem "Delete the round"; C "[...document.querySelectorAll('.ask-choice')].find(b=>b.textContent==='Delete').click(); 1" >/dev/null; sleep 2
+ok "…a round's menu deletes its note (to the Trash)" '[ ! -f "$D/Rounds/SO26-R2.md" ]'
+ok "the top bar keeps only Search and Settings" '[[ $(C "[...document.querySelectorAll(\".bar-tools > *\")].map(b=>b.getAttribute(\"aria-label\")||b.title).join(\",\")") == "\"Search,Settings\"" ]]'

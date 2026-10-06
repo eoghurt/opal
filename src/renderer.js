@@ -1813,6 +1813,12 @@ function showDebate() {
           return next;
         },
         open: (path) => openFile(path),
+        reveal: (path) => window.opal.revealInFinder(path),
+        copy: (text) => window.opal.copyText(text),
+        trash: async (path) => {
+          await (/\.md$/i.test(path) ? window.opal.trashNote(path) : window.opal.trashFile(path));
+          await reloadTree();
+        },
         startPrep: (minutes) => prepTimer.start(minutes),
         // The page reports { page: { page, path, … } }.
         onChange: (state) => {
@@ -1856,6 +1862,8 @@ function showMoney() {
       tab: moneyState.tab,
       io: {
         read: () => window.opal.readLedger(),
+        reveal: (path) => window.opal.revealInFinder(path),
+        copy: (text) => window.opal.copyText(text),
         writeTransactions: async (text) => {
           await window.opal.writeLedger('transactions', text);
           await reloadTree();

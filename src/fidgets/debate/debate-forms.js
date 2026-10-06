@@ -52,19 +52,19 @@ export const formsPages = {
         const bar = !r ? h('span', { class: 'deb-bar' })
           : r.bp ? h('span', { class: 'deb-bar is-split' }, [1, 2, 3, 4].map((p) => h('span', { class: `deb-bar-part is-p${p}`, style: `flex: ${r.places.filter((x) => x === p).length}` })))
             : h('span', { class: 'deb-bar' }, h('span', { class: `deb-bar-fill${r.won / r.of >= 0.6 ? ' is-good' : ' is-mid'}`, style: `width: ${Math.round((r.won / r.of) * 100)}%` }));
-        return h('button', { type: 'button', class: 'deb-comp-row', onclick: () => this.go('comp', { path: c.path }) },
+        return this.withMenu(h('button', { type: 'button', class: 'deb-comp-row', onclick: () => this.go('comp', { path: c.path }) },
           h('span', { class: 'deb-comp-name' }, h('b', null, c.name), h('small', null, [c.format, c.notes].filter(Boolean).join(' · '))),
           h('span', null, c.year),
           h('span', { class: 'deb-ellipsis' }, c.team),
           h('span', { class: 'deb-comp-record' }, bar, h('span', { class: 'deb-mono' }, !r ? '' : r.bp ? `avg ${r.avg.toFixed(1)}` : `${r.won}/${r.of}`)),
           h('span', { class: broke(c.placing) ? 'deb-strong' : 'deb-muted' }, c.placing),
-          h('span', { class: 'deb-mono deb-right' }, c.speaks));
+          h('span', { class: 'deb-mono deb-right' }, c.speaks)), () => this.compMenu(c));
       })
-      : judging.slice().sort((a, b) => Number(b.year) - Number(a.year)).map((c) => h('button', { type: 'button', class: 'deb-comp-row is-judge', onclick: () => this.go('comp', { path: c.path }) },
+      : judging.slice().sort((a, b) => Number(b.year) - Number(a.year)).map((c) => this.withMenu(h('button', { type: 'button', class: 'deb-comp-row is-judge', onclick: () => this.go('comp', { path: c.path }) },
         h('span', { class: 'deb-comp-name' }, h('b', null, c.name), h('small', null, c.notes)),
         h('span', null, c.year),
         h('span', { class: 'deb-mono' }, c.rooms ? `${c.rooms} rooms` : ''),
-        h('span', { class: 'deb-muted' }, c.teams ? `${c.teams} teams` : '')));
+        h('span', { class: 'deb-muted' }, c.teams ? `${c.teams} teams` : '')), () => this.compMenu(c)));
 
     return h('div', { class: 'deb-page' },
       this.head(tab === 'speaking' ? `${comps.length} competitions` : `${judging.reduce((s, c) => s + c.rooms, 0)} rooms judged`, 'Competitions.',
@@ -182,14 +182,14 @@ export const formsPages = {
           return h('label', { class: 'deb-field' }, h('span', null, prompt), box);
         }))));
 
-    const roundRows = rounds.map((x) => h('div', { class: 'deb-round-row' },
+    const roundRows = rounds.map((x) => this.withMenu(h('div', { class: 'deb-round-row' },
       h('span', { class: 'deb-mono' }, x.round_id),
       h('span', { class: 'deb-round-motion' }, h('span', null, x.motion || ''), h('small', null, x.position || '')),
       h('span', { class: `deb-result${/^win$/i.test(x.result) || (placing(x.result) && placing(x.result) <= 2) ? ' is-good' : ''}` }, x.result),
       h('span', { class: 'deb-mono deb-muted deb-right' }, x.speaks),
       h('span', { class: 'deb-forms' },
         h('button', { type: 'button', class: 'deb-form-mark is-done', title: 'Form 1', onclick: () => this.go('log', { tab: 1, path: x.path }) }, '1'),
-        h('button', { type: 'button', class: `deb-form-mark${x.form2 ? ' is-done' : ' is-due'}`, title: x.form2 ? 'Form 2' : 'Form 2 still to do', onclick: () => this.go('log', { tab: 2, path: x.path }) }, '2'))));
+        h('button', { type: 'button', class: `deb-form-mark${x.form2 ? ' is-done' : ' is-due'}`, title: x.form2 ? 'Form 2' : 'Form 2 still to do', onclick: () => this.go('log', { tab: 2, path: x.path }) }, '2'))), () => this.roundMenu(x)));
 
     const scored = rounds.filter((x) => Object.keys(x.scores).length);
     const dims = DIMENSIONS.flatMap(([, ds]) => ds).map((d) => ({ d, m: median(scored.map((x) => x.scores[d])) })).filter((x) => x.m != null);

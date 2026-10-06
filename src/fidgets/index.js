@@ -16,7 +16,7 @@ export const FIDGETS = [
     name: 'Calendar',
     icon: 'calendar',
     what: 'Day, week and month views of your events and tasks; repeats, reminders and colours.',
-    where: 'The calendar button in the top bar (⌘⇧D). Events are kept in Calendar/ day notes.',
+    where: 'Its tile on the home page, or ⌘⇧D. Events are kept in Calendar/ day notes.',
     files: ['fidgets/calendar/calendar-view.js', 'fidgets/calendar/events.js', 'fidgets/calendar/repeat.js', 'fidgets/calendar/repeat-picker.js', 'fidgets/calendar/reminders.js'],
   },
   {
@@ -26,7 +26,7 @@ export const FIDGETS = [
     name: 'Money',
     icon: 'money',
     what: 'A month at a glance: net worth, spending against your budget, saving goals and income. Move budget between categories.',
-    where: 'The wallet button in the top bar (⌘⇧M). Kept in transactions.ledger and budget.ledger, the Obsidian Ledger plugin’s format.',
+    where: 'Its tile on the home page, or ⌘⇧M. Kept in transactions.ledger and budget.ledger, the Obsidian Ledger plugin’s format.',
     files: ['fidgets/money/money-view.js', 'fidgets/money/model.js', 'fidgets/money/ledger.js'],
   },
   {
@@ -36,7 +36,7 @@ export const FIDGETS = [
     page: true, // a page of its own: a tile on the home page
     short: 'Motions, rounds, feedback',
     what: 'Your debate folder in one place: a motion bank to prep from, competitions and rounds, the two feedback forms, the fix board, training and notes.',
-    where: 'The podium button in the top bar (⌘⇧B). Reads and writes the notes in your Debate folder.',
+    where: 'Its tile on the home page, or ⌘⇧B. Reads and writes the notes in your Debate folder.',
     files: ['fidgets/debate/debate-view.js', 'fidgets/debate/debate-forms.js', 'fidgets/debate/debate-more.js', 'fidgets/debate/motions.js', 'fidgets/debate/records.js', 'fidgets/debate/board.js'],
   },
   {
@@ -46,7 +46,7 @@ export const FIDGETS = [
     name: 'Tasks',
     icon: 'tasks',
     what: 'Task lists like Google Tasks: due dates, times, stars, repeats and subtasks.',
-    where: 'The tasks button in the top bar (⌘⇧T). Lists are notes in Tasks/, in the Obsidian Tasks format.',
+    where: 'Its tile on the home page, or ⌘⇧T. Lists are notes in Tasks/, in the Obsidian Tasks format.',
     files: ['fidgets/tasks/tasks-view.js', 'fidgets/tasks/tasks.js'],
   },
   {
@@ -65,7 +65,7 @@ export const FIDGETS = [
     name: 'Flashcard review',
     icon: 'review',
     what: 'Due cards one at a time, with Again / Hard / Good / Easy.',
-    where: 'The review button in the top bar. Cards are written in notes, in the Spaced Repetition plugin’s format.',
+    where: 'Its tile on the home page. Cards are written in notes, in the Spaced Repetition plugin’s format.',
     files: ['fidgets/flashcards/review-view.js', 'fidgets/flashcards/schedule.js'],
   },
   {

@@ -122,7 +122,6 @@ export class Chrome {
       title: extra.title || label,
       'aria-label': extra.ariaLabel || label,
     }, icon(iconName, 17), h('span', { class: 'bar-label sr-only' }, label), extra.badge || null);
-    const badge = (n, max) => (n ? h('span', { class: 'bar-badge', 'aria-hidden': 'true' }, n > max ? `${max}+` : String(n)) : null);
 
     crumbs.classList.add('sr-only');
     this.topbar.replaceChildren(...[
@@ -136,25 +135,8 @@ export class Chrome {
       this.tabSlot,
       h('div', { class: 'bar-tools' }, ...[
         link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
-        !this.onBookmarks ? null : link('bookmarks', 'bookmark', 'Bookmarks', (e) => this.onBookmarks(e.currentTarget), { class: 'bar-bookmarks' }),
-        !this.onInbox ? null : link('inbox', 'tasks', 'Inbox', () => this.onInbox(), {
-          class: 'bar-inbox',
-          title: 'Inbox (⌘⇧I)',
-          ariaLabel: this.inboxCount ? `Inbox, ${this.inboxCount} waiting` : 'Inbox',
-          badge: badge(this.inboxCount, 99),
-        }),
-        link('calendar', 'calendar', 'Calendar', () => this.onCalendar(), { title: 'Calendar (⌘⇧D)' }),
-        link('tasks', 'tasks', 'Tasks', () => this.onTasks(), { title: 'Tasks (⌘⇧T)' }),
-        !this.onLogbook ? null : link('logbook', 'activity', 'Logbook', () => this.onLogbook()),
-        !this.onReview ? null : link('review', 'review', 'Review', () => this.onReview(), {
-          class: 'bar-review',
-          title: this.cardsDue ? `Review flashcards — ${this.cardsDue} due` : 'Review flashcards',
-          ariaLabel: this.cardsDue ? `Review, ${this.cardsDue} cards due` : 'Review',
-          badge: badge(this.cardsDue, 999),
-        }),
-        !this.onMoney ? null : link('money', 'money', 'Money', () => this.onMoney(), { title: 'Money (⌘⇧M)' }),
-        !this.onDebate ? null : link('debate', 'debate', 'Debate', () => this.onDebate(), { title: 'Debate (⌘⇧B)' }),
-        this.timerSlot,
+        // Bookmarks, Calendar, Tasks, Review, Money, Debate and the timer used
+        // to sit here; they're on the home page tiles, the menus and shortcuts.
         link('settings', 'settings', 'Settings', () => this.onSettings(), { class: 'bar-settings', title: 'Settings (⌘,)' }),
       ].filter(Boolean)),
     ].filter(Boolean));

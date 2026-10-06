@@ -3,7 +3,7 @@ C --key Escape >/dev/null
 T=$(date +%Y-%m-%d); T1=$(date -v+1d +%Y-%m-%d)
 printf -- '- [ ] Essay draft #color/amber 📅 %s ⏰ 09:00–13:00\n- [x] Revise Chem #color/banana 📅 %s ⏰ 09:30–12:00 ✅ %s\n' $T $T1 $T1 >> "$V/Tasks/My Tasks.md"
 f="$V/Calendar/$T1.md"; [ -f "$f" ] || printf -- "# $T1\n\n" > "$f"; printf -- "- 13:00–15:00 Study group #color/blueberry\n" >> "$f"; sleep 2
-clickText .bar-link Calendar 1.5; C "document.querySelector('.cal-today')?.click(); 1" >/dev/null; clickText .cal-seg Week
+fidget Calendar; C "document.querySelector('.cal-today')?.click(); 1" >/dev/null; clickText .cal-seg Week
 C "document.documentElement.dataset.theme='minimal'; document.documentElement.dataset.mode='dark'; 1" >/dev/null; sleep 0.4
 task() { C "(()=>{const b=[...document.querySelectorAll('.cal-task-block')].find(x=>x.textContent.includes('$1')); const cs=getComputedStyle(b); return cs.borderTopColor+'|'+cs.borderTopStyle+'|'+cs.backgroundColor})()" | tr -d '"'; }
 ok "a long task is outlined in its colour (amber) with a faint tint" '[[ $(task "Essay draft") == "rgb(201, 151, 28)|solid|"*"rgba"*"0.1"* || $(task "Essay draft") == "rgb(201, 151, 28)|solid|color(srgb"* ]]'
