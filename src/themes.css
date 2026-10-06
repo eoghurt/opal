@@ -1139,3 +1139,11 @@
   background: var(--task-c, var(--c3)) !important; border-color: var(--task-c, var(--c3)) !important; color: #FFFFFF !important;
 }
 .cal .cal-task.is-done, .cal .cal-task-block.is-done { opacity: 0.55; }
+
+/* ---------- Scrollbars and built-in controls follow light / dark ----------
+   Without this the system draws light scrollbars, date pickers and menus
+   even in dark mode (the white bars beside the sidebar and page). */
+:root { color-scheme: light; }
+:root[data-mode="dark"] { color-scheme: dark; }
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--ink-rgb, 128 128 128) / 0.22) transparent; }
+*:hover { scrollbar-color: rgb(var(--ink-rgb, 128 128 128) / 0.38) transparent; }
