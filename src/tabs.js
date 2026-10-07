@@ -178,6 +178,7 @@ export class TabBar {
       // Right-click a step: that folder's (or the item's own) menu.
       stepEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        this.hidePeek(true); // the menu takes its place
         if (this.handlers.onPathMenu) this.handlers.onPathMenu(e, tab.id, last ? null : step.place);
       });
       crumbs.append(stepEl);
