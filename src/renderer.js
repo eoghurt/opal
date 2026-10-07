@@ -69,7 +69,7 @@ import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
 import { DebateView } from './fidgets/debate/debate-view.js';
 import { Corkboard, DEFAULT_QUOTES } from './home/corkboard.js';
-import { ExamTracker } from './fidgets/exams/exam-tracker-view.js';
+import { ExamTracker, ExamPaper } from './fidgets/exams/exam-tracker-view.js';
 import { TRACKER_NAME, guessCourse, formatTracker } from './fidgets/exams/exams.js';
 import { pdfLines } from './fidgets/exams/pdf-lines.js';
 import { FIDGETS } from './fidgets/index.js';
@@ -220,6 +220,7 @@ let debateState = null;
 let moneyState = { month: null, tab: 'overview' };
 let inboxView = null;
 let corkboard = null;
+let examPaper = null;
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
@@ -238,6 +239,8 @@ function leaveCalendar() {
   homeWidgets = null;
   if (corkboard) corkboard.destroy();
   corkboard = null;
+  if (examPaper) examPaper.destroy();
+  examPaper = null;
 }
 
 async function flushHomeStickies() {
@@ -450,6 +453,7 @@ function currentPlace() {
   // back and forward step through them too.
   if (screen.kind === 'money') return { kind: 'money', sub: { month: moneyState.month || null, tab: moneyState.tab || 'overview' } };
   if (screen.kind === 'debate') return { kind: 'debate', sub: debatePlace(debateState) };
+  if (screen.kind === 'exam-paper') return { kind: 'exam-paper', filePath: screen.filePath, sub: { paper: screen.paper } };
   if (PLACE_KINDS.includes(screen.kind)) return { kind: screen.kind };
   return null;
 }
@@ -487,6 +491,7 @@ function placeTitle(place) {
   if (!place) return 'New tab';
   if (place.kind === 'note') return noteName(place.filePath);
   if (place.kind === 'home') return place.folderPath ? place.folderPath.split('/').pop() : 'Home';
+  if (place.kind === 'exam-paper') return `${parentOf(place.filePath).split('/').pop()} · WACE ${place.sub && place.sub.paper}`;
   return PLACE_TITLES[place.kind] || '';
 }
 
@@ -494,6 +499,7 @@ function placeIcon(place) {
   if (!place) return 'plus';
   if (place.kind === 'note') return 'note';
   if (place.kind === 'home') return place.folderPath ? 'folder' : 'home';
+  if (place.kind === 'exam-paper') return 'trophy';
   return PLACE_ICONS[place.kind] || 'note';
 }
 
@@ -574,6 +580,7 @@ function goToPlace(place) {
     if (place.sub) debateState = { ...place.sub };
     return showDebate();
   }
+  if (place.kind === 'exam-paper') return showExamPaper(place.filePath, place.sub && place.sub.paper);
   return Promise.resolve();
 }
 
@@ -812,6 +819,7 @@ async function restoreTabs() {
     if (place.kind === 'note' && typeof place.filePath === 'string' && findFile(tree, place.filePath)) return { kind: 'note', filePath: place.filePath };
     if (place.kind === 'home' && typeof (place.folderPath ?? '') === 'string' && findFolder(tree, place.folderPath || '', vault.name)) return { kind: 'home', folderPath: place.folderPath || '' };
     if (place.kind === 'logbook') return { kind: 'home', folderPath: '' }; // now on the home page
+    if (place.kind === 'exam-paper' && typeof place.filePath === 'string' && findFile(tree, place.filePath) && place.sub && typeof place.sub.paper === 'string') return { kind: 'exam-paper', filePath: place.filePath, sub: { paper: place.sub.paper } };
     if (place.kind === 'money' || place.kind === 'debate') {
       const sub = place.sub && typeof place.sub === 'object' ? place.sub : null;
       if (!sub) return { kind: place.kind };
@@ -964,6 +972,39 @@ function examTrackerFor(folder) {
     files: () => flattenFiles(folder.children).map((f) => ({ path: f.path })),
     pdfLines: (paths) => pdfLines(paths, (p) => window.opal.readBytes(p)),
     openFile: (p) => openFile(p),
+    openPaper: (name, { newTab } = {}) => (newTab ? inNewTab(() => showExamPaper(note.path, name)) : showExamPaper(note.path, name)),
+  });
+}
+
+// One WACE paper, marked question by question, on its own page.
+function showExamPaper(trackerPath, paper) {
+  if (!vault || !trackerPath || !paper) return Promise.resolve();
+  return navigate(async () => {
+    const folderPath = parentOf(trackerPath);
+    const folder = findFolder(tree, folderPath, vault.name);
+    if (!folder || !findFile(tree, trackerPath)) return showHome(folderPath, `Can't find ${trackerPath} any more.`);
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'exam-paper', filePath: trackerPath, paper };
+    setTitle(`${folder.name} · WACE ${paper}`);
+    sidebar.setActive('folder', folderPath);
+    showCrumbs([...crumbsFor(folderPath).map((c, i, all) => (i === all.length - 1 ? { ...c, onClick: () => openFolder(folderPath) } : c)), { label: `WACE ${paper}` }]);
+    viewEl.scrollTop = 0;
+    examPaper = new ExamPaper(viewEl, {
+      path: trackerPath,
+      paper,
+      folderName: folder.name,
+      load: () => window.opal.readFile(trackerPath),
+      save: (text) => window.opal.writeFile(trackerPath, text),
+      files: () => flattenFiles(folder.children).map((f) => ({ path: f.path })),
+      pdfLines: (paths) => pdfLines(paths, (p) => window.opal.readBytes(p)),
+      openFile: (p) => openFile(p),
+      back: () => {
+        const tab = activeTab();
+        if (tab && tab.at > 0 && samePlace(tab.places[tab.at - 1], { kind: 'home', folderPath })) goHistory(-1);
+        else openFolder(folderPath);
+      },
+    });
   });
 }
 

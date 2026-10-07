@@ -12,17 +12,15 @@ import {
 
 const SVG = 'http://www.w3.org/2000/svg';
 
-// A paper being marked survives the folder page redrawing (files changing).
-const inProgress = new Map(); // note path → { marking, chosen }
+// Which marked paper the tracker shows by section (kept while you move around).
+const chosenPaper = new Map(); // note path → paper name
 
 export class ExamTracker {
-  // io: { load() → text, save(text), files() → [{ path }], pdfLines(paths) → [lines], openFile(path), folderName }
+  // io: { load() → text, save(text), files() → [{ path }], openFile(path), openPaper(name, { newTab }), folderName, path }
   constructor(slot, io) {
     this.slot = slot;
     this.io = io;
-    const kept = inProgress.get(io.path) || {};
-    this.marking = kept.marking || null; // the paper being marked: { name, sections, questions }
-    this.chosen = kept.chosen || null; // which marked paper is shown by section
+    this.chosen = chosenPaper.get(io.path) || null; // which marked paper is shown by section
     this.load();
   }
 
@@ -42,9 +40,9 @@ export class ExamTracker {
   }
 
   render() {
-    inProgress.set(this.io.path, { marking: this.marking, chosen: this.chosen });
+    chosenPaper.set(this.io.path, this.chosen);
     if (!this.slot.isConnected) return;
-    this.slot.replaceChildren(this.marking ? this.markingView() : this.overview());
+    this.slot.replaceChildren(this.overview());
   }
 
   // ---------- the overview ----------
@@ -234,10 +232,10 @@ export class ExamTracker {
         h('span', { class: 'ex-booklet-gap' }),
         pct != null ? h('span', { class: 'ex-booklet-pct' }, `${pct}%`) : h('span', { class: 'ex-booklet-mark' }, p ? 'Carry on →' : 'Mark it →'));
       b.addEventListener('click', () => {
-        if (p && pct != null) {
+        if (p && pct != null && this.chosen !== name) {
           this.chosen = name;
           this.render();
-        } else this.startMarking(name, available[name]);
+        } else this.io.openPaper(name);
       });
       b.addEventListener('contextmenu', (e) => this.paperMenu(e, name, p, available[name]));
       b.addEventListener('dblclick', (e) => this.paperMenu(e, name, p, available[name]));
@@ -252,7 +250,12 @@ export class ExamTracker {
       parts.push(h('div', { class: 'ex-pair' },
         h('div', { class: 'ex-card' },
           h('div', { class: 'ex-card-head' }, h('h3', null, `${chosen.name} paper by section`),
-            h('span', { class: 'ex-sub' }, needed == null ? '' : pct >= needed ? `clears the ${needed}% you need` : `${needed - pct} short of the ${needed}% you need`)),
+            h('span', { class: 'ex-sub' }, needed == null ? '' : pct >= needed ? `clears the ${needed}% you need` : `${needed - pct} short of the ${needed}% you need`),
+            h('button', { class: 'ex-chip', type: 'button', onclick: () => this.io.openPaper(chosen.name) }, 'Open the marking')),
+          (() => {
+            const left = chosen.questions.filter((q) => q.got == null).length;
+            return left && left < chosen.questions.length ? h('span', { class: 'ex-sub' }, `${chosen.questions.length - left} of ${chosen.questions.length} questions marked`) : null;
+          })(),
           ...secs.map((s) => h('div', { class: 'ex-sec' },
             h('span', { class: 'ex-sec-name' }, h('b', null, s.name), h('small', null, `${s.weight}% of the exam`)),
             h('span', { class: 'ex-bar is-thick' }, h('span', { style: `width: ${s.answered ? Math.min(100, (s.got / s.outOf) * 100) : 0}%; background: var(--ink)` })),
@@ -281,15 +284,16 @@ export class ExamTracker {
         h('span', { style: 'flex: 1' }),
         h('button', { class: 'ex-go', type: 'button', onclick: () => {
           const next = list.find((name) => !byName.has(name)) || list[list.length - 1];
-          if (next) this.startMarking(next, available[next]);
+          if (next) this.io.openPaper(next);
         } }, 'Mark a paper'))));
     return parts;
   }
 
   paperMenu(event, name, paper, paths) {
     const items = [];
-    if (paper) items.push({ label: 'Edit the marking', onSelect: () => this.startMarking(name, paths, paper) });
-    else items.push({ label: 'Mark this paper', onSelect: () => this.startMarking(name, paths) });
+    items.push({ label: paper ? 'Open the marking' : 'Mark this paper', onSelect: () => this.io.openPaper(name) });
+    items.push({ label: 'Open in new tab', onSelect: () => this.io.openPaper(name, { newTab: true }) });
+    items.push('separator');
     for (const p of paths || []) items.push({ label: `Open ${p.split('/').pop()}`, onSelect: () => this.io.openFile(p) });
     if (paper) {
       items.push('separator', { label: 'Remove the marking', danger: true, onSelect: () => {
@@ -301,12 +305,76 @@ export class ExamTracker {
     }
     showMenu(event, { title: `${name} paper`, items });
   }
+}
+
+// The paper marked by you, on its own page. Every change is saved straight
+// into the Exam tracker note, so leaving half-way loses nothing.
+
+export class ExamPaper {
+  // io: { load(), save(text), files(), pdfLines(paths), openFile(path), back(), folderName, path, paper }
+  constructor(container, io) {
+    this.root = h('div', { class: 'ex-page' });
+    container.replaceChildren(this.root);
+    this.io = io;
+    this.marking = null;
+    this.load();
+  }
+
+  async load() {
+    this.text = (await this.io.load()) || '';
+    this.t = parseTracker(this.text, this.io.folderName);
+    const paths = findPapers(this.io.files())[this.io.paper] || [];
+    await this.startMarking(this.io.paper, paths);
+  }
+
+  destroy() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.saveNow();
+    }
+  }
+
+  render() {
+    if (!this.root.isConnected) return;
+    this.root.replaceChildren(this.markingView());
+    if (this.loaded) this.saveSoon();
+    if (this.marking && !this.marking.loading) this.loaded = true;
+  }
+
+  saveSoon() {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.saveNow(), 500);
+  }
+
+  // Put this paper into the note as it stands (re-reading the note first, so
+  // nothing else in it is lost).
+  async saveNow() {
+    clearTimeout(this.timer);
+    this.timer = null;
+    const m = this.marking;
+    if (!m || m.loading || !m.questions.length) return;
+    try {
+      const text = (await this.io.load()) || '';
+      const t = parseTracker(text, this.io.folderName);
+      const paper = { name: m.name, sections: m.sections, questions: m.questions.map((q) => ({ ...q })) };
+      const at = t.papers.findIndex((p) => p.name === m.name);
+      if (at === -1) t.papers.push(paper);
+      else t.papers[at] = paper;
+      t.papers.sort((a, b) => a.name.localeCompare(b.name));
+      this.text = formatTracker(t, text, `${this.io.folderName} exam tracker`);
+      await this.io.save(this.text);
+      this.t = { ...t, papers: t.papers };
+      chosenPaper.set(this.io.path, m.name);
+    } catch (err) {
+      alert(`Couldn't save the marking.\n\n${err.message}`);
+    }
+  }
 
   // ---------- marking a paper ----------
 
-  async startMarking(name, paths, existing = null) {
+  async startMarking(name, paths) {
     const t = this.t;
-    const saved = existing || t.papers.find((p) => p.name === name);
+    const saved = t.papers.find((p) => p.name === name);
     if (saved) {
       this.marking = { name, sections: saved.sections.slice(), questions: saved.questions.map((q) => ({ ...q })), paths: paths || [] };
       this.render();
@@ -328,6 +396,8 @@ export class ExamTracker {
       read = { sections: secs, questions: secs.map((s, i) => ({ q: String(i + 1), section: s.name, of: s.marks, got: null, ache: 0, note: '', type: '' })) };
       this.marking.unread = true;
     }
+    const hints = (t.typeHints || {})[name] || {};
+    for (const q of read.questions) if (hints[q.q]) q.type = hints[q.q];
     this.marking = { ...this.marking, ...read, loading: false };
     this.render();
   }
@@ -364,6 +434,7 @@ export class ExamTracker {
       const note = h('input', { class: 'ex-note', value: q.note || '', placeholder: 'What tripped you up?', 'aria-label': `Question ${q.q} notes` });
       note.addEventListener('change', () => {
         m.questions[i].note = note.value;
+        this.saveSoon();
       });
       return h('div', { class: `ex-q${q.got == null ? ' is-blank' : ''}` },
         h('span', { class: 'ex-q-n' }, q.q),
@@ -389,24 +460,14 @@ export class ExamTracker {
     const school = schoolMark(t.results);
     const needed = neededInExam(t.target, school);
 
-    const done = () => {
-      const paper = { name: m.name, sections: m.sections, questions: m.questions };
-      const at = t.papers.findIndex((p) => p.name === m.name);
-      if (at === -1) t.papers.push(paper);
-      else t.papers[at] = paper;
-      t.papers.sort((a, b) => a.name.localeCompare(b.name));
-      this.chosen = m.name;
-      this.marking = null;
-      this.save();
-      this.render();
+    const done = async () => {
+      await this.saveNow();
+      this.io.back();
     };
 
     return h('section', { class: 'ex ex-marking', 'aria-label': `Marking the ${m.name} paper` },
       h('div', { class: 'ex-mark-side' },
-        h('button', { class: 'ex-back', type: 'button', onclick: () => {
-          this.marking = null;
-          this.render();
-        } }, '← Exam tracker'),
+        h('button', { class: 'ex-back', type: 'button', onclick: () => this.io.back() }, `← ${this.io.folderName}`),
         h('span', { class: 'mono-label' }, `WACE ${m.name}`),
         h('h2', { class: 'ex-mark-title' }, course.name),
         h('div', { class: 'ex-card' }, ...(secs.length ? secs : m.sections.map((s) => ({ ...s, total: 0 }))).map((s) => h('div', { class: 'ex-mark-sec' },
@@ -440,6 +501,7 @@ export class ExamTracker {
         worst && (worst.ache || worst.of - worst.got) ? h('div', { class: 'ex-card is-accent' },
           h('span', { class: 'mono-label' }, 'Biggest headache'),
           h('span', { class: 'ex-verdict' }, `Q${worst.q}${worst.type ? ` — ${worst.type.toLowerCase()}` : ''}. ${worst.of - worst.got} mark${worst.of - worst.got === 1 ? '' : 's'} gone.`)) : null,
-        h('button', { class: 'ex-save', type: 'button', onclick: done }, 'Save this paper')));
+        h('span', { class: 'ex-sub ex-saved' }, this.savedNote || 'Saved as you go, in the Exam tracker note.'),
+        h('button', { class: 'ex-save', type: 'button', onclick: done }, 'Done')));
   }
 }

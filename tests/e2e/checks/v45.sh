@@ -2,7 +2,7 @@
 C "window.__errs=[]; addEventListener(\"error\",e=>window.__errs.push(e.message)); addEventListener(\"unhandledrejection\",e=>window.__errs.push(String(e.reason))); 1" >/dev/null
 W=/Users/ethan/Desktop/vaults/v3/School/Methods/Past\ Assessments/WACE
 mkdir -p "$V/School/Methods/WACE"; cp "$W/2025 WACE S1.pdf" "$W/2025 WACE S2.pdf" "$V/School/Methods/WACE/"
-printf -- '---\nopal-type: exam-tracker\ncourse: methods\ntarget: 70\nmoderated: 58\n---\n# Methods exam tracker\n\n## School results\n\n| Assessment | Weight | Mark |\n| --- | --- | --- |\n| Test 1 | 4 | 56 |\n| Test 2 | 12 | 42 |\n| Investigation 1 | 10 | 68 |\n| Exam 1 | 16 | 58 |\n' > "$V/School/Methods/Exam tracker.md"
+printf -- '---\nopal-type: exam-tracker\ncourse: methods\ntarget: 70\nmoderated: 58\n---\n# Methods exam tracker\n\n## School results\n\n| Assessment | Weight | Mark |\n| --- | --- | --- |\n| Test 1 | 4 | 56 |\n| Test 2 | 12 | 42 |\n| Investigation 1 | 10 | 68 |\n| Exam 1 | 16 | 58 |\n\n## Question types\n\n| Paper | Q | Type |\n| --- | --- | --- |\n| 2025 | 14 | Trig functions |\n| 2025 | 9 | Exponentials & logarithms |\n' > "$V/School/Methods/Exam tracker.md"
 sleep 2
 C "document.querySelector('.wordmark').click(); 1" >/dev/null; sleep 1.5
 C "[...document.querySelectorAll('.cork-key')].find(k=>k.textContent.includes('School')).click(); 1" >/dev/null; sleep 2
@@ -16,13 +16,20 @@ ok "raising the target saves it to the note" 'grep -q "^target: 71" "$V/School/M
 C "(()=>{const r=document.querySelector('.ex-row.is-new'); const [n,w,m]=r.querySelectorAll('input'); n.value='Test 3'; w.value='12'; m.value='71'; m.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'})); return 1})()" >/dev/null; sleep 1.5
 ok "a new school result is added to the note's table" 'grep -q "^| Test 3 | 12 | 71 |" "$V/School/Methods/Exam tracker.md"'
 C "document.querySelector('.ex-booklet').click(); 1" >/dev/null; sleep 5
+ok "a paper opens on its own page (its own tab title and history)" '[[ $(C "Boolean(document.querySelector(\".ex-page .ex-marking\")) && !document.querySelector(\".home-exams\") && document.title") == *"WACE 2025"* ]]'
 ok "marking reads the paper: 2 sections, 17 questions with their marks" '[[ $(C "document.querySelectorAll(\".ex-q:not(.is-head)\").length + \"|\" + [...document.querySelectorAll(\".ex-mark-sec\")].map(e=>e.textContent).join(\"|\")") == *"17|Calculator-free35%7 questions · 47 marks|Calculator-assumed65%10 questions · 97 marks"* ]]'
-ok "…and guesses question types from the paper (Q16 → confidence intervals)" '[[ $(C "[...document.querySelectorAll(\".ex-q:not(.is-head)\")][15].querySelector(\".ex-type\").value") == *"confidence"* ]]'
+ok "…uses the question types assigned in the note (Q9 → exponentials)" '[[ $(C "[...document.querySelectorAll(\".ex-q:not(.is-head)\")][8].querySelector(\".ex-type\").value") == *"Exponentials"* ]]'
+ok "…and guesses the rest from the paper (Q16 → confidence intervals)" '[[ $(C "[...document.querySelectorAll(\".ex-q:not(.is-head)\")][15].querySelector(\".ex-type\").value") == *"confidence"* ]]'
 C "(()=>{const q=[...document.querySelectorAll('.ex-q:not(.is-head)')][11]; const i=q.querySelector('.ex-got'); i.value='3'; i.dispatchEvent(new Event('change')); return 1})()" >/dev/null; sleep 0.4
 C "[...document.querySelectorAll('.ex-q:not(.is-head)')][11].querySelectorAll('.ex-ache-btn')[2].click(); 1" >/dev/null; sleep 0.4
 C "(()=>{const q=[...document.querySelectorAll('.ex-q:not(.is-head)')][0]; const i=q.querySelector('.ex-got'); i.value='6'; i.dispatchEvent(new Event('change')); return 1})()" >/dev/null; sleep 0.4
 ok "…the mark counts only questions marked so far" '[[ $(C "document.querySelector(\".ex-big.is-accent\").textContent") == "\"57%\"" ]]'
-C "document.querySelector('.ex-save').click(); 1" >/dev/null; sleep 2.5
+sleep 1.5
+ok "marks save as you go, before pressing Done" '[[ $(grep -c "^| [0-9]* | Calculator-" "$V/School/Methods/Exam tracker.md") == 17 ]]'
+C "document.querySelector('.ex-back').click(); 1" >/dev/null; sleep 2
+C "[...document.querySelectorAll('.ex-chip')].find(b=>b.textContent==='Open the marking').click(); 1" >/dev/null; sleep 3
+ok "…so leaving half-way and coming back keeps the marks" '[[ $(C "[...document.querySelectorAll(\".ex-q:not(.is-head)\")][11].querySelector(\".ex-got\").value") == "\"3\"" ]]'
+C "[...document.querySelectorAll('.ex-save')].find(b=>b.textContent==='Done').click(); 1" >/dev/null; sleep 2.5
 ok "saving writes the paper to the note, a row per question" '[[ $(grep -c "^| [0-9]* | Calculator-" "$V/School/Methods/Exam tracker.md") == 17 ]] && grep -q "^| 12 | Calculator-assumed | Rates of change & optimisation | 3 | 9 | 3 |" "$V/School/Methods/Exam tracker.md"'
 ok "…and the tracker shows it: score, sections, where the marks go" '[[ $(C "document.querySelector(\".ex-booklet-pct\").textContent + \"|\" + document.querySelectorAll(\".ex-sec\").length + \"|\" + document.querySelector(\".ex-loss:not(.is-head) .ex-loss-name\").textContent") == "\"57%|2|Rates of change & optimisation\"" ]]'
 ok "no errors" '[[ $(C "JSON.stringify(window.__errs||[])") == "\"[]\"" ]]'

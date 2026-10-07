@@ -51,6 +51,8 @@ export const COURSES = {
       ['Equity & dividends', /dividend|share capital|equity|shares|retained/i],
       ['Financial statements', /income statement|financial position|statement of/i],
       ['Ethics & sustainability', /ethic|sustainab|social responsib/i],
+      ['Costing decisions', /special order|product mix|contribution margin|break-even|capacity|segment|region/i],
+      ['Business decisions & governance', /director|strategy|governance|expansion|financing/i],
     ],
   },
   economics: {
@@ -67,20 +69,21 @@ export const COURSES = {
       ['AE model & business cycle', /aggregate expenditure|\bAE\b|business cycle|multiplier|inventor/i],
       ['AD/AS & macro goals', /aggregate demand|aggregate supply|\bAD\b|\bAS\b|inflation|unemployment|economic growth/i],
       ['Labour productivity', /productivity/i],
+      ['Globalisation & structural change', /globalisation|structural change/i],
     ],
   },
   pal: {
     name: 'Politics and Law',
     sections: [['Short answer', 30, 30], ['Source analysis', 20, 20], ['Essay · Unit 3', 25, 25], ['Essay · Unit 4', 25, 25]],
     types: [
-      ['Source analysis', null],
-      ['Essay · Unit 3', null],
-      ['Essay · Unit 4', null],
-      ['Parliament & law-making', /parliament|senate|house of representatives|legislat|bill/i],
-      ['Judiciary & the Constitution', /high court|judicia|constitution|court/i],
-      ['Executive & accountability', /executive|minister|cabinet|accountab|government/i],
-      ['Rights protection', /right|freedom|liberty/i],
-      ['Democratic principles', /democra|principle|represent|election/i],
+      ['Federalism & constitutional change', /federalism|referend|constitutional change|states|referral of powers/i],
+      ['Conventions & the Governor-General', /governor-general|convention|westminster|responsible government|reserve power/i],
+      ['Comparative systems', /non-westminster|other country|country other than/i],
+      ['Rights protection', /\bright|freedom|covenant|bill of rights/i],
+      ['Judiciary & the Constitution', /high court|judicia|court|justice/i],
+      ['Executive & accountability', /executive|minister|cabinet|accountab|censure|estimates/i],
+      ['Parliament & law-making', /parliament|senate|house of representatives|legislat|lawmaking|opposition|party|parties|pressure group/i],
+      ['Democratic principles', /democra|principle|represent|election|mandate|participation|rule of law/i],
     ],
   },
   literature: { name: 'Literature', sections: [], types: [], noPapers: true },
@@ -131,6 +134,7 @@ export function parseTracker(text, folderName = '') {
     moderated: num(props.moderated),
     results: [],
     papers: [],
+    typeHints: {}, // paper → question → type, read from each paper (## Question types)
   };
   let part = null;
   let paper = null;
@@ -139,7 +143,7 @@ export function parseTracker(text, folderName = '') {
     const h3 = /^###\s+(.*)$/.exec(line);
     if (h2 && !h3) {
       const t = h2[1].toLowerCase();
-      part = t.includes('result') ? 'results' : t.includes('paper') ? 'papers' : null;
+      part = t.includes('result') ? 'results' : t.includes('question type') ? 'types' : t.includes('paper') ? 'papers' : null;
       paper = null;
       continue;
     }
@@ -157,13 +161,16 @@ export function parseTracker(text, folderName = '') {
     }
     if (!line.trim().startsWith('|') || isRule(line)) continue;
     const c = cells(line);
-    if (part === 'results') {
+    if (part === 'types') {
+      if (/^paper$/i.test(c[0]) || !c[0] || !c[1] || !c[2]) continue;
+      (out.typeHints[c[0]] = out.typeHints[c[0]] || {})[c[1]] = c[2];
+    } else if (part === 'results') {
       if (/^assessment$/i.test(c[0])) continue;
       const weight = num(c[1]);
       const mark = num(c[2]);
       if (c[0] && weight != null && mark != null) out.results.push({ name: c[0], weight, mark, date: c[3] || '' });
     } else if (paper) {
-      if (/^q$/i.test(c[0])) continue;
+      if (/^q$/i.test(c[0]) || /^paper$/i.test(c[0])) continue;
       paper.questions.push({
         q: c[0], section: c[1] || '', type: c[2] || '',
         got: /^[–-]$/.test(c[3] || '') || c[3] === '' ? null : num(c[3]),
@@ -198,10 +205,18 @@ export function formatTracker(t, previous = '', title = '') {
       for (const q of p.questions) lines.push(`| ${esc(q.q)} | ${esc(q.section)} | ${esc(q.type)} | ${q.got == null ? '–' : q.got} | ${q.of} | ${q.ache || 0} | ${esc(q.note)} |`);
     }
   }
+  const hinted = Object.keys(t.typeHints || {}).sort();
+  if (hinted.length) {
+    lines.push('', '## Question types', '', 'What each question in each WACE paper is about — used when you start marking a paper.', '', '| Paper | Q | Type |', '| --- | --- | --- |');
+    for (const paper of hinted) {
+      const qs = Object.keys(t.typeHints[paper]).sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+      for (const q of qs) lines.push(`| ${esc(paper)} | ${esc(q)} | ${esc(t.typeHints[paper][q])} |`);
+    }
+  }
   // Keep whatever else the note had (a title, notes to self) above the tracker parts.
   const head = [];
   for (const line of body.split(/\r?\n/)) {
-    if (/^##\s+(school results|wace papers)/i.test(line)) break;
+    if (/^##\s+(school results|wace papers|question types)/i.test(line)) break;
     head.push(line);
   }
   while (head.length && !head[head.length - 1].trim()) head.pop();
@@ -292,11 +307,6 @@ export function readPaperLines(lines, course) {
   let current = null;
   const types = COURSES[course].types;
   const guess = (sec, text) => {
-    if (course === 'pal') {
-      if (/source/i.test(sec)) return 'Source analysis';
-      if (/unit 3/i.test(sec)) return 'Essay · Unit 3';
-      if (/unit 4/i.test(sec)) return 'Essay · Unit 4';
-    }
     if (course === 'accounting' && /extended/i.test(sec)) {
       const hit = types.find(([, re]) => re && re.test(text));
       return hit ? hit[0] : 'Financial statements';

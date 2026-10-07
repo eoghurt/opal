@@ -4136,3 +4136,5 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 .ex-lost { display: flex; flex-direction: column; gap: 4px; }
 .ex-lost > span:first-child { display: flex; justify-content: space-between; font-size: 13px; }
 .ex-lost b { color: var(--danger); }
+.ex-page { padding: 24px 32px 72px; }
+.ex-saved { text-align: center; }
