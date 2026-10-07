@@ -4005,3 +4005,16 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 .cork-key-num { display: block; font-weight: 500; font-size: 33px; line-height: 1; margin-bottom: 6px; }
 .cork-key-medal { display: grid; place-items: center; border-radius: 50%; }
 .cork-key-foot { height: 58px; flex: none; }
+/* the receipt's tear-off stub: a short to-do list */
+.cork-stub { margin-top: 12px; }
+.cork-stub.is-saving { opacity: .7; }
+.cork-perf { position: relative; height: 18px; margin: 0 -16px 6px; background: radial-gradient(circle, #c9c4b8 1.6px, transparent 2px) 0 50% / 9px 9px repeat-x; }
+.cork-perf svg { position: absolute; left: 10px; top: 2px; background: #f8f7f3; padding: 0 3px; }
+.cork-stub-row { position: relative; display: flex; align-items: center; gap: 4px; min-height: 26px; }
+.cork-stub-box { position: relative; flex: none; width: 22px; height: 22px; border: 0; background: none; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.cork-stub-box:not(span)::before { content: ""; width: 11px; height: 11px; border: 1.5px solid #6a645c; border-radius: 2px; }
+.cork-stub-box .cork-tick { position: absolute; left: -2px; top: -2px; }
+.cork-stub-text { flex: 1; min-width: 0; border: 0; border-bottom: 1px dotted #c9c4b8; background: transparent; padding: 2px 0; font: 18px/1.1 'VT323', monospace; color: #2b2622; text-transform: uppercase; outline: none; }
+.cork-stub-text::placeholder { color: #a8a296; }
+.cork-stub-text:focus { border-bottom-color: #2346b5; }
+.cork-stub-clear { display: block; margin: 6px auto 0; border: 0; background: none; cursor: pointer; text-decoration: underline dotted; }

@@ -28,3 +28,17 @@ C "document.querySelector('.wordmark').click(); 1" >/dev/null; sleep 2
 C "document.querySelector('.cork-quote-next').click(); 1" >/dev/null; sleep 0.3
 ok "the quote card shows one of the quotes" '[[ $(C "document.querySelector(\".cork-quote-text\").textContent") == *[a-z]* ]]'
 ok "no errors" '[[ $(C "JSON.stringify(window.__errs||[])") == "\"[]\"" ]]'
+
+# the receipt's tear-off stub: a short to-do list you write on
+C "document.querySelector('.wordmark').click(); 1" >/dev/null; sleep 2
+C "(()=>{const i=document.querySelector('.cork-stub-row.is-new input'); i.value='Buy chalk'; i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); return 1})()" >/dev/null; sleep 2
+ok "the receipt's stub adds a line to Tasks/Quick list.md" 'grep -q "\- \[ \] Buy chalk" "$V/Tasks/Quick list.md"'
+C "(()=>{const i=document.querySelector('.cork-stub-row.is-new input'); i.value='Return library book'; i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); return 1})()" >/dev/null; sleep 2
+ok "…new lines go at the bottom" '[[ $(grep -n "Return library book" "$V/Tasks/Quick list.md" | cut -d: -f1) -gt $(grep -n "Buy chalk" "$V/Tasks/Quick list.md" | cut -d: -f1) ]]'
+C "[...document.querySelectorAll('.cork-stub-row')].find(r=>r.querySelector('input').value==='Buy chalk').querySelector('.cork-stub-box').click(); 1" >/dev/null; sleep 2
+ok "…ticking draws a pen tick and ticks it in the note" 'grep -q "\- \[x\] Buy chalk" "$V/Tasks/Quick list.md" && [[ $(C "Boolean([...document.querySelectorAll(\".cork-stub-row\")].find(r=>r.querySelector(\"input\").value===\"Buy chalk\").querySelector(\".cork-tick\"))") == "true" ]]'
+C "(()=>{const i=[...document.querySelectorAll('.cork-stub-row input')].find(i=>i.value==='Return library book'); i.value='Return two library books'; i.dispatchEvent(new FocusEvent('blur')); return 1})()" >/dev/null; sleep 2
+ok "…a line can be rewritten" 'grep -q "Return two library books" "$V/Tasks/Quick list.md"'
+C "document.querySelector('.cork-stub-clear').click(); 1" >/dev/null; sleep 2
+ok "…clear ticked removes the ticked lines" '! grep -q "Buy chalk" "$V/Tasks/Quick list.md" && grep -q "Return two library books" "$V/Tasks/Quick list.md"'
+ok "no errors after the stub" '[[ $(C "JSON.stringify(window.__errs||[])") == "\"[]\"" ]]'

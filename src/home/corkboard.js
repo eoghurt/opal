@@ -134,7 +134,7 @@ const DECOR = `
     <img src="${lakeImg}" alt="Photobooth frame"><img src="${bayImg}" alt="Photobooth frame"><img src="${trailImg}" alt="Photobooth frame" style="object-position: 70% 50%">
     <span class="cork-pin" style="left: 48px; top: -6px; background: #2563eb"></span>
   </div>
-  <div class="cork-o cork-lift cork-badge" style="left: 1150px; top: 380px; --r: -10deg; transform: rotate(-10deg); z-index: 9; background: radial-gradient(circle at 35% 30%, #ff9a52, #ea580c 60%, #b23f06)"><span style="font: 26px/1 'Anton', sans-serif; color: #fff8eb">V5</span></div>
+  <div class="cork-o cork-lift cork-badge" style="left: 984px; top: 464px; --r: -10deg; transform: rotate(-10deg); z-index: 9; background: radial-gradient(circle at 35% 30%, #ff9a52, #ea580c 60%, #b23f06)"><span style="font: 26px/1 'Anton', sans-serif; color: #fff8eb">V5</span></div>
   <div class="cork-o cork-lift cork-badge" style="left: 1340px; top: 420px; width: 52px; height: 52px; background: radial-gradient(circle at 35% 30%, #86efac, #16a34a 60%, #0f6b30)"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f0fdf4" stroke-width="2" stroke-linecap="round"><path d="M5 21c.5 -4.5 2.5 -8 7 -10M9 18c6.2 0 10.5 -3.3 11 -12v-2h-4c-9 0 -12 4 -12 9c0 1 0 3 2 5h3"></path></svg></div>
   <span class="cork-washi" style="left: 640px; top: 16px; width: 120px; height: 26px; transform: rotate(-4deg); background: repeating-linear-gradient(90deg, #f4b6c2 0 10px, #fbe3e8 10px 20px); z-index: 6"></span>
   <span class="cork-washi" style="left: 950px; top: 620px; width: 90px; height: 22px; transform: rotate(32deg); background: repeating-linear-gradient(45deg, #93c5fd 0 6px, #dbeafe 6px 12px)"></span>
@@ -176,7 +176,9 @@ export class Corkboard {
 
   // Files changed: reload what the board shows, keeping it as it is.
   refresh() {
-    this.fillReceipt();
+    const typing = this.receiptEl && this.receiptEl.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+    if (typing) document.activeElement.addEventListener('blur', () => setTimeout(() => this.fillReceipt(), 0), { once: true });
+    else this.fillReceipt();
     if (this.cal) this.cal.render();
     if (this.keysBox) this.keysBox.replaceChildren(keyRack(this.io.folders(), (path) => this.io.openFolder(path)));
   }
@@ -294,7 +296,7 @@ export class Corkboard {
   // Today's tasks, printed on a shop receipt. Ticking draws a pen tick.
   receipt() {
     const box = el('div', 'cork-o cork-receipt-wrap');
-    box.style.cssText = 'left: 1086px; top: 40px; width: 252px; transform: rotate(2deg); z-index: 8';
+    box.style.cssText = 'left: 1086px; top: 40px; width: 252px; transform: rotate(2deg); z-index: 11';
     this.receiptEl = el('div', 'cork-receipt');
     box.append(this.receiptEl);
     box.insertAdjacentHTML('beforeend', '<div class="cork-binder"><span></span><span></span><span></span></div>');
@@ -332,7 +334,7 @@ export class Corkboard {
       line('is-small', 'TODAY’S ITEMS'),
     );
     if (!tasks.length) r.append(line('is-center is-gap', '— NOTHING DUE TODAY —'));
-    tasks.slice(0, 9).forEach((t) => {
+    tasks.slice(0, 8).forEach((t) => {
       const row = el('button', 'cork-rc-row');
       row.type = 'button';
       row.setAttribute('aria-pressed', String(t.done));
@@ -344,8 +346,7 @@ export class Corkboard {
       const body = el('span', 'cork-rc-body');
       const top = el('span', 'cork-rc is-split');
       top.append(el('span', 'cork-rc-item', t.title.toUpperCase()), el('span', null, t.time || ''));
-      const h = hours(t);
-      body.append(top, el('span', 'cork-rc is-small is-dim', `  1 @ ${h ? `${h.toFixed(1)} HR` : '—'}`));
+            body.append(top);
       row.append(body);
       row.addEventListener('click', async () => {
         row.disabled = true;
@@ -367,12 +368,93 @@ export class Corkboard {
       barcode,
       line('is-small is-center', 'THANK YOU · NO REFUNDS ON TIME'),
     );
+    if (this.io.quickList) r.append(await this.stub());
+  }
+
+  // The tear-off stub: a short to-do list you can write on (Tasks/Quick list.md).
+  async stub() {
+    const io = this.io.quickList;
+    const box = el('div', 'cork-stub');
+    box.insertAdjacentHTML('beforeend', '<div class="cork-perf"><svg width="18" height="14" viewBox="0 0 24 18" fill="none" stroke="#6a645c" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="4" r="3"></circle><circle cx="5" cy="14" r="3"></circle><path d="M7.5 5.5 L22 14 M7.5 12.5 L22 4"></path></svg></div>');
+    box.append(el('div', 'cork-rc is-big is-center', 'TO DO'), el('div', 'cork-rc is-small is-center is-dim', 'TEAR HERE · WRITE ON ME'));
+    let tasks = [];
+    try {
+      tasks = await io.load();
+    } catch {
+      tasks = [];
+    }
+    const save = async (fn) => {
+      box.classList.add('is-saving');
+      try {
+        await fn();
+      } catch (err) {
+        alert(`Couldn't save the list.\n\n${err.message}`);
+      }
+      this.fillReceipt();
+    };
+    tasks.slice(0, 8).forEach((t) => {
+      const row = el('div', 'cork-stub-row');
+      const tick = el('button', 'cork-stub-box');
+      tick.type = 'button';
+      tick.setAttribute('aria-label', `${t.done ? 'Untick' : 'Tick'} ${t.title}`);
+      tick.setAttribute('aria-pressed', String(t.done));
+      if (t.done) {
+        const v = Math.abs(hash(t.title)) % TICKS.length;
+        tick.innerHTML = `<svg class="cork-tick" style="transform: rotate(${[-8, 4, -3, 7, -5][v]}deg)" width="26" height="22" viewBox="0 0 26 22" fill="none" stroke="#2346b5" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" filter="url(#cork-pen)"><path d="${TICKS[v]}"></path></svg>`;
+      }
+      tick.addEventListener('click', () => save(() => io.toggle(t)));
+      const input = el('input', 'cork-stub-text');
+      input.value = t.title;
+      input.setAttribute('aria-label', 'To-do');
+      const commit = () => {
+        const next = input.value.trim();
+        if (next === t.title) return;
+        save(() => (next ? io.rename(t, next) : io.remove(t)));
+      };
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') {
+          input.value = t.title;
+          input.blur();
+        }
+      });
+      input.addEventListener('blur', commit);
+      row.append(tick, input);
+      box.append(row);
+    });
+    if (tasks.length < 8) {
+      const row = el('div', 'cork-stub-row is-new');
+      const plus = el('span', 'cork-stub-box cork-rc', '+');
+      const input = el('input', 'cork-stub-text');
+      input.placeholder = 'ADD A LINE…';
+      input.setAttribute('aria-label', 'Add a to-do');
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && input.value.trim()) {
+          const title = input.value.trim();
+          this.stubFocus = true; // keep writing on the next line
+          save(() => io.add(title));
+        }
+      });
+      row.append(plus, input);
+      box.append(row);
+      if (this.stubFocus) {
+        this.stubFocus = false;
+        requestAnimationFrame(() => input.focus());
+      }
+    }
+    if (tasks.some((t) => t.done)) {
+      const clear = el('button', 'cork-stub-clear cork-rc is-small', 'CLEAR TICKED');
+      clear.type = 'button';
+      clear.addEventListener('click', () => save(() => io.clearDone()));
+      box.append(clear);
+    }
+    return box;
   }
 
   // A quote on an index card, under a gold clip.
   quoteCard() {
     const card = el('div', 'cork-o cork-lift cork-quote');
-    card.style.cssText = 'left: 860px; top: 530px; --r: -2deg; transform: rotate(-2deg)';
+    card.style.cssText = 'left: 860px; top: 496px; --r: -2deg; transform: rotate(-2deg); z-index: 12';
     const text = el('div', 'cork-quote-text');
     const who = el('span', 'cork-quote-who');
     const next = el('button', 'cork-quote-next');

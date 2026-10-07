@@ -50,7 +50,7 @@ import { CalendarView } from './fidgets/calendar/calendar-view.js';
 import { HomeWidgets, WIDGETS, parseLayout, formatLayout } from './widgets/home/home-widgets.js';
 import { readProperties, writeProperty } from '../shared/properties.js';
 import { TasksView } from './fidgets/tasks/tasks-view.js';
-import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, todayKey } from './fidgets/tasks/tasks.js';
+import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, formatTask, todayKey } from './fidgets/tasks/tasks.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences, colorHex } from './fidgets/calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderSettings, withDefaults } from './views/settings-view.js';
@@ -961,6 +961,20 @@ function showCorkboard() {
       return (await loadAllTasks()).filter((t) => t.due === today);
     },
     toggleTask: (task) => toggleTaskDone(task),
+    quickList: {
+      load: async () => parseTasks((await readTaskList(QUICK_LIST)) || '', QUICK_LIST),
+      add: (title) => editQuickList((text, tasks) => {
+        const task = { title, done: false, details: [], subtasks: [] };
+        if (!tasks.length) return addTask(text, task, QUICK_LIST);
+        const lines = text.split(/\r?\n/);
+        lines.splice(tasks[tasks.length - 1].end, 0, ...formatTask(task)); // new lines go at the bottom
+        return lines.join('\n');
+      }),
+      toggle: (task) => toggleTaskDone(task),
+      rename: (task, title) => editQuickList((text) => replaceTask(text, task, { ...task, title })),
+      remove: (task) => editQuickList((text) => replaceTask(text, task, null)),
+      clearDone: () => editQuickList((text, tasks) => tasks.filter((t) => t.done).reverse().reduce((t, task) => replaceTask(t, task, null), text)),
+    },
     folders: () => tree.filter((n) => n.type === 'folder' && !n.name.startsWith('.')).map((n) => ({
       name: n.name,
       path: n.path,
@@ -978,6 +992,13 @@ function showCorkboard() {
     }),
   });
   addButton.refresh();
+}
+
+// The short to-do list on the receipt's tear-off stub: an ordinary task list.
+const QUICK_LIST = 'Quick list';
+async function editQuickList(change) {
+  const text = (await readTaskList(QUICK_LIST)) || '';
+  await writeTaskList(QUICK_LIST, change(text, parseTasks(text, QUICK_LIST)));
 }
 
 async function setHomeStyle(style) {
