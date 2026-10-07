@@ -33,3 +33,11 @@ C "[...document.querySelectorAll('.ex-save')].find(b=>b.textContent==='Done').cl
 ok "saving writes the paper to the note, a row per question" '[[ $(grep -c "^| [0-9]* | Calculator-" "$V/School/Methods/Exam tracker.md") == 17 ]] && grep -q "^| 12 | Calculator-assumed | Rates of change & optimisation | 3 | 9 | 3 |" "$V/School/Methods/Exam tracker.md"'
 ok "…and the tracker shows it: score, sections, where the marks go" '[[ $(C "document.querySelector(\".ex-booklet-pct\").textContent + \"|\" + document.querySelectorAll(\".ex-sec\").length + \"|\" + document.querySelector(\".ex-loss:not(.is-head) .ex-loss-name\").textContent") == "\"57%|2|Rates of change & optimisation\"" ]]'
 ok "no errors" '[[ $(C "JSON.stringify(window.__errs||[])") == "\"[]\"" ]]'
+
+# right-click the paper's PDF button, and the steps in a tab's hover card
+C "[...document.querySelectorAll('.ex-chip')].find(b=>b.textContent==='Open the marking').click(); 1" >/dev/null; sleep 3
+ok "right-click the paper's 'Open …pdf' button: the file's menu" '[[ $(C "(()=>{const b=[...document.querySelectorAll(\".ex-chip\")].find(b=>b.textContent.startsWith(\"Open 2025\")); b.dispatchEvent(new MouseEvent(\"contextmenu\",{bubbles:true,cancelable:true,clientX:300,clientY:300})); return [...document.querySelectorAll(\"[role=menuitem]\")].map(e=>e.textContent).join(\"|\")})()") == *"Open in new tab"*"Show in Finder"* ]]'
+C "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1" >/dev/null; sleep 0.3
+C "[...document.querySelectorAll('.ex-chip')].find(b=>b.textContent.startsWith('Open 2025')).click(); 1" >/dev/null; sleep 2.5
+C "(()=>{const t=document.querySelector('.tab.is-active'); t.dispatchEvent(new PointerEvent('pointerenter',{bubbles:true})); t.dispatchEvent(new MouseEvent('mouseenter',{bubbles:true})); return 1})()" >/dev/null; sleep 1.5
+ok "right-click a folder in a tab's hover card: that folder's menu" '[[ $(C "(()=>{const s=[...document.querySelectorAll(\".tab-peek-step\")].find(e=>e.textContent.includes(\"Methods\")); if(!s) return \"no card\"; s.dispatchEvent(new MouseEvent(\"contextmenu\",{bubbles:true,cancelable:true,clientX:300,clientY:120})); return [...document.querySelectorAll(\"[role=menuitem]\")].map(e=>e.textContent).join(\"|\")})()") == *"Open in new tab"*"Delete folder"* ]]'

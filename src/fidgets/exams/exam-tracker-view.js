@@ -104,7 +104,7 @@ export class ExamTracker {
       h('div', { class: 'ex-head' },
         h('div', { class: 'ex-head-title' }, h('span', { class: 'mono-label' }, 'Exam tracker'), h('span', { class: 'ex-course' }, course.name)),
         h('button', { class: 'ex-chip', type: 'button', onclick: (e) => this.courseMenu(e) }, 'Course ▾'),
-        h('button', { class: 'ex-chip', type: 'button', onclick: () => this.io.openFile(this.io.path) }, 'Open the note')),
+        h('button', { class: 'ex-chip', type: 'button', 'data-open-path': this.io.path, onclick: () => this.io.openFile(this.io.path) }, 'Open the note')),
       stats,
       h('div', { class: 'ex-grid' }, left, right));
   }
@@ -479,7 +479,7 @@ export class ExamPaper {
           ...secs.map((s) => h('span', { class: 'ex-mark-line' }, h('span', null, s.name), h('b', null, s.answered ? `${s.got} / ${s.outOf}` : '—'))),
           needed != null && pct != null ? h('span', { class: 'ex-sub' }, pct >= needed ? `clears the ${needed}% you need` : `${needed - pct} short of the ${needed}% you need`) : null),
         m.unread ? h('span', { class: 'ex-sub' }, 'Opal couldn’t read this paper’s questions, so each section is one line — change the marks out of as you go.') : null,
-        (m.paths || []).length ? h('div', { class: 'ex-open' }, ...m.paths.map((p) => h('button', { class: 'ex-chip', type: 'button', onclick: () => this.io.openFile(p) }, `Open ${p.split('/').pop()}`))) : null),
+        (m.paths || []).length ? h('div', { class: 'ex-open' }, ...m.paths.map((p) => h('button', { class: 'ex-chip', type: 'button', 'data-open-path': p, onclick: () => this.io.openFile(p) }, `Open ${p.split('/').pop()}`))) : null),
       h('div', { class: 'ex-card ex-mark-main' },
         h('div', { class: 'ex-card-head' }, h('h3', null, 'Mark it, question by question'),
           h('span', { class: 'ex-filters' }, ...['all', ...m.sections.map((s) => s.name)].map((f) => h('button', {

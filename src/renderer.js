@@ -143,6 +143,20 @@ const tabBar = new TabBar(tabStrip, {
   onMove: (id, index) => moveTab(id, index),
   onPath: (id, place) => openFromTab(id, place),
   onDouble: (event, id) => tabFileMenu(event, id),
+  onPathMenu: (event, id, place) => {
+    if (!place) {
+      const tab = tabs.find((t) => t.id === id);
+      place = tab ? tabPlace(tab) : null; // the tab's own note or folder
+      if (!place || (place.kind !== 'home' && place.kind !== 'note')) return tabFileMenu(event, id);
+    }
+    if (place.kind === 'home') {
+      const node = findFolder(tree, place.folderPath, vault.name);
+      if (node) colorMenu(event, node, 'folder');
+    } else if (place.kind === 'note') {
+      const node = findFile(tree, place.filePath);
+      if (node) colorMenu(event, node, 'file');
+    }
+  },
 });
 
 // The prep timer lives in the top bar and keeps running across screens.

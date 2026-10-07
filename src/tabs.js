@@ -165,7 +165,7 @@ export class TabBar {
     path.forEach((step, i) => {
       if (i > 0) crumbs.append(h('span', { class: 'tab-peek-sep', 'aria-hidden': 'true' }, '›'));
       const last = i === path.length - 1;
-      crumbs.append(last || !step.place
+      const stepEl = last || !step.place
         ? h('span', { class: `tab-peek-step${last ? ' is-here' : ''}` }, icon(step.icon, 12), step.label)
         : h('button', {
           class: 'tab-peek-step',
@@ -174,7 +174,13 @@ export class TabBar {
             this.hidePeek(true);
             this.handlers.onPath(tab.id, step.place);
           },
-        }, icon(step.icon, 12), step.label));
+        }, icon(step.icon, 12), step.label);
+      // Right-click a step: that folder's (or the item's own) menu.
+      stepEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (this.handlers.onPathMenu) this.handlers.onPathMenu(e, tab.id, last ? null : step.place);
+      });
+      crumbs.append(stepEl);
     });
     const card = h('div', { class: 'tab-peek', role: 'tooltip' },
       h('div', { class: 'tab-peek-title' },
