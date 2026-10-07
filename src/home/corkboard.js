@@ -287,7 +287,10 @@ export class Corkboard {
       b.style.cssText = `left: ${x}px; top: ${y}px; width: ${w}px; height: ${hh}px; border-radius: ${typeof radius === 'number' ? `${radius}px` : radius}`;
       b.setAttribute('aria-label', id ? `Open ${label}` : label);
       b.append(el('span', 'cork-stamp-tip', label));
-      if (id) b.addEventListener('click', () => this.io.openFidget(id));
+      if (id) {
+        b.dataset.openFidget = id;
+        b.addEventListener('click', () => this.io.openFidget(id));
+      }
       box.append(b);
     }
     return box;
@@ -348,6 +351,11 @@ export class Corkboard {
       top.append(el('span', 'cork-rc-item', t.title.toUpperCase()), el('span', null, t.time || ''));
             body.append(top);
       row.append(body);
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.io.taskMenu(e, t, () => this.fillReceipt());
+      });
       row.addEventListener('click', async () => {
         row.disabled = true;
         try {
@@ -419,6 +427,11 @@ export class Corkboard {
         }
       });
       input.addEventListener('blur', commit);
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.io.taskMenu(e, t, () => this.fillReceipt());
+      });
       row.append(tick, input);
       box.append(row);
     });
@@ -475,6 +488,14 @@ export class Corkboard {
     next.addEventListener('click', () => {
       i = (i + 1) % list.length;
       show();
+    });
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.io.quoteMenu(e, list[i], () => {
+        i = (i + 1) % list.length;
+        show();
+      });
     });
     show();
     return card;

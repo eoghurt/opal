@@ -67,6 +67,8 @@ export function keyRack(folders, open) {
     key.type = 'button';
     key.style.left = `${20 + i * 180}px`;
     key.setAttribute('aria-label', `Open ${f.name}`);
+    key.dataset.openPath = f.path;
+    key.dataset.openKind = 'folder';
     const sub = f.subfolders.slice(0, 2).join(' · ');
     // Fit the name on one line (Jost Heavy capitals are about 0.7em wide).
     const longest = Math.max(...f.name.split(/\s+/).map((w) => w.length), 1);

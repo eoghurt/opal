@@ -42,3 +42,14 @@ ok "…a line can be rewritten" 'grep -q "Return two library books" "$V/Tasks/Qu
 C "document.querySelector('.cork-stub-clear').click(); 1" >/dev/null; sleep 2
 ok "…clear ticked removes the ticked lines" '! grep -q "Buy chalk" "$V/Tasks/Quick list.md" && grep -q "Return two library books" "$V/Tasks/Quick list.md"'
 ok "no errors after the stub" '[[ $(C "JSON.stringify(window.__errs||[])") == "\"[]\"" ]]'
+
+# right-click on anything that opens something: its menu
+C "document.querySelector('.wordmark').click(); 1" >/dev/null; sleep 2
+menu() { C "(()=>{const el=$1; el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300})); return [...document.querySelectorAll('[role=menuitem]')].map(e=>e.textContent).join('|')})()"; C "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); document.body.click(); 1" >/dev/null; sleep 0.3; }
+ok "right-click a key tag: the folder's menu (open in new tab, rename, delete)" '[[ $(menu "document.querySelector(\".cork-key\")") == *"Open in new tab"*"Rename"*"Delete folder"* ]]'
+ok "right-click a passport stamp: open, open in new tab" '[[ $(menu "document.querySelector(\".cork-stamp[data-open-fidget]\")") == *"Open|Open in new tab"* ]]'
+ok "right-click a calendar day: open in Calendar, new tab" '[[ $(menu "document.querySelector(\".cork-cal-cell\")") == *"Open in Calendar|Open in new tab"* ]]'
+ok "right-click a receipt line: tick, rename, open its list, delete" '[[ $(menu "document.querySelector(\".cork-rc-row\")") == *"Rename"*"Open Tasks"*"Delete the task"* ]]'
+ok "right-click the quote card: another quote, copy, edit quotes" '[[ $(menu "document.querySelector(\".cork-quote\")") == *"Another quote|Copy the quote|Edit quotes"* ]]'
+C "(()=>{document.querySelector('.cork-quote').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:300,clientY:300})); [...document.querySelectorAll('[role=menuitem]')].find(e=>e.textContent.startsWith('Edit quotes')).click(); return 1})()" >/dev/null; sleep 2
+ok "…edit quotes makes Quotes.md from the four quotes and opens it" 'grep -q "> Watch the waves, not the shore." "$V/Quotes.md" && grep -q "> — Kanye" "$V/Quotes.md" && [[ $(C "document.title") == *"Quotes"* ]]'

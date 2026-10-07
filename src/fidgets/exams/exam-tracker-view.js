@@ -175,7 +175,19 @@ export class ExamTracker {
         this.save();
         this.render();
       } }, '×');
-      return h('div', { class: 'ex-row' }, name, weight, bar, mark, del);
+      const row = h('div', { class: 'ex-row' }, name, weight, bar, mark, del);
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showMenu(e, { title: r.name, items: [
+          { label: 'Edit the name', onSelect: () => name.focus() },
+          { label: 'Edit the mark', onSelect: () => mark.focus() },
+          'separator',
+          { label: 'Open the note', onSelect: () => this.io.openFile(this.io.path) },
+          'separator',
+          { label: 'Remove this result', danger: true, onSelect: () => del.click() },
+        ] });
+      });
+      return row;
     });
     // A new result: type it in, Enter adds it.
     const nName = h('input', { class: 'ex-cell', placeholder: 'Add a test or exam…', 'aria-label': 'New assessment' });

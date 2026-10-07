@@ -82,7 +82,7 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   // subfolders, then the widgets, then loose notes.
   if (fidgets && fidgets.length) {
     sections.push(h('section', { class: 'home-fidgets', 'aria-label': 'Fidgets' },
-      fidgets.map((f) => h('button', { class: 'fidget-tile', style: `--tile-c: var(--c${f.slot})`, onclick: f.open, title: f.what },
+      fidgets.map((f) => h('button', { class: 'fidget-tile', style: `--tile-c: var(--c${f.slot})`, 'data-open-fidget': f.id, onclick: f.open, title: f.what },
         h('span', { class: 'fidget-tile-icon', 'aria-hidden': 'true' }, icon(f.icon, 20)),
         h('span', { class: 'fidget-tile-text' },
           h('span', { class: 'fidget-tile-name' }, f.name),

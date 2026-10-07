@@ -68,7 +68,7 @@ import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
 import { DebateView } from './fidgets/debate/debate-view.js';
-import { Corkboard } from './home/corkboard.js';
+import { Corkboard, DEFAULT_QUOTES } from './home/corkboard.js';
 import { ExamTracker } from './fidgets/exams/exam-tracker-view.js';
 import { TRACKER_NAME, guessCourse, formatTracker } from './fidgets/exams/exams.js';
 import { pdfLines } from './fidgets/exams/pdf-lines.js';
@@ -986,9 +986,12 @@ async function addExamTracker(node) {
 // The vault's home page as a pinboard (src/home/corkboard.js). Switch it off
 // in Settings › Appearance, or right-click the frame, for the classic home.
 
-function showCorkboard() {
+async function showCorkboard() {
   homeStickies = null;
   viewEl.scrollTop = 0;
+  const quotes = await loadQuotes();
+  if (screen.kind !== 'home' || screen.folderPath) return;
+  if (corkboard) corkboard.destroy();
   corkboard = new Corkboard(viewEl, {
     openFidget: (id) => FIDGET_PAGES[id] && FIDGET_PAGES[id](),
     openFolder: (path) => openFolder(path),
@@ -1019,7 +1022,17 @@ function showCorkboard() {
       subfolders: n.children.filter((c) => c.type === 'folder').map((c) => c.name),
       notes: countNotes(n),
     })),
-    quotes: () => (Array.isArray(vaultSettings.homeQuotes) ? vaultSettings.homeQuotes : []),
+    quotes: () => quotes,
+    taskMenu: (event, task, after) => taskMenu(event, task, after),
+    quoteMenu: (event, quote, next) => showMenu(event, {
+      title: 'Quote',
+      items: [
+        { label: 'Another quote', onSelect: next },
+        { label: 'Copy the quote', onSelect: () => window.opal.copyText(`“${quote.text}”${quote.who ? ` — ${quote.who}` : ''}`) },
+        'separator',
+        { label: 'Edit quotes…', hint: QUOTES_PATH, onSelect: () => editQuotes() },
+      ],
+    }),
     onMenu: (event) => showMenu(event, {
       items: [
         { label: 'New note', onSelect: () => newNote('') },
@@ -1037,6 +1050,114 @@ const QUICK_LIST = 'Quick list';
 async function editQuickList(change) {
   const text = (await readTaskList(QUICK_LIST)) || '';
   await writeTaskList(QUICK_LIST, change(text, parseTasks(text, QUICK_LIST)));
+}
+
+// The quotes on the corkboard: blockquotes in Quotes.md, each with its author
+// on a last "— who" line. Until that note exists, the built-in four.
+const QUOTES_PATH = 'Quotes.md';
+function parseQuotes(text) {
+  const out = [];
+  for (const block of String(text || '').split(/\n\s*\n/)) {
+    const lines = block.split(/\r?\n/).filter((l) => /^\s*>/.test(l)).map((l) => l.replace(/^\s*>\s?/, '').trim()).filter(Boolean);
+    if (!lines.length) continue;
+    const last = lines[lines.length - 1];
+    const by = /^[—–-]\s*(.+)$/.exec(last);
+    const body = (by ? lines.slice(0, -1) : lines).join(' ').replace(/^[“"]|[”"]$/g, '').trim();
+    if (body) out.push({ text: body, who: by ? by[1].trim() : '' });
+  }
+  return out;
+}
+async function loadQuotes() {
+  const text = await readNoteOrNull(QUOTES_PATH);
+  const list = text ? parseQuotes(text) : [];
+  if (list.length) return list;
+  return Array.isArray(vaultSettings.homeQuotes) ? vaultSettings.homeQuotes : [];
+}
+async function editQuotes() {
+  if (!findFile(tree, QUOTES_PATH)) {
+    const text = `# Quotes\n\nThe quotes on the home page's card. Each is a quote block, with who said it on its last line.\n\n${DEFAULT_QUOTES.map((q) => `> ${q.text}\n> — ${q.who}`).join('\n\n')}\n`;
+    const path = await window.opal.createNote('Quotes', '');
+    await window.opal.writeFile(path, text);
+    await reloadTree();
+  }
+  openFile(QUOTES_PATH);
+}
+
+// Right-click on anything that opens a note, folder, fidget or day: its menu.
+// (Those elements say what they open with data-open-path / -day / -fidget.)
+function openerMenu(event) {
+  const el = event.target.closest('[data-open-path], [data-open-day], [data-open-fidget]');
+  if (!el || !viewEl.contains(el)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (el.dataset.openFidget) return fidgetMenu(event, el.dataset.openFidget);
+  if (el.dataset.openDay) return dayMenu(event, el.dataset.openDay);
+  const path = el.dataset.openPath;
+  const node = el.dataset.openKind === 'folder' ? findFolder(tree, path, vault.name) : findFile(tree, path);
+  if (node) colorMenu(event, node, el.dataset.openKind === 'folder' ? 'folder' : 'file');
+}
+viewEl.addEventListener('contextmenu', openerMenu, true);
+
+function fidgetMenu(event, id) {
+  const f = FIDGETS.find((x) => x.id === id);
+  const open = FIDGET_PAGES[id];
+  if (!open) return;
+  showMenu(event, {
+    title: f ? f.name : id,
+    items: [
+      { label: 'Open', onSelect: () => open() },
+      { label: 'Open in new tab', hint: '⌘-click', onSelect: () => inNewTab(() => open()) },
+      'separator',
+      { label: 'Fidget settings…', onSelect: () => showSettings('parts') },
+    ],
+  });
+}
+
+function dayMenu(event, key) {
+  const note = findFile(tree, dayPath(key));
+  const date = keyToDate(key);
+  showMenu(event, {
+    title: date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
+    items: [
+      { label: 'Open in Calendar', onSelect: () => showCalendar(date) },
+      { label: 'Open in new tab', hint: '⌘-click', onSelect: () => inNewTab(() => showCalendar(date)) },
+      note ? 'separator' : null,
+      note ? { label: 'Open the day note', onSelect: () => openFile(note.path) } : null,
+      note ? { label: 'Show in Finder', onSelect: () => window.opal.revealInFinder(note.path) } : null,
+    ],
+  });
+}
+
+// A task (on the corkboard's receipt or to-do stub): tick, rename, open its list, delete.
+function taskMenu(event, task, after = () => {}) {
+  const listPath = taskListPath(task.list);
+  const change = async (fn) => {
+    try {
+      const text = (await readTaskList(task.list)) || '';
+      await writeTaskList(task.list, fn(text));
+    } catch (err) {
+      alert(`Couldn't change the task.\n\n${err.message}`);
+    }
+    after();
+  };
+  showMenu(event, {
+    title: task.title,
+    items: [
+      { label: task.done ? 'Untick' : 'Tick', onSelect: () => change((text) => toggleTask(text, task)) },
+      { label: 'Rename…', onSelect: async () => {
+        const next = await askName('Rename the task', 'New name, then Enter', task.title);
+        if (next && next.trim() && next.trim() !== task.title) change((text) => replaceTask(text, task, { ...task, title: next.trim() }));
+      } },
+      'separator',
+      { label: `Open “${task.list}”`, onSelect: () => openFile(listPath) },
+      { label: 'Open in new tab', onSelect: () => inNewTab(() => openFile(listPath)) },
+      { label: 'Open Tasks', onSelect: () => showTasks() },
+      'separator',
+      { label: 'Delete the task', danger: true, onSelect: () => {
+        if (confirm(`Delete “${task.title}”?`)) change((text) => replaceTask(text, task, null));
+      } },
+    ],
+  });
 }
 
 async function setHomeStyle(style) {

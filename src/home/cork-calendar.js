@@ -183,6 +183,7 @@ export class CorkCalendar {
         const list = document.createElement('span');
         list.className = 'cork-cal-evs';
         cell.append(list);
+        cell.dataset.openDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(sl.d).padStart(2, '0')}`;
         cell.addEventListener('click', () => this.io.openDay(year, month, sl.d));
         cells.append(cell);
         cellFor[sl.d] = list;

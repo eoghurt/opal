@@ -252,7 +252,7 @@ export class HomeWidgets {
 
   async fill_today(body, tools) {
     const key = dayKey(new Date());
-    tools.append(h('button', { class: 'widget-link', onclick: () => this.io.openCalendarDay(key) }, 'Calendar →'));
+    tools.append(h('button', { class: 'widget-link', 'data-open-day': key, onclick: () => this.io.openCalendarDay(key) }, 'Calendar →'));
     body.append(empty('Loading…'));
     let events = [];
     let tasks = [];
@@ -266,7 +266,7 @@ export class HomeWidgets {
     const due = tasks.filter((t) => !t.done && t.due && t.due <= today).sort((a, b) => a.due.localeCompare(b.due) || String(a.time || '').localeCompare(String(b.time || '')));
     const rows = [];
     for (const e of events.slice().sort((a, b) => (b.allDay - a.allDay) || a.start - b.start)) {
-      rows.push(h('button', { class: 'widget-row', onclick: () => this.io.openCalendarDay(key) },
+      rows.push(h('button', { class: 'widget-row', 'data-open-day': key, onclick: () => this.io.openCalendarDay(key) },
         h('span', { class: 'widget-row-time' }, e.allDay ? 'all day' : clock(e.start)),
         h('span', { class: 'widget-row-title' }, e.title)));
     }
@@ -356,7 +356,7 @@ export class HomeWidgets {
       .filter((f) => !f.quiet && /\.md$/i.test(f.name))
       .sort((a, b) => (b.modified || 0) - (a.modified || 0))
       .slice(0, 8);
-    body.replaceChildren(...(notes.length ? notes.map((f) => h('button', { class: 'widget-row', title: f.path, onclick: () => this.io.openFile(f.path) },
+    body.replaceChildren(...(notes.length ? notes.map((f) => h('button', { class: 'widget-row', title: f.path, 'data-open-path': f.path, onclick: () => this.io.openFile(f.path) },
       icon('note', 14),
       h('span', { class: 'widget-row-title' }, noteName(f.path)),
       h('span', { class: 'widget-row-meta' }, [f.path.includes('/') ? f.path.split('/').slice(0, -1).pop() : null, ago(f.modified)].filter(Boolean).join(' · ')))) : [empty('No notes yet.')]));
@@ -403,7 +403,7 @@ export class HomeWidgets {
     }
     const draw = () => body.replaceChildren(
       renderHeatmap(data, { openFile: io.openFile, offset, onOffset: (n) => { offset = n; draw(); } }),
-      h('button', { class: 'widget-link heat-source', onclick: () => io.openFile(note.path) }, `From ${note.path.replace(/\.md$/i, '')} →`));
+      h('button', { class: 'widget-link heat-source', 'data-open-path': note.path, onclick: () => io.openFile(note.path) }, `From ${note.path.replace(/\.md$/i, '')} →`));
     if (body.isConnected) draw();
   }
 
