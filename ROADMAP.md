@@ -206,6 +206,17 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Themes** — Minimal only, light or dark (Scrapbook and GitHub retired).
 - **Dark mode** — scrollbars and built-in controls are dark too.
 
+## Corkboard home and exam tracker (done)
+- **Corkboard home** — the vault's home page as a pinboard: hand-drawn month
+  calendar, passport stamps that open the fidgets, today's tasks on a receipt
+  with a tear-off to-do stub (Tasks/Quick list.md), quote card, folders as
+  motel key tags. Switch back in Settings › Appearance.
+- **Exam tracker** — in a subject folder with an "Exam tracker.md" note (or
+  right-click a folder › Add an exam tracker): school mark, target, the WACE
+  mark needed (2 × target − school), WACE papers read from their PDFs and
+  marked question by question, by section, with the question types that lose
+  the most marks. Literature tracks results only.
+
 ## Fidget ideas
 Ethan's:
 - **Bouldering tracker** — problems by gym, wall, grade and colour; sends,

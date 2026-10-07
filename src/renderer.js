@@ -69,6 +69,9 @@ import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
 import { DebateView } from './fidgets/debate/debate-view.js';
 import { Corkboard } from './home/corkboard.js';
+import { ExamTracker } from './fidgets/exams/exam-tracker-view.js';
+import { TRACKER_NAME, guessCourse, formatTracker } from './fidgets/exams/exams.js';
+import { pdfLines } from './fidgets/exams/pdf-lines.js';
 import { FIDGETS } from './fidgets/index.js';
 import { noteStructure } from './export/note-structure.js';
 import { docxFromChapters, docxFromTable, docxFromNote } from './export/docx.js';
@@ -937,10 +940,45 @@ function showHome(folderPath, notice) {
     loadWordTarget: async () => parseInt(String(getProp(await window.opal.readFolderSettings(folderPath), 'word-target') || ''), 10) || null,
     mountWidgets: folderPath ? null : (slot) => mountHomeWidgets(slot),
     fidgets: folderPath ? null : homeFidgets(),
+    mountExams: examTrackerFor(folder),
   });
   describeAfterOpen = null;
   homeStickies = folderHomeStickies(folderPath, folder, home);
   addButton.refresh();
+}
+
+// ---------- Exam tracker ----------
+//
+// A subject folder with an "Exam tracker.md" note shows the tracker at the top
+// of its page (src/fidgets/exams/). Everything is in that note.
+
+function examTrackerFor(folder) {
+  if (!folder || !folder.path) return null;
+  const note = folder.children.find((c) => c.type === 'file' && c.name === `${TRACKER_NAME}.md`);
+  if (!note) return null;
+  return (slot) => new ExamTracker(slot, {
+    path: note.path,
+    folderName: folder.name,
+    load: () => window.opal.readFile(note.path),
+    save: (text) => window.opal.writeFile(note.path, text),
+    files: () => flattenFiles(folder.children).map((f) => ({ path: f.path })),
+    pdfLines: (paths) => pdfLines(paths, (p) => window.opal.readBytes(p)),
+    openFile: (p) => openFile(p),
+  });
+}
+
+// A new "Exam tracker.md" in a subject folder, its course guessed from the folder's name.
+async function addExamTracker(node) {
+  const course = guessCourse(node.name);
+  const text = formatTracker({ course, target: 70, moderated: null, results: [], papers: [] }, '', `${node.name} exam tracker`);
+  try {
+    const path = await window.opal.createNote(TRACKER_NAME, node.path);
+    await window.opal.writeFile(path, text);
+    await reloadTree();
+    openFolder(node.path);
+  } catch (err) {
+    alert(`Couldn't add the exam tracker.\n\n${err.message}`);
+  }
 }
 
 // ---------- The corkboard home ----------
@@ -2039,6 +2077,7 @@ function colorMenu(event, node, kind) {
       { label: 'Word target…', hint: node.wordTarget ? node.wordTarget.toLocaleString() : '', onSelect: () => setFolderTarget(node) },
       { label: 'Show as database…', onSelect: () => chooseDatabase(node.path, at) },
       { label: 'Manuscript…', onSelect: () => toggleManuscript(node.path, at) },
+      node.path && !node.children.some((c) => c.type === 'file' && c.name === `${TRACKER_NAME}.md`) ? { label: 'Add an exam tracker', hint: 'WACE subjects', onSelect: () => addExamTracker(node) } : null,
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
@@ -2589,7 +2628,7 @@ function refreshFiles() {
     } else if (screen.kind === 'home') {
       if (homeStickies && homeStickies.layer.busy) return; // redraw after they're done
       // Typing the folder's name or description: redraw once that's finished.
-      const typing = viewEl.querySelector('.home-h1-text:focus, .home .editable-line:focus, .db input:focus, .db select:focus');
+      const typing = viewEl.querySelector('.home-h1-text:focus, .home .editable-line:focus, .db input:focus, .db select:focus, .home-exams input:focus, .home-exams select:focus');
       if (typing) {
         typing.addEventListener('blur', () => setTimeout(refreshFiles, 0), { once: true });
         return;

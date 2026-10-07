@@ -16,7 +16,7 @@ import { kindOf, kindLabel, fileUrl, extensionOf, formatSize } from '../file-typ
 // the same every time you open it.
 const CARD_LOOKS = ['taped', 'block', 'lined', 'tilted'];
 
-export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase, loadManuscript, mountManuscript, mountWidgets, fidgets }) {
+export function renderFolderHome(container, { folder, isRoot, notice, getPreviews, onOpenFile, onOpenFolder, onNewNote, onNewFolder, onAddSticky, onColorMenu, onRearrange, onCreateHere, onRename, onDescribe, describeNow, loadDescription, loadWords, loadWordTarget, loadDatabase, mountDatabase, loadManuscript, mountManuscript, mountWidgets, fidgets, mountExams }) {
   const subfolders = folder.children.filter((n) => n.type === 'folder');
   const allFiles = folder.children.filter((n) => n.type === 'file');
   const files = allFiles
@@ -74,6 +74,9 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   // (+ Note / + Folder / + Sticky are on the round + button in the bottom right — see fab.js.)
 
   const sections = [head];
+  // A subject with an exam tracker: it goes right under the title.
+  const examSlot = mountExams ? h('div', { class: 'home-exams' }) : null;
+  if (examSlot) sections.push(examSlot);
   if (notice) sections.unshift(h('div', { class: 'home-notice' }, notice));
   // The vault's own page: the fidgets first (Money, Calendar…), then the
   // subfolders, then the widgets, then loose notes.
@@ -151,11 +154,12 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   const home = h('div', { class: 'home' }, sections);
   container.replaceChildren(home);
   if (widgetSlot) mountWidgets(widgetSlot);
+  if (examSlot) mountExams(examSlot);
   container.scrollTop = scrollTop;
 
   // Right-click or double-click on empty space: make a new note or folder here.
   const onBlank = (event) => {
-    if (event.target.closest('button, a, input, textarea, select, [draggable="true"], [contenteditable], .sticky-layer > *, .home-widgets')) return;
+    if (event.target.closest('button, a, input, textarea, select, [draggable="true"], [contenteditable], .sticky-layer > *, .home-widgets, .home-exams')) return;
     event.preventDefault();
     onCreateHere(event);
   };
