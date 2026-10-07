@@ -4117,7 +4117,7 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 .ex-mark-main { flex: 999 1 560px; }
 .ex-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .ex-qs { display: flex; flex-direction: column; }
-.ex-q { display: grid; grid-template-columns: 38px minmax(150px, 230px) 148px 90px minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--line-soft); }
+.ex-q { display: grid; grid-template-columns: 38px minmax(150px, 230px) 196px 90px minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--line-soft); }
 .ex-q.is-head { font-size: 10px; }
 .ex-q.is-blank .ex-q-n { color: var(--ink-3); }
 .ex-q-n { font-weight: 700; font-size: 15px; }
@@ -4138,3 +4138,8 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 .ex-lost b { color: var(--danger); }
 .ex-page { padding: 24px 32px 72px; }
 .ex-saved { text-align: center; }
+
+.ex-skip { width: 24px; height: 24px; border: 0; border-radius: 50%; background: none; color: var(--ink-3); font: 500 15px/1 var(--sans); cursor: pointer; padding: 0; margin-left: 2px; }
+.ex-skip:hover { background: var(--fill); color: var(--danger); }
+.ex-skipped { margin-left: 4px; font: 500 11px var(--mono); letter-spacing: .04em; color: var(--ink-4); text-transform: uppercase; }
+.ex-q.is-blank .ex-type, .ex-q.is-blank .ex-note { opacity: .6; }

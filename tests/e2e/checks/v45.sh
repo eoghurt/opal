@@ -41,3 +41,10 @@ C "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1" >/dev
 C "[...document.querySelectorAll('.ex-chip')].find(b=>b.textContent.startsWith('Open 2025')).click(); 1" >/dev/null; sleep 2.5
 C "(()=>{const t=document.querySelector('.tab.is-active'); t.dispatchEvent(new PointerEvent('pointerenter',{bubbles:true})); t.dispatchEvent(new MouseEvent('mouseenter',{bubbles:true})); return 1})()" >/dev/null; sleep 1.5
 ok "right-click a folder in a tab's hover card: that folder's menu" '[[ $(C "(()=>{const s=[...document.querySelectorAll(\".tab-peek-step\")].find(e=>e.textContent.includes(\"Methods\")); if(!s) return \"no card\"; s.dispatchEvent(new MouseEvent(\"contextmenu\",{bubbles:true,cancelable:true,clientX:300,clientY:120})); return [...document.querySelectorAll(\"[role=menuitem]\")].map(e=>e.textContent).join(\"|\")})()") == *"Open in new tab"*"Delete folder"* ]]'
+
+# a question marked by accident (a choice you didn't take) can be cleared back to "didn't answer"
+C "document.querySelector('[aria-label=\"Back\"]').click(); 1" >/dev/null; sleep 3
+C "[...document.querySelectorAll('.ex-q:not(.is-head)')][4].querySelectorAll('.ex-step')[1].click(); 1" >/dev/null; sleep 0.4
+ok "…pressing + marks a question" '[[ $(C "[...document.querySelectorAll(\".ex-q:not(.is-head)\")][4].querySelector(\".ex-got\").value") == "\"8\"" ]]'
+C "[...document.querySelectorAll('.ex-q:not(.is-head)')][4].querySelector('.ex-skip').click(); 1" >/dev/null; sleep 1.5
+ok "…× clears it back to not answered (skipped, saved as –)" '[[ $(C "[...document.querySelectorAll(\".ex-q:not(.is-head)\")][4].querySelector(\".ex-skipped\") ? 1 : 0") == "1" ]] && grep -q "^| 5 | Calculator-free | [^|]* | – |" "$V/School/Methods/Exam tracker.md"'

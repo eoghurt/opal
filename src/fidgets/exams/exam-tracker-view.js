@@ -436,14 +436,23 @@ export class ExamPaper {
         m.questions[i].note = note.value;
         this.saveSoon();
       });
-      return h('div', { class: `ex-q${q.got == null ? ' is-blank' : ''}` },
+      // Not answered (a choice section) — or marked by accident: clear it back.
+      const skip = () => {
+        m.questions[i].got = null;
+        m.questions[i].ache = 0;
+        this.render();
+      };
+      const row = h('div', { class: `ex-q${q.got == null ? ' is-blank' : ''}` },
         h('span', { class: 'ex-q-n' }, q.q),
         sel,
         h('span', { class: 'ex-marks' },
           h('button', { class: 'ex-step is-small', type: 'button', 'aria-label': 'One mark less', onclick: () => setGot(q.got == null ? 0 : q.got - 1) }, '−'),
           got,
           h('span', { class: 'ex-of' }, `/ ${q.of}`),
-          h('button', { class: 'ex-step is-small', type: 'button', 'aria-label': 'One mark more', onclick: () => setGot(q.got == null ? q.of : q.got + 1) }, '+')),
+          h('button', { class: 'ex-step is-small', type: 'button', 'aria-label': 'One mark more', onclick: () => setGot(q.got == null ? q.of : q.got + 1) }, '+'),
+          q.got == null
+            ? h('span', { class: 'ex-skipped', title: 'Not answered — doesn’t count' }, 'skipped')
+            : h('button', { class: 'ex-skip', type: 'button', title: 'Didn’t answer this one — clear its marks', 'aria-label': `Didn't answer question ${q.q}`, onclick: skip }, '×')),
         h('span', { class: 'ex-q-aches' }, ...[1, 2, 3].map((level) => h('button', {
           class: `ex-ache-btn${level <= q.ache ? ' is-on' : ''}`, type: 'button', 'aria-label': `Headache ${level} of 3`,
           onclick: () => {
@@ -452,6 +461,19 @@ export class ExamPaper {
           },
         }, h('span')))),
         note);
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showMenu(e, {
+          title: `Question ${q.q}`,
+          items: [
+            q.got != null ? { label: 'Didn’t answer this one', hint: 'clears the marks', onSelect: skip } : null,
+            { label: 'Full marks', hint: `${q.of} / ${q.of}`, onSelect: () => setGot(q.of) },
+            { label: 'No marks', hint: `0 / ${q.of}`, onSelect: () => setGot(0) },
+            q.ache ? { label: 'No headache', onSelect: () => { m.questions[i].ache = 0; this.render(); } } : null,
+          ],
+        });
+      });
+      return row;
     });
 
     const lostBy = lossesByType([draft]);
@@ -491,7 +513,7 @@ export class ExamPaper {
         m.loading ? h('span', { class: 'ex-sub' }, 'Reading the paper…') : h('div', { class: 'ex-qs' },
           h('div', { class: 'ex-q is-head mono-label' }, h('span', null, 'Q'), h('span', null, 'Question type'), h('span', null, 'Marks'), h('span', null, 'Headache'), h('span', null, 'Notes')),
           ...rows),
-        h('span', { class: 'ex-sub' }, 'Leave the marks blank for a question you didn’t answer (choice sections).')),
+        h('span', { class: 'ex-sub' }, 'Didn’t answer a question (choice sections)? Press × next to its marks, or right-click it — it won’t count.')),
       h('div', { class: 'ex-mark-side is-right' },
         h('div', { class: 'ex-card' },
           h('h3', null, 'Lost on this paper'),
