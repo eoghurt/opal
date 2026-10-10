@@ -1,8 +1,8 @@
-// The window's frame. The top bar is one row: the logo (as wide as the
-// sidebar below it), back / forward, the tabs, then the sections as icons, the
-// timer (which widens while it runs) and Settings. The bottom bar has the word
-// count and save status. Where you are (the breadcrumb) is kept for screen
-// readers only — the tab says it.
+// The window's frame. A slim rail down the left: the opal (home), Search,
+// the fidgets (Calendar, Tasks, Money…), and Settings at the bottom. The page
+// sits on a sheet to the right of the sidebar; the sheet's top row has back /
+// forward, where you are (the breadcrumb), the open note's word count, the
+// save status and, top right, the timer with its countdown. The tabs are in the sidebar (see sidebar.js).
 
 import { h, icon } from './ui.js';
 
@@ -31,9 +31,12 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(topbar, footer, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks, onMoney, onDebate }) {
+  constructor(rail, topbar, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks, onMoney, onDebate, fidgets, railPlace }) {
+    this.rail = rail;
     this.topbar = topbar;
-    this.footer = footer;
+    this.footer = h('div', { class: 'sheet-status' });
+    this.fidgets = fidgets || (() => []); // [{ id, name, icon, open }]
+    this.railPlace = railPlace || (() => null); // the fidget id of the page you're on
     this.onHome = onHome;
     this.onSettings = onSettings;
     this.onBookmarks = onBookmarks;
@@ -108,38 +111,44 @@ export class Chrome {
     const crumbs = h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' });
     this.crumbs.forEach((crumb, i) => {
       const last = i === this.crumbs.length - 1;
-      if (i > 0) crumbs.append(h('span', { 'aria-hidden': 'true' }, '/'));
+      if (i > 0) crumbs.append(h('span', { class: 'crumb-sep', 'aria-hidden': 'true' }, '/'));
       crumbs.append(last || !crumb.onClick
         ? h('span', { class: last ? 'crumb-current' : null, 'aria-current': last ? 'page' : null }, crumb.label)
         : h('button', { class: 'crumb', onclick: crumb.onClick }, crumb.label));
     });
 
-    // A section: an icon button (its name is in the tooltip, and read out).
+    // A rail button: an icon (its name in the tooltip, and read out).
+    const here = this.railPlace();
     const link = (section, iconName, label, onclick, extra = {}) => h('button', {
-      class: `bar-icon bar-link${extra.class ? ` ${extra.class}` : ''}`,
+      class: `rail-btn${here === section ? ' is-on' : ''}${extra.class ? ` ${extra.class}` : ''}`,
       'data-section': section,
       onclick,
       title: extra.title || label,
       'aria-label': extra.ariaLabel || label,
-    }, icon(iconName, 17), h('span', { class: 'bar-label sr-only' }, label), extra.badge || null);
+      'aria-current': here === section ? 'page' : null,
+    }, icon(iconName, 20), extra.badge || null);
 
-    crumbs.classList.add('sr-only');
+    const fidgets = this.fidgets().map((f) => link(f.id, f.icon, f.name, f.open, {
+      badge: f.id === 'flashcards' && this.cardsDue ? h('span', { class: 'rail-badge' }, String(this.cardsDue)) : null,
+    }));
+    this.rail.replaceChildren(...[
+      h('button', { class: 'rail-mark wordmark', onclick: this.onHome, title: 'Vault home (⌘⇧H)', 'aria-label': 'Vault home' }, opalMark()),
+      link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
+      this.onInbox ? link('inbox', 'inbox', 'Inbox', () => this.onInbox(), { badge: this.inboxCount ? h('span', { class: 'rail-badge' }, String(this.inboxCount)) : null }) : null,
+      fidgets.length ? h('span', { class: 'rail-rule', 'aria-hidden': 'true' }) : null,
+      ...fidgets,
+      h('span', { class: 'rail-fill' }),
+      link('settings', 'settings', 'Settings', () => this.onSettings(), { class: 'bar-settings', title: 'Settings (⌘,)' }),
+    ].filter(Boolean));
+
     this.topbar.replaceChildren(...[
-      h('button', { class: 'bar-cell wordmark', onclick: this.onHome, title: 'Vault home (⌘⇧H)' },
-        opalMark(),
-        h('span', { class: 'wordmark-text' }, 'opal')),
       h('div', { class: 'bar-history' },
-        h('button', { class: 'bar-arrow', 'aria-label': 'Back', title: 'Back (⌘[)', disabled: !this.canBack || null, onclick: () => this.onBack() }, '‹'),
-        h('button', { class: 'bar-arrow', 'aria-label': 'Forward', title: 'Forward (⌘])', disabled: !this.canForward || null, onclick: () => this.onForward() }, '›')),
+        h('button', { class: 'bar-arrow', 'aria-label': 'Back', title: 'Back (⌘[)', disabled: !this.canBack || null, onclick: () => this.onBack() }, icon('chevron', 15)),
+        h('button', { class: 'bar-arrow is-forward', 'aria-label': 'Forward', title: 'Forward (⌘])', disabled: !this.canForward || null, onclick: () => this.onForward() }, icon('chevron', 15))),
       crumbs,
-      this.tabSlot,
-      h('div', { class: 'bar-tools' }, ...[
-        link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
-        // Bookmarks, Calendar, Tasks, Review, Money and Debate used to sit here;
-        // they're on the home page tiles, the menus and shortcuts.
-        this.timerSlot,
-        link('settings', 'settings', 'Settings', () => this.onSettings(), { class: 'bar-settings', title: 'Settings (⌘,)' }),
-      ].filter(Boolean)),
+      h('span', { class: 'grow' }),
+      this.footer,
+      this.timerSlot,
     ].filter(Boolean));
   }
 
@@ -151,7 +160,6 @@ export class Chrome {
       `${w.words.toLocaleString()} word${w.words === 1 ? '' : 's'}${w.target ? ` / ${w.target.toLocaleString()}` : ''}`,
       w.selected ? h('span', { class: 'word-count-sel' }, ` · ${w.selected.toLocaleString()} selected`) : null) : null;
     this.footer.replaceChildren(
-      h('span', { class: 'grow' }),
       count || '',
       h('span', { class: `save-status${failed ? ' is-failed' : ''}`, role: 'status' },
         h('span', { class: 'save-dot' }),

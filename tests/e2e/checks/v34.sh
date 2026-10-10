@@ -18,7 +18,8 @@ C "document.querySelector('.heat-edit').click(); 1" >/dev/null; sleep 0.6
 ok "Edit shows the block's settings to change" '[[ $(C "!document.querySelector(\".heatmap\") && document.querySelector(\".cm-content\").textContent.includes(\"searchType: frontmatter\")") == "true" ]]'
 C "document.querySelector('.side-file[title=\"Welcome.md\"]').click(); 1" >/dev/null; sleep 1.2
 C "(()=>{const v=document.querySelector('.cm-content'); return 1})()" >/dev/null
-C "[...document.querySelectorAll('.ribbon button, .ribbon-btn')].find(b=>b.textContent==='Heatmap').dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); 1" >/dev/null; sleep 1.5
+C "document.querySelector('.ribbon .rb-insert').dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); 1" >/dev/null; sleep 0.4
+C "[...document.querySelectorAll('.rb-menu button')].find(b=>b.textContent==='Heatmap').dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); 1" >/dev/null; sleep 1.5
 ok "the ribbon's Heatmap button adds a starter block" 'grep -q "^searchTarget: exercise$" "$V/Welcome.md" && grep -q "^\`\`\`tracker$" "$V/Welcome.md"'
 C "document.querySelector('.wordmark').click(); 1" >/dev/null; sleep 1.5
 C "[...document.querySelectorAll('.widgets-btn')].find(b=>b.textContent.includes('Customize')).click(); 1" >/dev/null; sleep 0.4

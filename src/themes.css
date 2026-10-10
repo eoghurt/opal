@@ -845,3 +845,96 @@
 :root[data-mode="dark"] { color-scheme: dark; }
 * { scrollbar-width: thin; scrollbar-color: rgb(var(--ink-rgb, 128 128 128) / 0.22) transparent; }
 *:hover { scrollbar-color: rgb(var(--ink-rgb, 128 128 128) / 0.38) transparent; }
+
+/* ============================================================
+   The frame (chrome.js, sidebar.js): a rail of icons on the left,
+   the sidebar (open tabs, then folders) on the same soft ground,
+   and the page on a rounded sheet. Last in the file so it wins.
+   ============================================================ */
+
+:root { --frame: color-mix(in srgb, var(--ground, #F7F4EE) 91%, var(--ink, #16140F)); }
+body, :root[data-theme] body { background: var(--frame); }
+#middle { gap: 0; }
+
+#rail { flex: 0 0 60px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0 14px; }
+#rail .rail-mark { width: 40px; height: 40px; display: grid; place-items: center; margin-bottom: 6px; border-radius: 12px; }
+#rail .rail-mark .wordmark-mark svg { width: 24px; height: 24px; }
+#rail .rail-mark:hover { background: rgb(var(--ink-rgb) / 0.06); }
+#rail .rail-btn { position: relative; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: var(--ink-2); }
+#rail .rail-btn:hover { background: rgb(var(--ink-rgb) / 0.06); color: var(--ink); }
+#rail .rail-btn.is-on { background: color-mix(in srgb, var(--accent, #3B2CF5) 12%, transparent); color: var(--accent, #3B2CF5); }
+#rail .rail-badge { position: absolute; top: 5px; right: 4px; min-width: 15px; height: 15px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--accent, #3B2CF5); color: #FFFFFF; font: 600 9.5px/15px var(--sans); }
+#rail .rail-rule { width: 22px; height: 1px; margin: 6px 0; background: rgb(var(--ink-rgb) / 0.12); }
+#rail .rail-fill { flex: 1; }
+
+#sidebar, :root[data-theme] #sidebar { border-right: 0; background: transparent; }
+#sidebar .side-vault, :root[data-theme] #sidebar .side-vault { border-bottom: 0; }
+
+/* The open tabs, one under another */
+#sidebar #tabbar { flex: none; display: flex; flex-direction: column; align-items: stretch; height: auto; padding: 0 12px 6px 14px; font: 13.5px var(--sans); letter-spacing: 0; text-transform: none; --tab-page: transparent; }
+#sidebar .tab-list { flex-direction: column; align-items: stretch; height: auto; overflow: visible; gap: 1px; }
+#sidebar .tab, #sidebar .tab.is-pinned { flex: none; width: auto; max-width: none; min-width: 0; height: 32px; border-radius: 9px; background: transparent; color: var(--ink-2); }
+#sidebar .tab::before, #sidebar .tab::after, #sidebar .tab .tab-inner::after { content: none; }
+#sidebar .tab .tab-inner, #sidebar .tab.is-active .tab-inner { margin: 0; padding: 0 6px 0 10px; border-radius: 9px; background: transparent; }
+#sidebar .tab:hover:not(.is-active) .tab-inner { background: rgb(var(--ink-rgb) / 0.05); color: var(--ink); }
+#sidebar .tab.is-active { height: 32px; background: var(--paper-2, #FFFFFF); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgb(var(--ink-rgb) / 0.08); }
+#sidebar .tab.is-pinned .tab-inner { justify-content: flex-start; margin: 0; padding-left: 10px; }
+#sidebar .tab.drop-before .tab-inner { box-shadow: inset 0 2px 0 var(--accent, #3B2CF5); }
+#sidebar .tab.drop-after .tab-inner { box-shadow: inset 0 -2px 0 var(--accent, #3B2CF5); }
+#sidebar .tab-new { align-self: flex-start; width: auto; height: 30px; padding: 0 10px; gap: 6px; border-radius: 9px; color: var(--ink-3); }
+#sidebar .tab-new::after { content: 'New tab'; font-size: 13px; }
+#sidebar .tab-new:hover { background: rgb(var(--ink-rgb) / 0.05); color: var(--ink); }
+#sidebar .tab-fill { display: none; }
+
+/* The page, on a sheet */
+#workspace { margin: 10px 10px 10px 2px; border-radius: 16px; background: var(--ground); box-shadow: 0 1px 3px rgb(var(--ink-rgb) / 0.08), 0 0 0 0.5px rgb(var(--ink-rgb) / 0.06); overflow: hidden; }
+#topbar, :root[data-theme] #topbar { height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 10px; border: 0; background: transparent; color: var(--ink); font: 13px var(--sans); letter-spacing: 0; text-transform: none; }
+#topbar .bar-history { display: flex; gap: 2px; }
+#topbar .bar-arrow { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--ink-2); }
+#topbar .bar-arrow .icon { transform: rotate(180deg); }
+#topbar .bar-arrow.is-forward .icon { transform: none; }
+#topbar .bar-arrow:hover:not(:disabled) { background: rgb(var(--ink-rgb) / 0.06); color: var(--ink); }
+#topbar .bar-arrow:disabled { color: var(--ink-4); opacity: 0.6; cursor: default; }
+#topbar .crumbs, :root[data-theme] #topbar .crumbs { flex: 0 1 auto; gap: 6px; padding: 0 0 0 6px; border: 0; color: var(--ink-3); }
+#topbar .crumb { color: var(--ink-3); }
+#topbar .crumb:hover { color: var(--ink); text-decoration: none; }
+#topbar .crumb-sep { color: var(--ink-4); }
+#topbar .crumb-current, :root[data-theme] #topbar .crumb-current { color: var(--ink); font-weight: 600; }
+#topbar .grow { flex: 1; }
+#topbar .sheet-status { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+#topbar .sheet-status .save-dot { margin-right: 6px; }
+
+/* ---------- The note page: one slim bar, the note on its own ---------- */
+.note-view.is-single { display: flex; flex-direction: column; min-height: 100%; }
+.note-view.is-single .note-center { flex: 1 0 auto; background: var(--paper-2); }
+.note-view.is-single .note-title { margin-top: 44px; }
+.ribbon, :root[data-theme] .ribbon { display: block; padding: 0; background: var(--paper-2); border-bottom: 1px solid var(--line-soft); }
+.ribbon .rb-row { display: flex; align-items: center; gap: 1px; min-height: 44px; padding: 0 14px 0 18px; }
+.ribbon .rb-gap { flex: none; width: 12px; }
+.ribbon .rb-fill { flex: 1; }
+.ribbon .rb-btn, :root[data-theme] .ribbon .rb-btn { min-width: 28px; height: 28px; padding: 0 5px; border: 0; border-radius: 7px; color: var(--ink-3); font: 600 13.5px var(--sans); }
+.ribbon .rb-btn:hover, :root[data-theme] .ribbon .rb-btn:hover { background: rgb(var(--ink-rgb) / 0.05); color: var(--ink); }
+.ribbon .rb-btn.is-on, :root[data-theme] .ribbon .rb-btn.is-on { background: color-mix(in srgb, var(--accent, #3B2CF5) 11%, transparent); color: var(--accent, #3B2CF5); }
+:is(:root, :root[data-theme]) .ribbon .rb-btn.is-italic { font: italic 400 15px Georgia, var(--serif), serif; }
+:is(:root, :root[data-theme]) .ribbon .rb-btn.is-bold { font-weight: 800; }
+.ribbon .rb-btn.is-highlight, :root[data-theme] .ribbon .rb-btn.is-highlight { box-shadow: none; }
+.ribbon .rb-btn.is-highlight { background-image: linear-gradient(transparent 58%, rgb(255 210 63 / 0.55) 58%, rgb(255 210 63 / 0.55) 82%, transparent 82%); }
+.ribbon .rb-btn.is-mono { font: 500 12px var(--sans); }
+.ribbon .rb-btn.is-word { padding: 0 8px; font: 500 13px var(--sans); }
+.ribbon .rb-caret { margin-left: 4px; font-size: 9px; color: var(--ink-4); }
+.ribbon .rb-style, :root[data-theme] .ribbon .rb-style { height: 28px; padding: 0 6px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font: 500 13px var(--sans); }
+.ribbon .rb-style:hover { background: rgb(var(--ink-rgb) / 0.05); }
+.ribbon .rb-tail { display: flex; align-items: center; margin-left: 2px; }
+.ribbon .rb-table { margin: 0 18px; padding: 4px 0 6px; border-top: 1px solid var(--line-soft); }
+.rb-menu { min-width: 190px; }
+.rb-menu .rb-color-choice { display: flex; justify-content: space-between; gap: 16px; }
+.rb-menu-keys { color: var(--ink-4); font-size: 11.5px; }
+
+/* Details: a card over the page, from the ⋯ menu */
+.note-details { position: absolute; z-index: 16; top: 54px; right: 16px; width: 300px; max-height: calc(100% - 72px); overflow-y: auto; padding: 14px 16px 10px; border-radius: 16px; background: var(--paper-2); box-shadow: 0 0 0 0.5px rgb(var(--ink-rgb) / 0.08), 0 12px 32px rgb(var(--ink-rgb) / 0.14); }
+.note-details[hidden] { display: none; }
+.note-details-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 15px; }
+.note-details-close { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; color: var(--ink-3); }
+.note-details-close:hover { background: rgb(var(--ink-rgb) / 0.06); color: var(--ink); }
+.note-details-folder { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.note-details .folder-card { display: none; }

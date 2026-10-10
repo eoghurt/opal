@@ -1,4 +1,4 @@
-// Sidebar: the vault's folder tree — the second way to get around.
+// Sidebar: the open tabs (one under another), then the vault's folder tree.
 // Plain type: grey names with their file counts; the open folder goes black
 // with a full stop, and what's inside it hangs off a thin line. Clicking a
 // folder's name opens its page (click it again to fold it away); the small
@@ -30,6 +30,12 @@ export class Sidebar {
     this.expanded.clear();
     this.active = { kind: null, path: null };
     this.tree = [];
+    this.render();
+  }
+
+  // The tab strip (tabs.js draws it); it sits above the folders.
+  setTabs(el) {
+    this.tabsEl = el;
     this.render();
   }
 
@@ -78,7 +84,8 @@ export class Sidebar {
     list.addEventListener('contextmenu', onBlank);
     list.addEventListener('dblclick', onBlank);
 
-    this.container.replaceChildren(vaultRow, label, list);
+    const tabs = this.tabsEl ? [h('div', { class: 'side-heading' }, 'Open'), this.tabsEl] : [];
+    this.container.replaceChildren(vaultRow, ...tabs, label, list);
     list.scrollTop = scrollTop;
   }
 

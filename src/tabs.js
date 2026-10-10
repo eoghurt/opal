@@ -47,6 +47,11 @@ export class TabBar {
     el.setAttribute('role', 'presentation');
   }
 
+  // Drawn one under another (in the sidebar) rather than in a row.
+  vertical() {
+    return Boolean(this.el.closest('#sidebar'));
+  }
+
   render(tabs, activeId) {
     this.hidePeek(true);
     this.tabs = tabs;
@@ -134,7 +139,7 @@ export class TabBar {
       if (!this.dragging || this.dragging === tab.id) return;
       e.preventDefault();
       const box = el.getBoundingClientRect();
-      const after = e.clientX > box.left + box.width / 2;
+      const after = this.vertical() ? e.clientY > box.top + box.height / 2 : e.clientX > box.left + box.width / 2;
       this.clearDrop();
       el.classList.add(after ? 'drop-after' : 'drop-before');
     });
@@ -142,7 +147,7 @@ export class TabBar {
       if (!this.dragging || this.dragging === tab.id) return;
       e.preventDefault();
       const box = el.getBoundingClientRect();
-      const after = e.clientX > box.left + box.width / 2;
+      const after = this.vertical() ? e.clientY > box.top + box.height / 2 : e.clientX > box.left + box.width / 2;
       const moving = this.dragging;
       this.clearDrop();
       this.handlers.onMove(moving, index + (after ? 1 : 0));
@@ -194,8 +199,14 @@ export class TabBar {
     card.addEventListener('pointerleave', () => this.hidePeek());
     document.body.append(card);
     const box = el.getBoundingClientRect();
-    card.style.top = `${box.bottom + 6}px`;
-    card.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - card.offsetWidth - 8))}px`;
+    if (this.vertical()) {
+      // Tabs down the sidebar: the card sits to the right of the tab.
+      card.style.top = `${Math.max(8, Math.min(box.top - 4, window.innerHeight - card.offsetHeight - 8))}px`;
+      card.style.left = `${box.right + 10}px`;
+    } else {
+      card.style.top = `${box.bottom + 6}px`;
+      card.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - card.offsetWidth - 8))}px`;
+    }
     this.peek = { card, tabId: tab.id };
   }
 

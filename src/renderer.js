@@ -119,7 +119,7 @@ const sidebar = new Sidebar(sidebarPanel, {
   onCreate: (event) => newNote('', event),
 });
 
-const chrome = new Chrome(document.getElementById('topbar'), document.getElementById('footer'), {
+const chrome = new Chrome(document.getElementById('rail'), document.getElementById('topbar'), {
   onHome: () => vault && openFolder(''),
   onSettings: () => showSettings(),
   onBookmarks: (anchor) => showBookmarks(anchor),
@@ -132,9 +132,11 @@ const chrome = new Chrome(document.getElementById('topbar'), document.getElement
   onSearch: () => startSearch('open'),
   onInbox: INBOX_ENABLED ? () => showInbox() : null,
   onTasks: () => showTasks(),
+  fidgets: () => (vault ? homeFidgets() : []),
+  railPlace: () => ({ money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', inbox: 'inbox', settings: 'settings' })[screen.kind] || null,
 });
 
-// The tabs sit in the top bar (Chrome places this element).
+// The tabs sit in the sidebar, one under another (Sidebar places this element).
 const tabStrip = h('div', { id: 'tabbar' });
 const tabBar = new TabBar(tabStrip, {
   onActivate: (id) => activateTab(id),
@@ -168,14 +170,8 @@ const prepTimer = new PrepTimer({
   openSettings: () => showSettings('timer'),
 });
 chrome.timerSlot = prepTimer.el;
-chrome.tabSlot = tabStrip;
+sidebar.setTabs(tabStrip);
 chrome.renderTop();
-
-// The logo's cell is as wide as the sidebar, so back / forward and the tabs
-// start exactly where the sidebar ends (also when it's resized or closed).
-new ResizeObserver(() => {
-  document.documentElement.style.setProperty('--sidebar-w', `${document.getElementById('sidebar').offsetWidth}px`);
-}).observe(document.getElementById('sidebar'));
 
 // The + button in the bottom right: what can be added depends on the page.
 const addButton = new AddButton(document.getElementById('workspace'), { items: () => addItems() });

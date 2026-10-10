@@ -1,9 +1,10 @@
-// Note view: the open note in the middle, its details on the left (folder,
-// dates, word count, outline) and its folder on the right (other notes,
-// links from this note). The editor itself comes from the editor registry.
+// Note view: the open note on its own, under one slim editing bar. The ⋯ at
+// the bar's right end has Details (folder, dates, word count, outline, colour,
+// the folder's other notes and the links — in a card over the page),
+// Bookmark, Template, History and Export. The editor itself comes from the
+// editor registry.
 
 import { h, icon } from '../ui.js';
-import { makePanel } from '../panel.js';
 import { colorOf, swatchRow } from '../item-colors.js';
 import { stripFrontmatter } from '../../shared/frontmatter.js';
 import { noteName, parentOf, shortDate, clockTime, relativeDay, pad2 } from '../format.js';
@@ -24,9 +25,15 @@ export class NoteView {
     this.tree = [];
     this.text = '';
 
-    this.left = h('aside', { class: 'note-left', 'aria-label': 'Note details' });
-    this.right = h('aside', { class: 'note-right', 'aria-label': 'In this folder' });
-    this.chips = h('div', { class: 'note-chips' });
+    // The details card (hidden until Details is picked from the ⋯ menu).
+    this.leftBody = h('div', { class: 'note-details-main' });
+    this.rightBody = h('div', { class: 'note-details-folder' });
+    this.details = h('aside', { class: 'note-details', 'aria-label': 'Note details', hidden: true },
+      h('div', { class: 'note-details-head' },
+        h('b', null, 'Details'),
+        h('button', { class: 'note-details-close', 'aria-label': 'Close details', title: 'Close (Esc)', onclick: () => this.showDetails(false) }, icon('x', 14))),
+      this.leftBody, this.rightBody);
+    this.chips = h('div', { class: 'note-chips' }); // (kept up to date; not shown)
     this.editorHost = h('div', { class: 'note-editor' });
     this.title = this.makeTitle();
     // The line under the title: hidden until there's a description, or until
@@ -43,12 +50,50 @@ export class NoteView {
       onAddSticky: () => this.handlers.onAddSticky(),
       onInsertTable: (anchor) => this.tablePicker(anchor),
     });
-    const center = h('div', { class: 'note-center' }, this.ribbon.el, this.chips, this.title, this.description.el, this.editorHost);
+    this.moreButton = h('button', { class: 'rb-btn rb-more-menu', title: 'Details, bookmark, history…', 'aria-label': 'More', 'aria-haspopup': 'menu', onclick: (e) => this.moreMenu(e.currentTarget) }, icon('more', 16));
+    this.ribbon.tail.append(this.moreButton);
+    const center = h('div', { class: 'note-center' }, this.ribbon.el, this.details, this.title, this.description.el, this.editorHost);
     this.center = center; // stickies sit on top of this
 
-    container.replaceChildren(h('div', { class: 'note-view' }, this.left, center, this.right));
-    this.leftBody = makePanel(this.left, { id: 'note-left', side: 'left', label: 'Details', width: 250 });
-    this.rightBody = makePanel(this.right, { id: 'note-right', side: 'right', label: 'Folder', width: 250 });
+    container.replaceChildren(h('div', { class: 'note-view is-single' }, center));
+  }
+
+  showDetails(on = this.details.hidden) {
+    this.details.hidden = !on;
+    if (on) {
+      const esc = (e) => {
+        if (e.key === 'Escape' && !this.details.hidden) this.showDetails(false);
+        if (this.details.hidden) document.removeEventListener('keydown', esc);
+      };
+      document.addEventListener('keydown', esc);
+    }
+  }
+
+  // The ⋯ menu at the end of the editing bar.
+  moreMenu(anchor) {
+    const items = [
+      ['Details', () => this.showDetails()],
+      this.handlers.onBookmark ? [this.bookmarked ? 'Remove the bookmark' : 'Bookmark', () => this.handlers.onBookmark()] : null,
+      this.handlers.onTemplate ? ['Template…', () => this.handlers.onTemplate(anchor)] : null,
+      ['History', () => this.handlers.onHistory()],
+      this.handlers.onExport ? ['Export…', () => this.handlers.onExport(anchor)] : null,
+    ].filter(Boolean);
+    document.querySelector('.note-more-menu')?.remove();
+    const menu = h('div', { class: 'rb-color-menu rb-menu note-more-menu', role: 'menu', 'aria-label': 'Note' },
+      items.map(([label, run]) => h('button', { type: 'button', class: 'rb-color-choice', role: 'menuitem', onclick: () => { close(); run(); } }, label)));
+    document.body.append(menu);
+    const box = anchor.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, box.right - menu.offsetWidth)}px`;
+    menu.style.top = `${box.bottom + 4}px`;
+    const away = (e) => { if (!menu.contains(e.target) && e.target !== anchor) close(); };
+    const esc = (e) => { if (e.key === 'Escape') close(); };
+    function close() {
+      menu.remove();
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+    }
+    setTimeout(() => document.addEventListener('mousedown', away), 0);
+    document.addEventListener('keydown', esc);
   }
 
   // The note's name as a big title above the text. Editing it renames the
@@ -288,7 +333,7 @@ export class NoteView {
   renderLeft() {
     const node = findFile(this.tree, this.filePath);
     // Typing a word target: don't redraw under the cursor.
-    if (this.left.contains(document.activeElement) && document.activeElement.classList.contains('target-input')) return;
+    if (this.details.contains(document.activeElement) && document.activeElement.classList.contains('target-input')) return;
     const words = countWords(this.text);
     const target = parseInt(String(getProp(this.text, 'word-target') || ''), 10) || null;
     const links = linksIn(this.text);

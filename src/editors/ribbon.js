@@ -1,11 +1,14 @@
-// The ribbon: a Word-style editing bar across the top of a note. Grouped
-// buttons for history, styles, text, paragraphs, inserting things and find.
+// The ribbon: one slim, quiet row of editing tools across the top of a note:
+// undo, the paragraph style, bold / italic / underline / strike / highlight /
+// colour, lists, and an Insert menu (links, table, sticky, date, heatmap,
+// divider, code, clear formatting); Find on the right. The note's own ⋯ menu
+// goes in `ribbon.tail`.
 // Buttons light up for whatever the cursor is in. It only edits the markdown
 // text, the same as typing would. While the cursor is in a table, a Table row
 // appears with the table's own tools, and the text buttons format the cell.
 //
 //   const ribbon = new Ribbon({ onAddSticky, onInsertTable(anchor) });
-//   ribbon.connect(editorView);  ribbon.refresh();  ribbon.el
+//   ribbon.connect(editorView);  ribbon.refresh();  ribbon.el  ribbon.tail
 
 import { insertHeatmap } from '../widgets/heatmap/heatmap.js';
 import { undo, redo, indentMore, indentLess } from '@codemirror/commands';
@@ -74,9 +77,7 @@ export class Ribbon {
       if (id) this.toggles.set(id, b);
       return b;
     };
-    const group = (name, ...items) => h('div', { class: 'rb-group', role: 'group', 'aria-label': name },
-      h('div', { class: 'rb-items' }, items),
-      h('span', { class: 'rb-caption' }, name));
+    const gap = () => h('span', { class: 'rb-gap', 'aria-hidden': 'true' });
 
     this.style = h('select', { class: 'rb-style', 'aria-label': 'Paragraph style', title: 'Paragraph style' },
       STYLES.map(([value, label]) => h('option', { value }, label)));
@@ -90,36 +91,43 @@ export class Ribbon {
     const colorApply = btn('color', h('span', { class: 'rb-color-a' }, 'A', this.colorBar), 'Text colour', (v) => setTextColor(v, this.lastColor));
     const colorMore = btn(null, '▾', 'Choose text colour', (v, anchor) => this.colorMenu(anchor), 'rb-more');
 
+    // Everything you add rather than format, in one menu.
+    const inserts = [
+      ['Link to a note', '⌘K', (v) => toggleWrap(v, '[[', ']]')],
+      ['Web link', '', (v) => insertWebLink(v)],
+      ['Table', '', (v, anchor) => onInsertTable(anchor)],
+      ['Sticky note', '', () => onAddSticky()],
+      ["Today's date", '', (v) => insertText(v, today())],
+      ['Heatmap', '', (v) => insertHeatmap(v)],
+      ['Divider line', '', (v) => insertDivider(v)],
+      ['Inline code', '', (v) => toggleWrap(v, '`')],
+      ['Clear formatting', '', (v) => clearFormatting(v)],
+    ];
+    const insert = btn(null, h('span', null, 'Insert', h('span', { class: 'rb-caret' }, '▾')), 'Insert a link, table, sticky, date…', (v, anchor) => this.menu(anchor, 'Insert', inserts), 'is-word rb-insert');
+
+    this.tail = h('span', { class: 'rb-tail' });
     this.el = h('div', { class: 'ribbon', role: 'toolbar', 'aria-label': 'Formatting' },
-      group('Undo',
+      h('div', { class: 'rb-row' },
         btn(null, '↶', 'Undo (⌘Z)', (v) => { undo(v); v.focus(); }),
-        btn(null, '↷', 'Redo (⌘⇧Z)', (v) => { redo(v); v.focus(); })),
-      group('Style', this.style),
-      group('Text',
+        btn(null, '↷', 'Redo (⌘⇧Z)', (v) => { redo(v); v.focus(); }),
+        gap(),
+        this.style,
+        gap(),
         btn('bold', 'B', 'Bold (⌘B)', (v) => toggleWrap(v, '**'), 'is-bold'),
         btn('italic', 'I', 'Italic (⌘I)', (v) => toggleWrap(v, '*'), 'is-italic'),
         btn('underline', 'U', 'Underline (⌘U)', (v) => toggleWrap(v, '<u>', '</u>'), 'is-underline'),
         btn('strike', 'S', 'Strikethrough (⌘⇧X)', (v) => toggleWrap(v, '~~'), 'is-strike'),
-        btn('highlight', 'Hi', 'Highlight', (v) => toggleWrap(v, '=='), 'is-highlight'),
+        btn('highlight', 'H', 'Highlight', (v) => toggleWrap(v, '=='), 'is-highlight'),
         h('span', { class: 'rb-split' }, colorApply, colorMore),
-        btn('code', '</>', 'Inline code', (v) => toggleWrap(v, '`'), 'is-mono'),
-        btn(null, '⌫', 'Clear formatting', (v) => clearFormatting(v))),
-      group('Paragraph',
+        gap(),
         btn('bullet', '•', 'Bullet list', (v) => toggleLinePrefix(v, '- ', /^\s*[-*+]\s(?!\[[ xX]\])/)),
         btn('numbered', '1.', 'Numbered list', (v) => toggleNumbered(v), 'is-mono'),
         btn('task', '☐', 'Checklist', (v) => toggleLinePrefix(v, '- [ ] ', /^\s*[-*+]\s\[[ xX]\]\s/)),
-        btn(null, '⇤', 'Outdent (⇧Tab)', (v) => { indentLess(v); v.focus(); }),
-        btn(null, '⇥', 'Indent (Tab)', (v) => { indentMore(v); v.focus(); }),
-        btn(null, '―', 'Divider line', (v) => insertDivider(v))),
-      group('Insert',
-        btn(null, '[[ ]]', 'Link to a note (⌘K)', (v) => toggleWrap(v, '[[', ']]'), 'is-mono'),
-        btn(null, 'Web', 'Web link', (v) => insertWebLink(v), 'is-word'),
-        btn(null, 'Table', 'Table', (v, anchor) => onInsertTable(anchor), 'is-word'),
-        btn(null, 'Sticky', 'Sticky note', () => onAddSticky(), 'is-word'),
-        btn(null, 'Date', "Today's date", (v) => insertText(v, today()), 'is-word'),
-        btn(null, 'Heatmap', 'A heatmap from your notes (Tracker format)', (v) => insertHeatmap(v), 'is-word')),
-      group('Find',
-        btn(null, 'Find', 'Find & replace (⌘F)', (v) => openSearchPanel(v), 'is-word')));
+        gap(),
+        insert,
+        h('span', { class: 'rb-fill' }),
+        btn(null, 'Find', 'Find & replace (⌘F)', (v) => openSearchPanel(v), 'is-word'),
+        this.tail));
 
     // The Table row: the tools of whichever table the cursor is in.
     this.tableTools = h('div', { class: 'rb-table-tools' });
@@ -212,4 +220,39 @@ export class Ribbon {
   }
 
   closeColorMenu() {}
+
+  // A small menu under a button: [label, shortcut, run(view, anchor)].
+  menu(anchor, label, items) {
+    this.closeColorMenu();
+    const menu = h('div', { class: 'rb-color-menu rb-menu', role: 'menu', 'aria-label': label },
+      items.map(([name, keys, run]) => h('button', {
+        type: 'button',
+        class: 'rb-color-choice',
+        role: 'menuitem',
+        onmousedown: (e) => {
+          e.preventDefault();
+          this.closeColorMenu();
+          if (this.view) run(this.view, anchor);
+          this.refresh();
+        },
+      }, h('span', null, name), keys ? h('span', { class: 'rb-menu-keys' }, keys) : null)));
+    document.body.append(menu);
+    const box = anchor.getBoundingClientRect();
+    menu.style.left = `${Math.min(box.left, window.innerWidth - menu.offsetWidth - 8)}px`;
+    menu.style.top = `${box.bottom + 4}px`;
+    const away = (e) => {
+      if (!menu.contains(e.target)) this.closeColorMenu();
+    };
+    const esc = (e) => {
+      if (e.key === 'Escape') this.closeColorMenu();
+    };
+    setTimeout(() => document.addEventListener('mousedown', away), 0);
+    document.addEventListener('keydown', esc);
+    this.closeColorMenu = () => {
+      menu.remove();
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+      this.closeColorMenu = () => {};
+    };
+  }
 }
