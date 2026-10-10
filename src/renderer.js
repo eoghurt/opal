@@ -3,6 +3,8 @@
 //
 // Screens: 'welcome' (no vault), 'home' (a folder's home page), 'note', 'settings', 'calendar', 'tasks', 'review'.
 
+import '@fontsource-variable/inter/wght.css'; // note text (Inter)
+import '@fontsource-variable/inter/wght-italic.css';
 import '@fontsource/caveat/latin-500.css';
 import '@fontsource/caveat/latin-700.css';
 import '@fontsource/instrument-serif/latin-400.css';

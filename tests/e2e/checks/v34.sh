@@ -21,6 +21,9 @@ C "(()=>{const v=document.querySelector('.cm-content'); return 1})()" >/dev/null
 C "document.querySelector('.ribbon .rb-insert').dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); 1" >/dev/null; sleep 0.4
 C "[...document.querySelectorAll('.rb-menu button')].find(b=>b.textContent==='Heatmap').dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); 1" >/dev/null; sleep 1.5
 ok "the ribbon's Heatmap button adds a starter block" 'grep -q "^searchTarget: exercise$" "$V/Welcome.md" && grep -q "^\`\`\`tracker$" "$V/Welcome.md"'
+# Widgets live on the classic home page (the corkboard has none).
+python3 -c "import json,os; p='$V/.opal/settings.json'; d=json.load(open(p)) if os.path.exists(p) else {}; d['homeStyle']='classic'; json.dump(d,open(p,'w'))"
+M "require('electron').BrowserWindow.getAllWindows()[0].webContents.reload(); 1" >/dev/null; sleep 6
 C "document.querySelector('.wordmark').click(); 1" >/dev/null; sleep 1.5
 C "[...document.querySelectorAll('.widgets-btn')].find(b=>b.textContent.includes('Customize')).click(); 1" >/dev/null; sleep 0.4
 C "[...document.querySelectorAll('.widgets-add-btn')].find(b=>b.textContent.includes('Heatmap')).click(); 1" >/dev/null; sleep 2.5

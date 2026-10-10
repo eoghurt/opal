@@ -1,8 +1,9 @@
-// The ribbon: one slim, quiet row of editing tools across the top of a note:
-// undo, the paragraph style, bold / italic / underline / strike / highlight /
-// colour, lists, and an Insert menu (links, table, sticky, date, heatmap,
-// divider, code, clear formatting); Find on the right. The note's own ⋯ menu
-// goes in `ribbon.tail`.
+// The ribbon: a soft rounded panel of editing tools across the top of a note,
+// line icons in groups — the paragraph style | bold, italic, strikethrough,
+// underline, highlight, colour, link | bullet, numbered and check lists |
+// quote, inline code, code block | undo, redo — then + (insert a web link,
+// table, sticky, date, heatmap, divider, clear formatting) and Find. The
+// note's own ⋯ menu goes in `ribbon.tail`.
 // Buttons light up for whatever the cursor is in. It only edits the markdown
 // text, the same as typing would. While the cursor is in a table, a Table row
 // appears with the table's own tools, and the text buttons format the cell.
@@ -13,7 +14,7 @@
 import { insertHeatmap } from '../widgets/heatmap/heatmap.js';
 import { undo, redo, indentMore, indentLess } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
-import { h } from '../ui.js';
+import { h, icon } from '../ui.js';
 import {
   toggleWrap, toggleLinePrefix, clearFormatting, setTextColor, toggleNumbered, setBlockStyle,
   insertDivider, insertWebLink, insertText, activeFormats,
@@ -89,7 +90,7 @@ export class Ribbon {
     // Text colour: the A applies the last colour; ▾ picks another.
     this.colorBar = h('span', { class: 'rb-color-bar', style: `background: ${this.lastColor}` });
     const colorApply = btn('color', h('span', { class: 'rb-color-a' }, 'A', this.colorBar), 'Text colour', (v) => setTextColor(v, this.lastColor));
-    const colorMore = btn(null, '▾', 'Choose text colour', (v, anchor) => this.colorMenu(anchor), 'rb-more');
+    const colorMore = btn(null, icon('chevronDown', 14), 'Choose text colour', (v, anchor) => this.colorMenu(anchor), 'rb-more');
 
     // Everything you add rather than format, in one menu.
     const inserts = [
@@ -103,30 +104,45 @@ export class Ribbon {
       ['Inline code', '', (v) => toggleWrap(v, '`')],
       ['Clear formatting', '', (v) => clearFormatting(v)],
     ];
-    const insert = btn(null, h('span', null, 'Insert', h('span', { class: 'rb-caret' }, '▾')), 'Insert a link, table, sticky, date…', (v, anchor) => this.menu(anchor, 'Insert', inserts), 'is-word rb-insert');
+    const insert = btn(null, icon('plus', 20), 'Insert a web link, table, sticky, date…', (v, anchor) => this.menu(anchor, 'Insert', inserts.filter(([name]) => name !== 'Link to a note' && name !== 'Inline code')), 'rb-insert');
+    const sep = () => h('span', { class: 'rb-sep', 'aria-hidden': 'true' });
+    const ic = (name) => icon(name, 20);
+    // Quote and code block switch the line's style (and back again).
+    const blockToggle = (style) => (v) => setBlockStyle(v, activeFormats(v.state).style === style ? 'normal' : style);
+    this.blockButtons = [];
+    const block = (style, iconName, title) => {
+      const b = btn(null, ic(iconName), title, blockToggle(style));
+      b.dataset.block = style;
+      this.blockButtons.push(b);
+      return b;
+    };
 
     this.tail = h('span', { class: 'rb-tail' });
     this.el = h('div', { class: 'ribbon', role: 'toolbar', 'aria-label': 'Formatting' },
       h('div', { class: 'rb-row' },
-        btn(null, '↶', 'Undo (⌘Z)', (v) => { undo(v); v.focus(); }),
-        btn(null, '↷', 'Redo (⌘⇧Z)', (v) => { redo(v); v.focus(); }),
-        gap(),
-        this.style,
-        gap(),
-        btn('bold', 'B', 'Bold (⌘B)', (v) => toggleWrap(v, '**'), 'is-bold'),
-        btn('italic', 'I', 'Italic (⌘I)', (v) => toggleWrap(v, '*'), 'is-italic'),
-        btn('underline', 'U', 'Underline (⌘U)', (v) => toggleWrap(v, '<u>', '</u>'), 'is-underline'),
-        btn('strike', 'S', 'Strikethrough (⌘⇧X)', (v) => toggleWrap(v, '~~'), 'is-strike'),
-        btn('highlight', 'H', 'Highlight', (v) => toggleWrap(v, '=='), 'is-highlight'),
+        h('span', { class: 'rb-style-wrap' }, this.style),
+        sep(),
+        btn('bold', ic('bold'), 'Bold (⌘B)', (v) => toggleWrap(v, '**')),
+        btn('italic', ic('italic'), 'Italic (⌘I)', (v) => toggleWrap(v, '*')),
+        btn('strike', ic('strike'), 'Strikethrough (⌘⇧X)', (v) => toggleWrap(v, '~~')),
+        btn('underline', ic('underline'), 'Underline (⌘U)', (v) => toggleWrap(v, '<u>', '</u>')),
+        btn('highlight', ic('highlighter'), 'Highlight', (v) => toggleWrap(v, '==')),
         h('span', { class: 'rb-split' }, colorApply, colorMore),
-        gap(),
-        btn('bullet', '•', 'Bullet list', (v) => toggleLinePrefix(v, '- ', /^\s*[-*+]\s(?!\[[ xX]\])/)),
-        btn('numbered', '1.', 'Numbered list', (v) => toggleNumbered(v), 'is-mono'),
-        btn('task', '☐', 'Checklist', (v) => toggleLinePrefix(v, '- [ ] ', /^\s*[-*+]\s\[[ xX]\]\s/)),
-        gap(),
-        insert,
+        btn(null, ic('link'), 'Link to a note (⌘K)', (v) => toggleWrap(v, '[[', ']]')),
+        sep(),
+        btn('bullet', ic('listBullet'), 'Bullet list', (v) => toggleLinePrefix(v, '- ', /^\s*[-*+]\s(?!\[[ xX]\])/)),
+        btn('numbered', ic('listNumber'), 'Numbered list', (v) => toggleNumbered(v)),
+        btn('task', ic('listCheck'), 'Checklist', (v) => toggleLinePrefix(v, '- [ ] ', /^\s*[-*+]\s\[[ xX]\]\s/)),
+        sep(),
+        block('quote', 'quote', 'Quote'),
+        btn('code', ic('code'), 'Inline code', (v) => toggleWrap(v, '`')),
+        block('code', 'codeBlock', 'Code block'),
+        sep(),
+        btn(null, ic('undo'), 'Undo (⌘Z)', (v) => { undo(v); v.focus(); }),
+        btn(null, ic('redo'), 'Redo (⌘⇧Z)', (v) => { redo(v); v.focus(); }),
         h('span', { class: 'rb-fill' }),
-        btn(null, 'Find', 'Find & replace (⌘F)', (v) => openSearchPanel(v), 'is-word'),
+        insert,
+        btn(null, icon('search', 19), 'Find & replace (⌘F)', (v) => openSearchPanel(v)),
         this.tail));
 
     // The Table row: the tools of whichever table the cursor is in.
@@ -175,6 +191,11 @@ export class Ribbon {
         button.setAttribute('aria-pressed', String(on));
       }
       if (this.style.value !== active.style) this.style.value = active.style;
+      for (const b of this.blockButtons || []) {
+        const on = active.style === b.dataset.block;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', String(on));
+      }
     });
   }
 

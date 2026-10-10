@@ -1200,3 +1200,56 @@ body, :root[data-theme] body { background: var(--frame); }
   background-size: 10px 6px;
 }
 :is(:root, :root[data-theme]) .review-mode-pick { padding-left: 12px; }
+
+/* ============================================================
+   Notes: Inter, and the editing bar as a soft rounded panel of line
+   icons — the active tool a raised white key, the paragraph style a
+   white raised pill, thin dividers between groups.
+   ============================================================ */
+.note-view {
+  --sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --display: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --serif: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --ed-serif-size: 1em;
+  font-family: var(--sans);
+  font-feature-settings: "cv11", "ss01";
+}
+:is(:root, :root[data-theme]) .note-view .note-title { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; }
+
+:is(:root, :root[data-theme]) .note-view .ribbon {
+  position: sticky; top: 10px; z-index: 15;
+  margin: 12px 18px 0; padding: 0;
+  border: 0; border-radius: 22px;
+  background: color-mix(in srgb, var(--ink, #16140F) 4.5%, var(--paper-2, #FFFFFF));
+  box-shadow: 0 0 0 1px rgb(var(--ink-rgb) / 0.04), 0 1px 2px rgb(var(--ink-rgb) / 0.04);
+}
+.note-view .ribbon .rb-row { min-height: 0; gap: 2px; padding: 8px 10px; flex-wrap: wrap; }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-btn {
+  position: relative; min-width: 40px; height: 40px; padding: 0 8px;
+  border: 0; border-radius: 12px; background: transparent;
+  color: var(--ink-2); font: 500 15px var(--sans); box-shadow: none;
+}
+.note-view .ribbon .rb-btn .icon svg { stroke-width: 1.6; }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-btn:hover { background: rgb(var(--ink-rgb) / 0.05); color: var(--ink); }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-btn.is-on {
+  background: var(--paper-2, #FFFFFF); color: var(--ink);
+  box-shadow: 0 1px 2px rgb(var(--ink-rgb) / 0.1), 0 3px 8px rgb(var(--ink-rgb) / 0.06);
+}
+.note-view .ribbon .rb-btn.is-on .icon svg { stroke-width: 1.9; }
+.note-view .ribbon .rb-sep { flex: none; width: 1px; height: 26px; margin: 0 8px; background: rgb(var(--ink-rgb) / 0.1); }
+.note-view .ribbon .rb-style-wrap { display: inline-flex; }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-style {
+  height: 40px; padding: 0 34px 0 14px; border: 0; border-radius: 12px;
+  background-color: var(--paper-2, #FFFFFF); color: var(--ink);
+  font: 500 15px var(--sans);
+  box-shadow: 0 1px 2px rgb(var(--ink-rgb) / 0.1), 0 3px 8px rgb(var(--ink-rgb) / 0.06);
+  background-position: right 13px center;
+}
+.note-view .ribbon .rb-split { display: inline-flex; align-items: center; }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-split .rb-btn.rb-more { min-width: 18px; padding: 0 2px; }
+.note-view .ribbon .rb-color-a { display: inline-flex; flex-direction: column; align-items: center; font: 500 17px/1 var(--sans); }
+.note-view .ribbon .rb-color-bar { width: 14px; height: 2.5px; margin-top: 2px; border-radius: 2px; }
+.note-view .ribbon .rb-tail .rb-btn, .note-view .ribbon .rb-more-menu { min-width: 40px; height: 40px; }
+.note-view .ribbon .rb-table { margin: 0 14px; }
+:root[data-mode="dark"] .note-view .ribbon { background: rgb(255 255 255 / 0.06); }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-style { min-width: 150px; }
