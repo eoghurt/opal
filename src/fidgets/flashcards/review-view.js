@@ -10,11 +10,19 @@
 // the speaker and text to recall). "Practise anyway" runs through a deck
 // without changing any review dates.
 //
+// Decks: each folder, tag and quote theme is a deck. Edit decks lets you
+// hide decks, rename them, put several in a folder (picking the folder
+// practises them together; each deck can still be picked alone) and set how
+// a deck's cards are practised — Quote (the four ways above) or Basic (front,
+// then back). One card's type can be changed on the card. This is kept in the
+// vault's .opal/settings.json (flashcards), never in the notes.
+//
 //   new ReviewView(container, { io })
 //   io: listCards(), reviewCard(path, line, raw, schedule) → new line, openFile(path),
-//       onReviewed() (to update the due counts elsewhere)
+//       onReviewed() (to update the due counts elsewhere), settings() → flashcards
+//       settings, saveSettings(flashcards)
 
-import { h } from '../../ui.js';
+import { h, icon } from '../../ui.js';
 import { inlineRuns } from '../../export/note-structure.js';
 import { GRADES, nextSchedule, describeInterval, dueSides, todayKey } from './schedule.js';
 
@@ -64,10 +72,35 @@ function rich(text) {
   });
 }
 
+const TYPE_NAMES = { quote: 'Quote', basic: 'Basic' };
+
+function blankSettings(s) {
+  const f = s && typeof s === 'object' ? s : {};
+  return {
+    hidden: Array.isArray(f.hidden) ? f.hidden : [],
+    folders: Array.isArray(f.folders) ? f.folders.filter((x) => x && x.name).map((x) => ({ name: String(x.name), decks: Array.isArray(x.decks) ? x.decks : [] })) : [],
+    names: f.names && typeof f.names === 'object' ? f.names : {},
+    types: f.types && typeof f.types === 'object' ? f.types : {},
+    cardTypes: f.cardTypes && typeof f.cardTypes === 'object' ? f.cardTypes : {},
+    keepOnly: Array.isArray(f.keepOnly) ? f.keepOnly : null,
+  };
+}
+
+// A deck's name as shown: its own name if you gave it one, else the theme,
+// tag or folder it comes from.
+function derivedName(id) {
+  if (id.startsWith('theme:')) return id.slice(id.indexOf('::') + 2);
+  return id.split('/').pop();
+}
+
+const cardKey = (card) => `${card.path}|${card.question}`;
+
 export class ReviewView {
   constructor(container, { io }) {
     this.io = io;
-    this.deck = null; // null = every deck
+    this.deck = null; // null = every deck; a deck's id; or 'folder:<name>'
+    this.flash = blankSettings(io.settings ? io.settings() : null);
+    this.editing = false;
     this.mode = loadMode(); // how quote cards are practised
     this.practice = false; // running through a deck without changing review dates
     this.root = h('div', { class: 'review' });
@@ -84,29 +117,78 @@ export class ReviewView {
   async load() {
     this.root.replaceChildren(h('p', { class: 'review-empty' }, 'Finding your cards…'));
     this.cards = await this.io.listCards();
+    // "Keep only these": hide every other deck, once.
+    if (this.flash.keepOnly) {
+      const keep = new Set(this.flash.keepOnly);
+      this.flash.hidden = this.allDecks().filter((d) => !keep.has(d));
+      this.flash.keepOnly = null;
+      this.save();
+    }
     this.startSession();
+  }
+
+  save() {
+    const { keepOnly, ...rest } = this.flash;
+    if (this.io.saveSettings) this.io.saveSettings(keepOnly ? { ...rest, keepOnly } : rest);
+    if (this.io.onReviewed) this.io.onReviewed(); // hidden decks change the due count
+  }
+
+  deckName(id) {
+    return this.flash.names[id] || derivedName(id);
+  }
+
+  allDecks() {
+    return [...new Set(this.cards.flatMap((c) => c.decks))].sort((a, b) => (a.startsWith('#') - b.startsWith('#')) || this.deckName(a).localeCompare(this.deckName(b)));
+  }
+
+  // Cards in at least one deck that isn't hidden.
+  visibleCards() {
+    const hidden = new Set(this.flash.hidden);
+    return this.cards.filter((c) => c.decks.some((d) => !hidden.has(d)));
+  }
+
+  // The cards in the deck or folder picked (every visible card for null).
+  cardsIn(sel) {
+    const visible = this.visibleCards();
+    if (!sel) return visible;
+    if (sel.startsWith('folder:')) {
+      const folder = this.flash.folders.find((f) => `folder:${f.name}` === sel);
+      const set = new Set(folder ? folder.decks : []);
+      return visible.filter((c) => c.decks.some((d) => set.has(d)));
+    }
+    return visible.filter((c) => c.decks.includes(sel));
+  }
+
+  // How a card is practised: its own type, its deck's, or what it is.
+  typeOf(card) {
+    const own = this.flash.cardTypes[cardKey(card)];
+    if (own) return own;
+    for (const d of card.decks) if (this.flash.types[d]) return this.flash.types[d];
+    return card.kind === 'quote' ? 'quote' : 'basic';
   }
 
   decks() {
     const today = todayKey();
     const counts = new Map();
+    const hidden = new Set(this.flash.hidden);
     for (const card of this.cards) {
       const due = dueSides(card, today).length;
       for (const deck of card.decks) {
+        if (hidden.has(deck)) continue;
         const entry = counts.get(deck) || { due: 0, total: 0 };
         entry.due += due;
         entry.total += 1;
         counts.set(deck, entry);
       }
     }
-    return [...counts.entries()].sort(([a], [b]) => (a.startsWith('#') - b.startsWith('#')) || a.localeCompare(b));
+    return [...counts.entries()].sort(([a], [b]) => (a.startsWith('#') - b.startsWith('#')) || this.deckName(a).localeCompare(this.deckName(b)));
   }
 
   // The session's queue: every due side in the chosen deck (reviewed ones first, then new).
   startSession(practice = false) {
     const today = todayKey();
     this.practice = practice;
-    const inDeck = this.cards.filter((c) => !this.deck || c.decks.includes(this.deck));
+    const inDeck = this.cardsIn(this.deck);
     let items = [];
     for (const card of inDeck) for (const side of (practice ? (card.reversed ? [0, 1] : [0]) : dueSides(card, today))) items.push({ card, side });
     if (practice) items = items.sort(() => Math.random() - 0.5);
@@ -121,14 +203,22 @@ export class ReviewView {
 
   render() {
     const decks = this.decks();
-    const totalDue = this.cards.reduce((n, c) => n + dueSides(c).length, 0);
+    const due = (list) => list.reduce((n, c) => n + dueSides(c).length, 0);
+    const totalDue = due(this.visibleCards());
+    const inFolder = new Set(this.flash.folders.flatMap((f) => f.decks));
+    const chip = (sel, label, count, extra = '') => h('button', {
+      class: `review-deck${this.deck === sel ? ' is-on' : ''}${extra}`,
+      onclick: () => { this.deck = sel; this.editing = false; this.startSession(); },
+    }, label, h('span', { class: 'review-deck-count' }, String(count)));
+    const openFolder = this.flash.folders.find((f) => this.deck === `folder:${f.name}` || f.decks.includes(this.deck));
     const deckBar = h('div', { class: 'review-decks', role: 'group', 'aria-label': 'Decks' },
-      h('button', { class: `review-deck${this.deck ? '' : ' is-on'}`, onclick: () => { this.deck = null; this.startSession(); } }, 'All decks', h('span', { class: 'review-deck-count' }, String(totalDue))),
-      decks.map(([deck, n]) => h('button', {
-        class: `review-deck${this.deck === deck ? ' is-on' : ''}`,
-        title: `${n.total} card${n.total === 1 ? '' : 's'}`,
-        onclick: () => { this.deck = deck; this.startSession(); },
-      }, deck.split('/').pop(), h('span', { class: 'review-deck-count' }, String(n.due)))));
+      chip(null, 'All decks', totalDue),
+      this.flash.folders.filter((f) => f.decks.some((d) => decks.some(([id]) => id === d))).map((f) => chip(`folder:${f.name}`, h('span', null, icon('folder', 13), ` ${f.name}`), due(this.cardsIn(`folder:${f.name}`)), ' is-folder')),
+      decks.filter(([id]) => !inFolder.has(id)).map(([id, n]) => chip(id, this.deckName(id), n.due)),
+      h('button', { class: `review-deck is-edit${this.editing ? ' is-on' : ''}`, onclick: () => { this.editing = !this.editing; this.render(); } }, this.editing ? 'Done' : 'Edit decks'));
+    // Inside a folder: its decks, to pick one.
+    const subBar = openFolder ? h('div', { class: 'review-decks is-sub', role: 'group', 'aria-label': `Decks in ${openFolder.name}` },
+      openFolder.decks.filter((d) => decks.some(([id]) => id === d)).map((d) => chip(d, this.deckName(d), (decks.find(([id]) => id === d) || [0, { due: 0 }])[1].due))) : null;
     const head = h('section', { class: 'home-head review-head' },
       h('div', { class: 'home-title' },
         h('span', { class: 'mono-label' }, 'Flashcards'),
@@ -136,7 +226,7 @@ export class ReviewView {
         h('p', { class: 'home-desc' }, this.cards.length
           ? `${this.practice ? 'Practising · dates unchanged · ' : ''}${this.queue.length} to go${this.done ? ` · ${this.done} done` : ''} · ${this.cards.length} card${this.cards.length === 1 ? '' : 's'} in your notes`
           : 'Write a line as Question::Answer in any note to make a card, or keep quotes in a Quotes note as "quote" - who says it.')));
-    this.root.replaceChildren(head, deckBar, this.cardArea());
+    this.root.replaceChildren(head, deckBar, subBar || '', this.editing ? this.deckEditor() : this.cardArea());
   }
 
   cardArea() {
@@ -152,9 +242,11 @@ export class ReviewView {
           h('span', { class: 'review-meta' }, 'Goes through this deck without changing any review dates.')) : null);
     }
     const { card, side } = item;
-    if (card.kind === 'quote') return this.quoteArea(card);
-    const question = side === 0 ? card.question : card.answer;
-    const answer = side === 0 ? card.answer : card.question;
+    const type = this.typeOf(card);
+    if (type === 'quote') return this.quoteArea(this.asQuote(card, side));
+    // A quote practised as a plain card: who and where on the front, the quote on the back.
+    const question = card.kind === 'quote' ? ([...new Set([card.speaker, card.work, card.theme].filter(Boolean))].join(' · ') || 'Which quote?') : side === 0 ? card.question : card.answer;
+    const answer = card.kind === 'quote' ? `“${card.quote}”` : side === 0 ? card.answer : card.question;
     const schedule = card.schedule[side] || null;
     const buttons = this.showing
       ? h('div', { class: 'review-grades' }, GRADES.map((grade, i) => {
@@ -166,7 +258,7 @@ export class ReviewView {
       : h('button', { class: 'review-show', onclick: () => { this.showing = true; this.render(); } }, 'Show answer', h('span', { class: 'review-key' }, 'Space'));
     return h('div', { class: 'review-card' },
       h('div', { class: 'review-meta' },
-        h('span', null, schedule ? `Seen before · every ${describeInterval(schedule.interval)}` : 'New card'),
+        h('span', null, schedule ? `Seen before · every ${describeInterval(schedule.interval)}` : 'New card', ' · ', this.typePicker(card)),
         h('button', { class: 'review-source', onclick: () => this.io.openFile(card.path) }, card.path.replace(/\.md$/i, ''))),
       h('p', { class: 'review-q' }, ...rich(question)),
       this.showing ? h('p', { class: 'review-a' }, ...rich(answer)) : null,
@@ -201,6 +293,91 @@ export class ReviewView {
     this.typed = null;
     if (!this.practice) this.io.onReviewed();
     this.render();
+  }
+
+  // ---------- Card types ----------
+
+  // A Question::Answer card practised as a quote: the question is the cue,
+  // the answer the words to learn.
+  asQuote(card, side) {
+    if (card.kind === 'quote') return card;
+    const cue = side === 0 ? card.question : card.answer;
+    const words = side === 0 ? card.answer : card.question;
+    return { ...card, kind: 'quote', quote: words.replace(/^["“‘']|["”’']$/g, ''), speaker: '', work: cue, theme: '', schedule: [card.schedule[side]].filter(Boolean), source: card };
+  }
+
+  typePicker(card) {
+    const own = this.flash.cardTypes[cardKey(card)];
+    const sel = h('select', { class: 'review-type-pick', 'aria-label': 'How this card is practised', title: 'How this card is practised' },
+      Object.entries(TYPE_NAMES).map(([id, label]) => h('option', { value: id, selected: this.typeOf(card) === id }, `${label} card${own === id ? '' : ''}`)));
+    sel.addEventListener('change', () => {
+      this.flash.cardTypes = { ...this.flash.cardTypes, [cardKey(card)]: sel.value };
+      this.save();
+      this.showing = false;
+      this.typed = null;
+      this.render();
+    });
+    return sel;
+  }
+
+  // ---------- Editing decks ----------
+
+  deckEditor() {
+    const counts = new Map();
+    for (const card of this.cards) for (const d of card.decks) counts.set(d, (counts.get(d) || 0) + 1);
+    const hidden = new Set(this.flash.hidden);
+    const folderOf = (id) => (this.flash.folders.find((f) => f.decks.includes(id)) || {}).name || '';
+    const change = (fn) => { fn(); this.save(); this.render(); };
+    const setFolder = (id, name) => change(() => {
+      const folders = this.flash.folders.map((f) => ({ ...f, decks: f.decks.filter((d) => d !== id) }));
+      if (name) {
+        const at = folders.find((f) => f.name === name);
+        if (at) at.decks.push(id);
+        else folders.push({ name, decks: [id] });
+      }
+      this.flash.folders = folders.filter((f) => f.decks.length);
+    });
+    const rows = this.allDecks().map((id) => {
+      const name = h('input', { class: 'review-ed-name', value: this.deckName(id), 'aria-label': 'Deck name', title: derivedName(id) });
+      name.addEventListener('change', () => change(() => {
+        const v = name.value.trim();
+        const names = { ...this.flash.names };
+        if (!v || v === derivedName(id)) delete names[id];
+        else names[id] = v;
+        this.flash.names = names;
+      }));
+      const folder = h('select', { class: 'review-ed-select', 'aria-label': 'Folder' },
+        h('option', { value: '' }, 'No folder'),
+        this.flash.folders.map((f) => h('option', { value: f.name, selected: folderOf(id) === f.name }, f.name)),
+        h('option', { value: '__new' }, 'New folder…'));
+      folder.addEventListener('change', () => {
+        let v = folder.value;
+        if (v === '__new') {
+          v = (window.prompt('Name the folder') || '').trim();
+          if (!v) { folder.value = folderOf(id); return; }
+        }
+        setFolder(id, v);
+      });
+      const type = h('select', { class: 'review-ed-select', 'aria-label': 'Card type' },
+        h('option', { value: '' }, 'Each card’s own type'),
+        Object.entries(TYPE_NAMES).map(([t, label]) => h('option', { value: t, selected: this.flash.types[id] === t }, `${label} cards`)));
+      type.addEventListener('change', () => change(() => {
+        const types = { ...this.flash.types };
+        if (type.value) types[id] = type.value;
+        else delete types[id];
+        this.flash.types = types;
+      }));
+      const show = h('input', { type: 'checkbox', checked: !hidden.has(id), 'aria-label': `Show ${this.deckName(id)}` });
+      show.addEventListener('change', () => change(() => {
+        this.flash.hidden = show.checked ? this.flash.hidden.filter((d) => d !== id) : [...this.flash.hidden, id];
+      }));
+      return h('div', { class: `review-ed-row${hidden.has(id) ? ' is-hidden' : ''}` },
+        show, name, h('span', { class: 'review-ed-count' }, `${counts.get(id) || 0}`), folder, type);
+    });
+    return h('div', { class: 'review-card review-editor' },
+      h('div', { class: 'review-ed-head' }, h('b', null, 'Decks'), h('span', { class: 'review-meta' }, 'Untick to hide a deck · pick a folder to group decks · kept in .opal/settings.json, not your notes')),
+      h('div', { class: 'review-ed-row is-labels' }, h('span'), h('span', null, 'Name'), h('span', null, 'Cards'), h('span', null, 'Folder'), h('span', null, 'Practise as')),
+      rows);
   }
 
   // ---------- Quote cards ----------
@@ -288,7 +465,7 @@ export class ReviewView {
     return h('div', { class: 'review-card is-quote' },
       modes,
       h('div', { class: 'review-meta' },
-        h('span', null, `Quote · ${schedule ? `seen before · every ${describeInterval(schedule.interval)}` : 'new'}`),
+        h('span', null, `${schedule ? `Seen before · every ${describeInterval(schedule.interval)}` : 'New card'} · `, this.typePicker(card.source || card)),
         h('button', { class: 'review-source', onclick: () => this.io.openFile(card.path) }, card.path.replace(/\.md$/i, ''))),
       this.mode === 'who' ? null : h('p', { class: 'review-cue' }, where || card.work || ''),
       prompt,

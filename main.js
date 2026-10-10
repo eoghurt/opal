@@ -1582,7 +1582,8 @@ function tagsOf(text) {
 //   "They think I am a Judas" - Whitechapel
 // Its schedule goes at the end of the line, the same hidden comment as a
 // Question::Answer card. The quote's text is its note's folder (The Longest
-// Memory/Quotes.md → The Longest Memory); the heading above it is its theme.
+// Memory/Quotes.md → The Longest Memory); the heading above it is its theme,
+// and each theme is a deck of its own (theme:<folder>::<heading>).
 const OPENERS = '"“‘\'';
 const CLOSERS = '"”’\'';
 const SR_COMMENT = /\s*<!--SR:((?:![0-9-]+,\d+,\d+)+)-->\s*$/;
@@ -1637,7 +1638,7 @@ async function listCards() {
       if (heading) theme = heading[1].replace(/[*_]/g, '');
       const card = parseCardLine(line) || (quotes ? parseQuoteLine(line) : null);
       if (!card) continue;
-      if (card.kind === 'quote') cards.push({ path: notePath, line: index + 1, raw: line, ...card, work, theme, decks: [...decks, 'Quotes'] });
+      if (card.kind === 'quote') cards.push({ path: notePath, line: index + 1, raw: line, ...card, work, theme, decks: [...decks, 'Quotes', ...(theme ? [`theme:${folder}::${theme}`] : [])] });
       else cards.push({ path: notePath, line: index + 1, raw: line, ...card, decks });
     }
   }

@@ -2334,6 +2334,8 @@ function showReview() {
         reviewCard: (path, line, raw, schedule) => window.opal.reviewCard(path, line, raw, schedule),
         openFile: (path) => openFile(path),
         onReviewed: () => updateCardsDue(),
+        settings: () => vaultSettings.flashcards || null,
+        saveSettings: (flashcards) => saveVaultSettings({ flashcards }),
       },
     });
   });
@@ -2347,7 +2349,9 @@ function updateCardsDue() {
   cardsDueTimer = setTimeout(async () => {
     if (!vault) return;
     try {
-      cardsDueCount = countDue(await window.opal.listCards());
+      // Cards in hidden decks (Review › Edit decks) don't count.
+      const hidden = new Set(((vaultSettings.flashcards || {}).hidden) || []);
+      cardsDueCount = countDue((await window.opal.listCards()).filter((c) => c.decks.some((d) => !hidden.has(d))));
     } catch {
       return;
     }
