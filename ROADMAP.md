@@ -254,7 +254,32 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   encrypted with safeStorage in mail-accounts.json, never logged.
 - **Safe reading** — email HTML goes through viewers/sanitize.js; cid: pictures
   become data: URLs, pictures from the web stay blocked, links open in the browser.
-- Next (0.13): writing, replying, drafts, new-mail notifications.
+
+## v0.13 — Mail, writing (done)
+- **Writing** (design A, same mockups as 0.12): + Write, Reply, Reply all and
+  Forward open a writing card in the reader's place — To / Cc / Bcc as address
+  bubbles, Subject, the body in Opal's markdown editor (sent as plain text and
+  as HTML made from it), the original folded underneath, attachments from the
+  vault or Finder. Only the Send button sends: no shortcut, no other way. More
+  than 10 people: it lists them all first. A failed send stays open with the
+  reason. Unsent emails are kept in Opal's settings folder (mail-drafts/), never
+  in the vault or Gmail's drafts; "N unsent" reopens them.
+- **Sending** — smtp.gmail.com with Nodemailer, XOAUTH2 with the same sign-in as
+  IMAP; Gmail files the copy in Sent. Replies set In-Reply-To and References and
+  add "Re:" once; Reply all leaves your own address out; forwards carry the
+  original attachments and quote its sender, date and text.
+- **Sent** mailbox in the rail, with Save to vault (the same Mail/YYYY-MM-DD
+  Subject.md notes as received mail).
+- **To reply** — right-click › To reply… › Today / Tomorrow / This weekend / a
+  date: a task "Reply to <subject> / <sender>" in Tasks/My Tasks.md, ending in
+  [📧](a Gmail link to the email) so it works in Obsidian too. In Tasks and the
+  calendar it has an envelope instead of a tick box, which opens the reply;
+  sending the reply ticks it off.
+- **New mail** — an IMAP IDLE connection on the Inbox while Opal runs
+  (reconnects after sleep or a dropped line); new emails appear marked NEW and
+  get a Mac notification (sender and subject, never the body) that opens them.
+  Settings › Widgets & Fidgets › Mail turns the notifications off.
+- Tests send only to Nodemailer's stream transport (OPAL_MAIL_FIXTURE), check v51.
 
 ## Fidget ideas
 Ethan's:

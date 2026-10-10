@@ -1,6 +1,6 @@
 # ---- Mail: reading the sample .eml files (fixtures/mail, no real account) and saving one as a note ----
 M "require('electron').BrowserWindow.getAllWindows()[0].webContents.send('ui:show-mail'); 1" >/dev/null; sleep 2.5
-ok "Mail opens on People with the account's inbox" '[[ $(C "document.querySelector(\".mail .deb-kicker\").textContent") == "\"PEOPLE · FIXTURE@EXAMPLE.COM\"" ]]'
+ok "Mail opens on People with the account's inbox" '[[ $(C "document.querySelector(\".mail .deb-kicker\").textContent") == "\"PEOPLE · STUDENT@EXAMPLE.COM\"" ]]'
 ok "People holds the email from a person, unread" '[[ $(C "[...document.querySelectorAll(\".mail-row.is-unread .mail-from\")].map(e=>e.textContent).join()") == "\"Year 12 Coordinator\"" ]]'
 C "[...document.querySelectorAll('.mail .deb-rail-btn')].find(b=>b.textContent.startsWith('Updates')).click(); 1" >/dev/null; sleep 0.6
 ok "the newsletter (it has List-Unsubscribe) is under Updates" '[[ $(C "[...document.querySelectorAll(\".mail-row .mail-from\")].map(e=>e.textContent).join()") == "\"Music Weekly\"" ]]'
@@ -11,7 +11,7 @@ ok "the inline picture (cid:) shows as a data: image; the web picture is blocked
 ok "it's marked read once opened" '[[ $(C "document.querySelectorAll(\".mail-row.is-unread\").length") == "0" ]]'
 ok "the PDF is listed as an attachment" '[[ $(C "document.querySelector(\".mail-file\").textContent") == "\"Timetable.pdf69 B\"" ]]'
 C "document.querySelector('.mail-row').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:300,clientY:300})); 1" >/dev/null; sleep 0.4
-ok "right-click gives the message menu" '[[ $(C "[...document.querySelectorAll(\".ctx-menu .ctx-item > span:first-child\")].map(e=>e.textContent).join(\"|\")") == "\"Open|Reply in Gmail|Mark as unread|Save to vault|Move to Updates|Archive|Delete\"" ]]'
+ok "right-click gives the message menu" '[[ $(C "[...document.querySelectorAll(\".ctx-menu .ctx-item > span:first-child\")].map(e=>e.textContent).join(\"|\")") == "\"Open|Reply|Reply all|Forward|To reply…|Mark as unread|Save to vault|Move to Updates|Archive|Delete\"" ]]'
 C "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1" >/dev/null; sleep 0.3
 clickText '.mail-reader .deb-btn' 'Save to vault' 2
 N="$V/Mail/2026-10-09 WACE exam timetable and seat numbers.md"

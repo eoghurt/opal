@@ -2,19 +2,22 @@
 // between accounts, the message list on the left and the open email on the
 // right, with Save to vault. Right-click or double-click a message for its menu.
 //
-// Reading only for now (0.12); writing and replying come in 0.13 — Reply opens
-// the thread in Gmail until then.
+// 0.13: + Write, Reply, Reply all and Forward open the writing card in the
+// reader's place (compose-view.js); Sent lists what Gmail filed; "To reply"
+// makes a task with an envelope; new mail arrives by itself (see mail/index.js).
 //
 //   new MailView(container, { box, account, io })
 //   io: the window.opal.mail functions, plus openNote(path), openWeb(url),
-//       onChange({ box, account })
+//       onChange({ box, account }), vaultFiles(), addReplyTask(message, day),
+//       onSent(result)
 
 import { h, icon, askName } from '../../ui.js';
-import { menuOn } from '../../context-menu.js';
+import { menuOn, showMenu } from '../../context-menu.js';
+import { ComposeView } from './compose-view.js';
 import { sanitizeHtml } from '../../viewers/sanitize.js';
 import { toMarkdown, textToMarkdown } from './markdown.js';
 
-const RAIL = [['people', 'People', 'user'], ['updates', 'Updates', 'megaphone'], ['saved', 'Saved', 'bookmark']];
+const RAIL = [['people', 'People', 'user'], ['updates', 'Updates', 'megaphone'], ['sent', 'Sent', 'send'], ['saved', 'Saved', 'bookmark']];
 const FILTERS = [['all', 'All'], ['unread', 'Unread'], ['attachments', 'Attachments']];
 const WEEKDAY = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MONTH = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -55,6 +58,10 @@ export class MailView {
     this.open = null; // the parsed message on show
     this.syncing = false;
     this.problem = '';
+    this.drafts = [];
+    this.compose = null; // the ComposeView while writing
+    this.composeEl = null; // its card, kept across redraws so typing isn't lost
+    this.fresh = new Set(); // ids that arrived while Opal was open (marked NEW)
     this.root = h('div', { class: 'deb mail' });
     container.replaceChildren(this.root);
     this.root.append(h('p', { class: 'deb-muted' }, 'Opening your mail…'));
@@ -63,12 +70,13 @@ export class MailView {
 
   destroy() {
     this.gone = true;
+    if (this.compose) this.compose.close().catch(() => {});
   }
 
   async load() {
     try {
       this.status = await this.io.status();
-      [this.messages, this.saved] = await Promise.all([this.io.list(), this.io.saved()]);
+      [this.messages, this.saved, this.drafts] = await Promise.all([this.io.list(), this.io.saved(), this.io.drafts()]);
     } catch (err) {
       this.root.replaceChildren(h('p', { class: 'deb-empty' }, `Couldn't open Mail: ${err.message}`));
       return;
@@ -76,6 +84,30 @@ export class MailView {
     if (!this.status.accounts.some((a) => a.id === this.account)) this.account = 'all';
     this.render();
     if (this.status.accounts.length) this.sync();
+    if (this.pending) {
+      const job = this.pending;
+      this.pending = null;
+      job();
+    }
+  }
+
+  // Runs `job` once the first load is done (for a notification click or a
+  // "to reply" task that opened Mail).
+  whenReady(job) {
+    if (this.status) job();
+    else this.pending = job;
+  }
+
+  // New mail while Opal is open (from the IDLE connection).
+  arrived({ messages, fresh }) {
+    this.messages = messages;
+    for (const m of fresh || []) this.fresh.add(m.id);
+    if (!this.gone && this.status) this.render();
+  }
+
+  async refreshList() {
+    this.messages = await this.io.list();
+    if (!this.gone) this.render();
   }
 
   async sync() {
@@ -139,6 +171,7 @@ export class MailView {
     let main;
     if (!this.status.accounts.length) main = this.signInPage();
     else if (this.box === 'saved') main = this.savedPage();
+    else if (this.box === 'sent') main = this.boxPage(true);
     else main = this.boxPage();
     this.root.replaceChildren(rail, h('main', { class: 'deb-main mail-main' }, main));
   }
@@ -197,14 +230,17 @@ export class MailView {
     }
   }
 
-  boxPage() {
+  boxPage(sent = false) {
     const accountName = this.account === 'all' ? (this.status.accounts.length > 1 ? 'ALL ACCOUNTS' : this.status.accounts[0].email.toUpperCase())
       : (this.status.accounts.find((a) => a.id === this.account) || {}).label.toUpperCase();
     const unread = this.inAccount().filter((m) => m.box === this.box && m.unread).length;
-    const title = unread ? `${unread} unread.` : 'All read.';
-    const head = this.head(`${this.box === 'people' ? 'PEOPLE' : 'UPDATES'} · ${accountName}`, title, [
+    const sentCount = this.inAccount().filter((m) => m.box === 'sent').length;
+    const title = sent ? (sentCount ? `${sentCount} sent.` : 'Nothing sent yet.') : unread ? `${unread} unread.` : 'All read.';
+    const head = this.head(`${sent ? 'SENT' : this.box === 'people' ? 'PEOPLE' : 'UPDATES'} · ${accountName}`, title, [
+      this.drafts.length ? h('button', { type: 'button', class: 'deb-btn mail-drafts', onclick: (e) => this.draftsMenu(e) }, `${this.drafts.length} unsent`) : null,
       this.accountSwitch(),
       h('button', { type: 'button', class: 'deb-btn', disabled: this.syncing || null, onclick: () => this.sync() }, this.syncing ? 'Checking…' : 'Refresh'),
+      h('button', { type: 'button', class: 'deb-btn is-primary', onclick: () => this.startCompose('new') }, '+ Write'),
     ]);
     const list = this.visible();
     const search = h('input', {
@@ -214,18 +250,31 @@ export class MailView {
     this.rowsEl = h('div', { class: 'mail-rows' });
     const listCard = h('section', { class: 'deb-card mail-list', 'aria-label': this.box === 'people' ? 'People' : 'Updates' },
       h('div', { class: 'mail-tools' },
-        h('div', { class: 'sch-seg', role: 'group', 'aria-label': 'Show' }, FILTERS.map(([id, label]) => h('button', {
+        h('div', { class: 'sch-seg', role: 'group', 'aria-label': 'Show' }, FILTERS.filter(([id]) => !sent || id !== 'unread').map(([id, label]) => h('button', {
           type: 'button', class: this.filter === id ? 'is-on' : '', onclick: () => this.go({ filter: id }),
         }, label))),
         search),
       this.rowsEl);
     this.drawRows(list);
-    const open = this.open && list.some((m) => m.id === this.openId) ? this.reader() : this.emptyReader(list.length);
+    const open = this.compose ? this.composeEl
+      : this.open && list.some((m) => m.id === this.openId) ? this.reader() : this.emptyReader(list.length);
     return [
       head,
       this.problem ? h('p', { class: 'mail-problem' }, this.problem) : null,
+      this.flashNote(),
       h('div', { class: 'mail-body' }, listCard, open),
     ];
+  }
+
+  // A short "Sent." or "Added to your tasks" line that fades after a few seconds.
+  flashNote() {
+    if (!this.flash) return null;
+    clearTimeout(this.flashTimer);
+    this.flashTimer = setTimeout(() => {
+      this.flash = '';
+      if (!this.gone) this.render();
+    }, 4000);
+    return h('p', { class: 'mail-flash', role: 'status' }, icon('check', 14), this.flash);
   }
 
   drawRows(list = this.visible()) {
@@ -242,13 +291,19 @@ export class MailView {
         onclick: () => this.openMessage(m.id),
       },
       h('span', { class: 'mail-unread', 'aria-label': m.unread ? 'Unread' : null }),
-      h('span', { class: 'mail-from' }, person(m.from) || '(no sender)'),
+      h('span', { class: 'mail-from' },
+        m.box === 'sent' ? `To ${(m.to || []).map(person).join(', ') || '(nobody)'}` : person(m.from) || '(no sender)',
+        this.fresh.has(m.id) && m.unread ? h('span', { class: 'mail-new' }, 'NEW') : null),
       h('span', { class: 'mail-when' },
         m.attachments ? h('span', { class: 'mail-clip', 'aria-label': 'Has attachments' }, icon('paperclip', 13)) : null,
         this.status.accounts.length > 1 ? h('span', { class: 'mail-dot is-small', style: `background: ${this.accountColor(m.account)}`, 'aria-hidden': 'true' }) : null,
         when(m.date)),
       h('span', { class: 'mail-subject' }, m.subject),
       m.snippet ? h('span', { class: 'mail-snippet' }, m.snippet) : null);
+      // Where the menu was opened, so "To reply…" can open its own menu there.
+      const at = (e) => { this.menuAt = { clientX: e.clientX, clientY: e.clientY }; };
+      row.addEventListener('contextmenu', at, true);
+      row.addEventListener('dblclick', at, true);
       menuOn(row, () => this.messageMenu(m));
       return row;
     }));
@@ -256,17 +311,34 @@ export class MailView {
 
   messageMenu(m) {
     const saved = this.savedPath(m.messageId);
+    const saveItem = saved
+      ? { label: 'Open the saved note', onSelect: () => this.io.openNote(saved) }
+      : { label: 'Save to vault', onSelect: () => this.saveMessage(m.id) };
+    if (m.box === 'sent') {
+      return {
+        title: `To ${(m.to || []).map(person).join(', ')}`,
+        items: [
+          { label: 'Open', onSelect: () => this.openMessage(m.id) },
+          { label: 'Reply all', onSelect: () => this.startCompose('all', m.id) },
+          { label: 'Forward', onSelect: () => this.startCompose('forward', m.id) },
+          'separator',
+          saveItem,
+        ],
+      };
+    }
     return {
       title: person(m.from),
       items: [
         { label: 'Open', onSelect: () => this.openMessage(m.id) },
-        { label: 'Reply in Gmail', hint: 'replying in Opal: 0.13', onSelect: () => this.io.openInGmail(m.id) },
+        { label: 'Reply', onSelect: () => this.startCompose('reply', m.id) },
+        { label: 'Reply all', onSelect: () => this.startCompose('all', m.id) },
+        { label: 'Forward', onSelect: () => this.startCompose('forward', m.id) },
+        { label: 'To reply…', hint: 'a task for the day', onSelect: () => this.replyLaterMenu(m) },
+        'separator',
         m.unread
           ? { label: 'Mark as read', onSelect: () => this.setRead(m, true) }
           : { label: 'Mark as unread', onSelect: () => this.setRead(m, false) },
-        saved
-          ? { label: 'Open the saved note', onSelect: () => this.io.openNote(saved) }
-          : { label: 'Save to vault', onSelect: () => this.saveMessage(m.id) },
+        saveItem,
         m.box === 'people'
           ? { label: 'Move to Updates', hint: 'everything from this sender', onSelect: () => this.setBox(m, 'updates') }
           : { label: 'Move to People', hint: 'everything from this sender', onSelect: () => this.setBox(m, 'people') },
@@ -315,6 +387,7 @@ export class MailView {
   }
 
   async openMessage(id) {
+    if (this.compose) await this.closeCompose();
     this.openId = id;
     this.open = { loading: true };
     this.render();
@@ -378,6 +451,11 @@ export class MailView {
         h('span', { class: 'mail-saved-tick' }, icon('check', 14), 'Saved'),
         h('button', { type: 'button', class: 'deb-btn', onclick: () => this.io.openNote(saved) }, 'Open note'))
       : h('button', { type: 'button', class: 'deb-btn is-primary', onclick: () => this.saveMessage(this.openId) }, 'Save to vault');
+    const sentOne = m.folder === 'sent';
+    const answer = h('div', { class: 'mail-answer' },
+      sentOne ? null : h('button', { type: 'button', class: 'deb-btn', onclick: () => this.startCompose('reply', this.openId) }, 'Reply'),
+      h('button', { type: 'button', class: 'deb-btn', onclick: () => this.startCompose('all', this.openId) }, 'Reply all'),
+      h('button', { type: 'button', class: 'deb-btn', onclick: () => this.startCompose('forward', this.openId) }, 'Forward'));
     const account = this.status.accounts.find((a) => a.id === m.account);
     const line = (label, value) => (value ? h('div', { class: 'mail-meta-row' }, h('span', { class: 'mail-meta-label' }, label), h('span', null, value)) : null);
     const body = h('div', { class: 'mail-text' }, this.bodyOf(m));
@@ -392,6 +470,7 @@ export class MailView {
     const files = m.attachments.filter((a) => !a.inline);
     return h('article', { class: 'deb-card mail-reader' },
       h('div', { class: 'mail-reader-head' }, h('h2', { class: 'mail-reader-title' }, m.subject), action),
+      answer,
       h('div', { class: 'mail-meta' },
         line('From', fullPerson(m.from)),
         line('To', [m.to.map(fullPerson).join(', '), account && this.status.accounts.length > 1 ? `· ${account.label}` : ''].filter(Boolean).join(' ')),
@@ -401,6 +480,121 @@ export class MailView {
       body,
       files.length ? h('div', { class: 'mail-files' }, files.map((f) => h('span', { class: 'mail-file', title: saved ? 'Saved beside the note' : 'Saved beside the note when you save' },
         icon('paperclip', 14), f.filename || 'Attachment', h('small', null, size(f.size))))) : null);
+  }
+
+  // ---------- Writing ----------
+
+  // mode: new | reply | all | forward. Only one email is written at a time;
+  // the one open now is kept (as an unsent draft) when another starts.
+  async startCompose(mode, sourceId = null) {
+    try {
+      if (this.compose) await this.closeCompose();
+      const account = this.account !== 'all' ? this.account : null;
+      const draft = await this.io.compose(mode, sourceId, account);
+      this.showCompose(draft);
+    } catch (err) {
+      this.problem = err.message;
+      this.render();
+    }
+  }
+
+  showCompose(draft) {
+    if (this.box === 'saved') this.box = 'people';
+    this.composeEl = h('article', { class: 'deb-card mail-reader mail-compose', 'aria-label': 'Writing an email' });
+    const account = this.status.accounts.find((a) => a.id === draft.account) || this.status.accounts[0];
+    this.render();
+    this.compose = new ComposeView(this.composeEl, {
+      draft,
+      account,
+      io: this.io,
+      onClose: () => this.afterCompose(),
+      onSent: (result) => {
+        this.afterCompose();
+        this.problem = '';
+        this.flash = result.count === 1 ? 'Sent.' : `Sent to ${result.count} people.`;
+        if (this.io.onSent) this.io.onSent(result);
+        this.render();
+      },
+    });
+    this.render();
+  }
+
+  async afterCompose() {
+    this.compose = null;
+    this.composeEl = null;
+    this.drafts = await this.io.drafts().catch(() => []);
+    if (!this.gone) this.render();
+  }
+
+  async closeCompose() {
+    if (!this.compose) return;
+    const c = this.compose;
+    this.compose = null;
+    await c.close();
+  }
+
+  draftsMenu(event) {
+    showMenu(event, {
+      title: 'Not sent yet',
+      items: this.drafts.map((d) => ({
+        label: d.subject || '(no subject)',
+        hint: d.error ? 'didn’t send' : d.to ? `to ${d.to.split(',')[0].replace(/\s*<.*$/, '')}` : '',
+        onSelect: async () => {
+          if (this.compose) await this.closeCompose();
+          this.showCompose(d);
+        },
+      })),
+    });
+  }
+
+  // A reply for a "to reply" task (by the email's Message-ID).
+  async replyToMessageId(messageId) {
+    const id = await this.io.find(messageId).catch(() => null);
+    if (!id) {
+      this.problem = 'That email isn’t in the inbox any more (it may have been archived or deleted).';
+      this.render();
+      return;
+    }
+    this.startCompose('reply', id);
+  }
+
+  replyLaterMenu(m) {
+    const day = (offset) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d;
+    };
+    const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const short = (d) => d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+    const today = day(0);
+    const tomorrow = day(1);
+    const saturday = day(((6 - today.getDay()) + 7) % 7 || 7);
+    const add = (d) => this.run(async () => {
+      await this.io.addReplyTask(m, key(d));
+      this.flash = `Added to your tasks for ${d.toDateString() === today.toDateString() ? 'today' : short(d)}.`;
+    });
+    const at = this.menuAt || { clientX: 300, clientY: 300 };
+    const event = { ...at, preventDefault() {}, stopPropagation() {} };
+    showMenu(event, {
+      title: 'Reply when?',
+      items: [
+        { label: 'Today', hint: short(today), onSelect: () => add(today) },
+        { label: 'Tomorrow', hint: short(tomorrow), onSelect: () => add(tomorrow) },
+        { label: 'This weekend', hint: short(saturday), onSelect: () => add(saturday) },
+        'separator',
+        { label: 'Pick a date…', onSelect: () => this.pickReplyDate(m, event, add) },
+      ],
+    });
+  }
+
+  pickReplyDate(m, event, add) {
+    const input = h('input', { type: 'date', class: 'mail-date', 'aria-label': 'Reply by', min: new Date().toISOString().slice(0, 10) });
+    showMenu(event, {
+      title: 'Reply by',
+      items: [{ label: 'Add the task', onSelect: () => { if (input.value) add(new Date(`${input.value}T12:00`)); } }],
+      extra: input,
+    });
+    setTimeout(() => input.focus(), 0);
   }
 
   // ---------- Saved and sign-in pages ----------

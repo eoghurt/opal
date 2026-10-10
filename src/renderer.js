@@ -51,7 +51,7 @@ import { CalendarView } from './fidgets/calendar/calendar-view.js';
 import { HomeWidgets, WIDGETS, parseLayout, formatLayout } from './widgets/home/home-widgets.js';
 import { readProperties, writeProperty } from '../shared/properties.js';
 import { TasksView } from './fidgets/tasks/tasks-view.js';
-import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, formatTask, todayKey } from './fidgets/tasks/tasks.js';
+import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, formatTask, todayKey, mailLink } from './fidgets/tasks/tasks.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences, colorHex } from './fidgets/calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderSettings, withDefaults } from './views/settings-view.js';
@@ -378,6 +378,8 @@ function openReminder(open) {
   } else if (open.kind === 'calendar') {
     calendarState = { ...calendarState, mode: 'day' };
     showCalendar(keyToDate(open.day));
+  } else if (open.kind === 'mail') {
+    showMail((view) => view.openMessage(open.id));
   }
 }
 
@@ -1925,6 +1927,7 @@ function showCalendar(date) {
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Calendar' }]);
     viewEl.scrollTop = 0;
     calendar = new CalendarView(viewEl, {
+      openMailReply,
       date: calendarState.date,
       mode: calendarState.mode,
       openReview: () => showReview(),
@@ -2069,6 +2072,7 @@ function showTasks() {
         await window.opal.trashNote(taskListPath(name));
         await reloadTree();
       },
+      openMailReply,
     });
   });
 }
@@ -2326,8 +2330,12 @@ function showMoney() {
 
 // ---------- Mail ----------
 
-function showMail() {
+function showMail(then) {
   if (!vault) return Promise.resolve();
+  if (screen && screen.kind === 'mail' && mailView) {
+    if (then) mailView.whenReady(() => then(mailView));
+    return Promise.resolve();
+  }
   return navigate(async () => {
     homeStickies = null;
     leaveCalendar();
@@ -2347,10 +2355,61 @@ function showMail() {
         },
         openWeb: (url) => window.opal.openWebLink(url).catch(() => {}),
         onChange: (state) => { mailState = state; },
+        vaultFiles: () => flattenFiles(tree).map((f) => ({ path: f.path, name: f.name })),
+        addReplyTask: (message, day) => addReplyTask(message, day),
+        onSent: (result) => { if (result && result.inReplyTo) tickReplyTasks(result.inReplyTo).catch(() => {}); },
       },
     });
+    if (then) mailView.whenReady(() => then(mailView));
   });
 }
+
+// "To reply" (Mail's menu): a task in My Tasks on that day, titled
+// "Reply to <subject> / <sender>", carrying a link to the email (see tasks.js).
+async function addReplyTask(message, day) {
+  const status = await window.opal.mail.status();
+  const account = status.accounts.find((a) => a.id === message.account);
+  const sender = (message.from && (message.from.name || message.from.address)) || 'someone';
+  const task = {
+    title: `Reply to ${String(message.subject || '(no subject)').replace(/\s+/g, ' ')} / ${sender}`.replace(/[\[\]]/g, ''),
+    done: false, due: day, time: null, endTime: null, startDate: null, repeat: null, starred: false,
+    primary: null, secondary: null, created: todayKey(), doneOn: null,
+    mailLink: mailLink(message.messageId, account ? account.email : ''),
+    details: [], subtasks: [],
+  };
+  const text = (await readTaskList(DEFAULT_LIST)) || '';
+  await writeTaskList(DEFAULT_LIST, addTask(text, task, DEFAULT_LIST));
+}
+
+// Sending a reply ticks off its "to reply" task(s).
+async function tickReplyTasks(inReplyTo) {
+  const wanted = String(inReplyTo).replace(/^<|>$/g, '');
+  for (const node of taskListNodes()) {
+    const name = node.name.slice(0, -3);
+    for (;;) {
+      const text = (await readTaskList(name)) || '';
+      const task = parseTasks(text, name).find((t) => t.mail === wanted && !t.done);
+      if (!task) break;
+      await writeTaskList(name, toggleTask(text, task));
+    }
+  }
+}
+
+// The envelope on a "to reply" task: Mail, writing the reply.
+function openMailReply(messageId) {
+  return showMail((view) => view.replyToMessageId(messageId));
+}
+
+// New mail (main's IDLE connection): the list updates, and a Mac notification
+// per email — sender and subject only — unless switched off in Settings › Mail.
+window.opal.mail.onArrived((data) => {
+  if (mailView) mailView.arrived(data);
+  if (vaultSettings.mail && vaultSettings.mail.notify === false) return;
+  for (const m of (data.fresh || []).slice(0, 5)) {
+    window.opal.notify({ title: (m.from && (m.from.name || m.from.address)) || 'New email', body: m.subject || '(no subject)', mail: m.id }).catch(() => {});
+  }
+});
+window.opal.mail.onChanged(() => { if (mailView) mailView.refreshList().catch(() => {}); });
 
 // ---------- Flashcards ----------
 

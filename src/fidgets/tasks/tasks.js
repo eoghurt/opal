@@ -8,6 +8,9 @@
 //
 // 📅 due date, ⏰ time, ⭐ starred, ➕ date it was added, ✅ date it was done, 🔁 repeat (e.g.
 // "🔁 every week" — ticking it off adds the next one, as Obsidian Tasks does).
+// A "to reply" task from Mail ends with [📧](https://mail.google.com/…#search/rfc822msgid%3A…):
+// a link that opens the email in Gmail from Obsidian; in Opal it shows an
+// envelope instead of a tick box, which opens the reply.
 // Anything else in the note (headings, text) is left alone.
 
 import { RULE_TEXT, normaliseRule, nextDate } from '../calendar/repeat.js';
@@ -24,7 +27,22 @@ const PRIMARY = /\s*#color\/([a-z]+)\b/;
 const SECONDARY = /\s*#accent\/([a-z]+)\b/;
 const CREATED = /\s*➕\s*(\d{4}-\d{2}-\d{2})/;
 const STAR = /\s*⭐️?/;
+const MAIL = /\s*\[📧\]\((https:\/\/mail\.google\.com\/[^\s)]*rfc822msgid%3A([^\s)&#]+)[^\s)]*)\)/;
 const REPEAT = new RegExp(`\\s*🔁\\s*${RULE_TEXT.source}`, 'i');
+
+function safeDecode(text) {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
+// The link a "to reply" task carries (see the top of this file).
+export function mailLink(messageId, account = '') {
+  const id = encodeURIComponent(String(messageId).replace(/^<|>$/g, '')).replace(/[()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `https://mail.google.com/mail/${account ? `?authuser=${encodeURIComponent(account)}` : ''}#search/rfc822msgid%3A${id}`;
+}
 
 const indentOf = (line) => /^\s*/.exec(line)[0].replace(/\t/g, '    ').length;
 
@@ -37,7 +55,10 @@ function parseLine(body) {
   const startDate = START.exec(body);
   const primary = PRIMARY.exec(body);
   const secondary = SECONDARY.exec(body);
+  const mail = MAIL.exec(body);
   return {
+    mail: mail ? safeDecode(mail[2]) : null, // the email's Message-ID (no < >)
+    mailLink: mail ? mail[1] : null,
     primary: primary ? primary[1] : null, // colours, as for calendar events
     secondary: secondary ? secondary[1] : null,
     created: created ? created[1] : null,
@@ -48,7 +69,7 @@ function parseLine(body) {
     endTime: time && time[2] ? time[2].padStart(5, '0') : null, // ⏰ 09:00–10:30
     doneOn: doneOn ? doneOn[1] : null,
     starred: STAR.test(body),
-    title: body.replace(START, '').replace(PRIMARY, '').replace(SECONDARY, '').replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
+    title: body.replace(MAIL, '').replace(START, '').replace(PRIMARY, '').replace(SECONDARY, '').replace(CREATED, '').replace(REPEAT, '').replace(DUE, '').replace(TIME, '').replace(DONE_ON, '').replace(new RegExp(STAR.source, 'g'), '').trim(),
   };
 }
 
@@ -99,6 +120,7 @@ function formatHead(task, indent = '') {
   if (task.starred) parts.push('⭐');
   if (task.created) parts.push(`➕ ${task.created}`);
   if (task.done && task.doneOn) parts.push(`✅ ${task.doneOn}`);
+  if (task.mailLink) parts.push(`[📧](${task.mailLink})`);
   return parts.join(' ');
 }
 
@@ -106,7 +128,7 @@ export function formatTask(task) {
   return [
     formatHead(task),
     ...task.details.filter((d) => d.trim()).map((d) => `    ${d.trim()}`),
-    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, startDate: null, starred: false, repeat: null, primary: null, secondary: null }, '    ')),
+    ...task.subtasks.filter((s) => s.title.trim()).map((s) => formatHead({ ...s, due: null, startDate: null, starred: false, repeat: null, primary: null, secondary: null, mailLink: null }, '    ')),
   ];
 }
 

@@ -96,6 +96,17 @@ contextBridge.exposeInMainWorld('opal', {
     save: (id, markdown) => call('mail:save', id, markdown),
     saved: () => call('mail:saved'),
     revealSetup: () => call('mail:reveal-setup'),
+    find: (messageId) => call('mail:find', messageId),
+    compose: (mode, sourceId, accountId) => call('mail:compose', mode, sourceId, accountId),
+    drafts: () => call('mail:drafts'),
+    updateDraft: (draft) => call('mail:draft-update', draft),
+    discardDraft: (id) => call('mail:draft-discard', id),
+    attachFromFinder: (id) => call('mail:attach-finder', id),
+    attachFromVault: (id, relPath) => call('mail:attach-vault', id, relPath),
+    // Only the compose view's Send button calls this.
+    send: (draft, options) => call('mail:send', draft, options),
+    onArrived: (callback) => ipcRenderer.on('mail:arrived', (_event, data) => callback(data)),
+    onChanged: (callback) => ipcRenderer.on('mail:changed', () => callback()),
   },
 
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),

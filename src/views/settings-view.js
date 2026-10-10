@@ -21,6 +21,7 @@ import { FIDGETS } from '../fidgets/index.js';
 export const DEFAULT_SETTINGS = {
   pomodoro: { focus: 25, short: 5, long: 15, rounds: 4, autoStart: true },
   tabs: { restore: true },
+  mail: { notify: true },
 };
 
 // This vault's settings with anything missing filled in from the defaults.
@@ -35,7 +36,7 @@ export function withDefaults(saved) {
 const SHORTCUTS = [
   ['Notes', [['⌘N', 'New note'], ['⌘⇧N', 'New folder'], ['⌘O', 'Open a note by name'], ['⌘⇧F', 'Search every note'], ['⌘-click a link', 'Open it in a new tab']]],
   ['Tabs', [['⌘T', 'New tab'], ['⌘W', 'Close tab'], ['⌃Tab / ⌃⇧Tab', 'Next / previous tab'], ['⌘1 … ⌘8', 'Go to that tab'], ['⌘9', 'Go to the last tab']]],
-  ['Moving around', [['⌘[ / ⌘]', 'Back / forward'], ['⌘⇧H', 'Home'], ['⌘⇧D', 'Calendar'], ['⌘⇧T', 'Tasks'], ['⌘⇧M', 'Money'], ['⌘⇧B', 'Debate'], ['⌘\\', 'Show or hide the sidebar'], ['⌘,', 'Settings']]],
+  ['Moving around', [['⌘[ / ⌘]', 'Back / forward'], ['⌘⇧H', 'Home'], ['⌘⇧D', 'Calendar'], ['⌘⇧T', 'Tasks'], ['⌘⇧M', 'Money'], ['⌘⇧B', 'Debate'], ['⌘⇧E', 'Mail'], ['⌘\\', 'Show or hide the sidebar'], ['⌘,', 'Settings']]],
   ['Writing', [['⌘B / ⌘I / ⌘U', 'Bold / italic / underline'], ['⌘K', '[[Link]]'], ['⌘Z / ⌘⇧Z', 'Undo / redo'], ['⌘⌥T', 'Insert a table']]],
 ];
 
@@ -80,6 +81,7 @@ const SECTIONS = [
   { id: 'shortcuts', group: 'opal', label: 'Shortcuts', icon: 'keyboard', title: 'Shortcuts.', desc: 'Keys that work everywhere in Opal.' },
   { id: 'about', group: 'opal', label: 'About', icon: 'info', title: 'About Opal.', desc: 'Notes that live in plain files.' },
   { id: 'parts', group: 'parts', label: 'Overview', icon: 'widget', title: 'Widgets & Fidgets.', desc: 'Widgets are small things inside a page that do one job. Fidgets are bigger, and take up a whole page of their own.' },
+  { id: 'mail', group: 'parts', label: 'Mail', icon: 'mail', title: 'Mail.', desc: 'Your Gmail inbox: reading, writing and replying. Mail stays on Gmail; only emails you save become notes.' },
   { id: 'timer', group: 'parts', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer in the top bar: a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
 ];
 
@@ -106,6 +108,16 @@ function timer({ settings, io }) {
     row('Long break after', 'Focus parts in a set before the long break.', minutesInput(p.rounds, (n) => set({ rounds: n }), 'Rounds before a long break', { max: 12 })),
     row('Start the next part by itself', 'Off: each break or focus part waits for you to press Start.', toggle(p.autoStart, (on) => set({ autoStart: on }), 'Start the next part by itself')),
     h('p', { class: 'set-note' }, 'Each finished focus part is saved in the home page’s numbers (.opal/logbook.md), linked to the note that was open, like a prep session.'),
+  ];
+}
+
+function mailSection({ settings, io }) {
+  const m = settings.mail;
+  return [
+    heading('New mail'),
+    row('Notify me about new mail', 'A Mac notification for each new email while Opal is open: who it’s from and the subject, never the email itself. Click it to open the email.',
+      toggle(m.notify, (on) => io.saveSettings({ mail: { ...m, notify: on } }), 'Notify me about new mail')),
+    h('p', { class: 'set-note' }, 'Emails you’re writing are kept on this Mac (in Opal’s settings folder) until they’re sent, never in the vault or in Gmail’s drafts.'),
   ];
 }
 
@@ -190,6 +202,7 @@ export function renderSettings(container, opts) {
   else if (section.id === 'parts') body = partsSection(opts, sections);
   else if (section.id === 'appearance') body = appearance(opts);
   else if (section.id === 'timer') body = timer(opts);
+  else if (section.id === 'mail') body = mailSection(opts);
   else if (section.id === 'tabs') body = tabsSection(opts);
   else if (section.id === 'vault') body = vaultSection(opts);
   else if (section.id === 'shortcuts') body = shortcuts();

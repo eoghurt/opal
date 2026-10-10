@@ -1,7 +1,7 @@
 // Main process: the only part of Opal that touches the disk.
 // The window (renderer) asks for things through IPC; see preload.js.
 
-const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme, safeStorage } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme, safeStorage, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -1915,7 +1915,8 @@ function showNotification(payload) {
   if (!Notification.isSupported() || !payload || typeof payload !== 'object') return false;
   const text = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
   const open = payload.open === 'tasks' ? { kind: 'tasks' }
-    : /^\d{4}-\d{2}-\d{2}$/.test(payload.day || '') ? { kind: 'calendar', day: payload.day } : null;
+    : /^[a-z0-9]+:(sent:)?\d+$/i.test(payload.mail || '') ? { kind: 'mail', id: payload.mail }
+      : /^\d{4}-\d{2}-\d{2}$/.test(payload.day || '') ? { kind: 'calendar', day: payload.day } : null;
   const note = new Notification({ title: text(payload.title, 120) || 'Opal', body: text(payload.body, 240) });
   shownNotifications.add(note);
   note.on('click', () => {
@@ -2007,7 +2008,7 @@ ipcMain.handle('look:get', () => getLook());
 ipcMain.handle('look:set', (_event, look) => setLook(look));
 
 // Mail (mail:* channels): Gmail over IMAP. Lives in mail/; only saving touches the vault.
-setupMail({ app, ipcMain, safeStorage, shell, ctx: { resolveFolderPath, scheduleRefresh } });
+setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, getWindow: () => win, ctx: { resolveFolderPath, resolveVaultFile, scheduleRefresh } });
 
 // ---------- Window and menu ----------
 
