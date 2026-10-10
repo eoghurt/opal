@@ -23,6 +23,7 @@
 //       settings, saveSettings(flashcards)
 
 import { h, icon } from '../../ui.js';
+import { showMenu } from '../../context-menu.js';
 import { inlineRuns } from '../../export/note-structure.js';
 import { GRADES, nextSchedule, describeInterval, dueSides, todayKey } from './schedule.js';
 
@@ -78,7 +79,7 @@ function blankSettings(s) {
   const f = s && typeof s === 'object' ? s : {};
   return {
     hidden: Array.isArray(f.hidden) ? f.hidden : [],
-    folders: Array.isArray(f.folders) ? f.folders.filter((x) => x && x.name).map((x) => ({ name: String(x.name), decks: Array.isArray(x.decks) ? x.decks : [] })) : [],
+    folders: Array.isArray(f.folders) ? f.folders.filter((x) => x && x.name).map((x) => ({ name: String(x.name), decks: Array.isArray(x.decks) ? x.decks : [], ...(x.keep ? { keep: true } : {}) })) : [],
     names: f.names && typeof f.names === 'object' ? f.names : {},
     types: f.types && typeof f.types === 'object' ? f.types : {},
     cardTypes: f.cardTypes && typeof f.cardTypes === 'object' ? f.cardTypes : {},
@@ -201,24 +202,139 @@ export class ReviewView {
     this.render();
   }
 
+  // Folders of decks: + Folder, drag a deck onto a folder (or onto another
+  // deck for a new folder of both), right-click either for the rest.
+  moveToFolder(id, name) {
+    const folders = this.flash.folders.map((f) => ({ ...f, decks: f.decks.filter((d) => d !== id) }));
+    if (name) {
+      const at = folders.find((f) => f.name === name);
+      if (at) at.decks.push(id);
+      else folders.push({ name, decks: [id] });
+    }
+    this.flash.folders = folders.filter((f) => f.decks.length || f.keep);
+    this.save();
+    this.render();
+  }
+
+  newFolderName(base = 'New folder') {
+    let name = base;
+    for (let i = 2; this.flash.folders.some((f) => f.name === name); i++) name = `${base} ${i}`;
+    return name;
+  }
+
+  // An inline name box in place of a chip (prompt() doesn't work in Opal).
+  nameBox(value, onDone) {
+    const input = h('input', { class: 'review-deck review-deck-input', value, 'aria-label': 'Folder name' });
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      this.renaming = null;
+      onDone(save ? input.value.trim() : null);
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+    return input;
+  }
+
   render() {
     const decks = this.decks();
     const due = (list) => list.reduce((n, c) => n + dueSides(c).length, 0);
     const totalDue = due(this.visibleCards());
     const inFolder = new Set(this.flash.folders.flatMap((f) => f.decks));
+    const shown = (id) => decks.some(([d]) => d === id);
+    const dragOver = (el, onDrop) => {
+      el.addEventListener('dragover', (e) => { if (this.dragDeck) { e.preventDefault(); el.classList.add('is-drop'); } });
+      el.addEventListener('dragleave', () => el.classList.remove('is-drop'));
+      el.addEventListener('drop', (e) => { e.preventDefault(); el.classList.remove('is-drop'); const id = this.dragDeck; this.dragDeck = null; if (id) onDrop(id); });
+      return el;
+    };
     const chip = (sel, label, count, extra = '') => h('button', {
       class: `review-deck${this.deck === sel ? ' is-on' : ''}${extra}`,
       onclick: () => { this.deck = sel; this.editing = false; this.startSession(); },
     }, label, h('span', { class: 'review-deck-count' }, String(count)));
+    const deckChip = (id, n) => {
+      const el = chip(id, this.deckName(id), n.due);
+      el.draggable = true;
+      el.title = 'Drag onto a folder to put it in · right-click for more';
+      el.addEventListener('dragstart', (e) => { this.dragDeck = id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); });
+      el.addEventListener('dragend', () => { this.dragDeck = null; });
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const folder = this.flash.folders.find((f) => f.decks.includes(id));
+        showMenu(e, {
+          title: this.deckName(id),
+          items: [
+            ...this.flash.folders.filter((f) => f !== folder).map((f) => ({ label: `Move to ${f.name}`, onSelect: () => this.moveToFolder(id, f.name) })),
+            { label: 'New folder with this deck', onSelect: () => { const name = this.newFolderName(); this.moveToFolder(id, name); this.renaming = `folder:${name}`; this.render(); } },
+            folder ? { label: `Take out of ${folder.name}`, onSelect: () => this.moveToFolder(id, null) } : null,
+            'separator',
+            { label: 'Hide this deck', onSelect: () => { this.flash.hidden = [...this.flash.hidden, id]; if (this.deck === id) this.deck = null; this.save(); this.startSession(); }, hint: 'Edit decks shows it again' },
+          ].filter(Boolean),
+        });
+      });
+      // A deck dropped on a deck: a new folder of the two.
+      return dragOver(el, (dropped) => {
+        if (dropped === id) return;
+        const name = this.newFolderName();
+        this.flash.folders = [...this.flash.folders.map((f) => ({ ...f, decks: f.decks.filter((d) => d !== id && d !== dropped) })).filter((f) => f.decks.length || f.keep), { name, decks: [id, dropped] }];
+        this.renaming = `folder:${name}`;
+        this.save();
+        this.render();
+      });
+    };
+    const folderChip = (f) => {
+      const sel = `folder:${f.name}`;
+      if (this.renaming === sel) {
+        return this.nameBox(f.name, (name) => {
+          if (name && name !== f.name && !this.flash.folders.some((x) => x.name === name)) {
+            f.name = name;
+            if (this.deck === sel) this.deck = `folder:${name}`;
+          }
+          this.save();
+          this.render();
+        });
+      }
+      const el = chip(sel, h('span', null, icon('folder', 13), ` ${f.name}`), due(this.cardsIn(sel)), ' is-folder');
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showMenu(e, {
+          title: f.name,
+          items: [
+            { label: 'Rename folder', onSelect: () => { this.renaming = sel; this.render(); } },
+            { label: 'Ungroup', hint: 'the decks stay', onSelect: () => { this.flash.folders = this.flash.folders.filter((x) => x !== f); if (this.deck === sel) this.deck = null; this.save(); this.startSession(); } },
+          ],
+        });
+      });
+      return dragOver(el, (id) => this.moveToFolder(id, f.name));
+    };
+    const addFolder = this.renaming === '+new'
+      ? this.nameBox('', (name) => {
+        if (name && !this.flash.folders.some((f) => f.name === name)) this.flash.folders = [...this.flash.folders, { name, decks: [], keep: true }];
+        this.save();
+        this.render();
+      })
+      : h('button', { class: 'review-deck is-add', title: 'A folder groups decks: drag decks onto it', onclick: () => { this.renaming = '+new'; this.render(); } }, '+ Folder');
+    const hasQuotes = this.cardsIn(this.deck).some((c) => this.typeOf(c) === 'quote');
+    const modePick = hasQuotes ? h('select', { class: 'review-mode-pick', 'aria-label': 'How quote cards are practised', title: 'How quote cards are practised' },
+      QUOTE_MODES.map(([id, label]) => h('option', { value: id, selected: this.mode === id }, label))) : null;
+    if (modePick) modePick.addEventListener('change', () => this.setMode(modePick.value));
     const openFolder = this.flash.folders.find((f) => this.deck === `folder:${f.name}` || f.decks.includes(this.deck));
     const deckBar = h('div', { class: 'review-decks', role: 'group', 'aria-label': 'Decks' },
       chip(null, 'All decks', totalDue),
-      this.flash.folders.filter((f) => f.decks.some((d) => decks.some(([id]) => id === d))).map((f) => chip(`folder:${f.name}`, h('span', null, icon('folder', 13), ` ${f.name}`), due(this.cardsIn(`folder:${f.name}`)), ' is-folder')),
-      decks.filter(([id]) => !inFolder.has(id)).map(([id, n]) => chip(id, this.deckName(id), n.due)),
+      this.flash.folders.filter((f) => f.keep || f.decks.some(shown)).map(folderChip),
+      decks.filter(([id]) => !inFolder.has(id)).map(([id, n]) => deckChip(id, n)),
+      addFolder,
+      h('span', { class: 'review-decks-fill' }),
+      modePick,
       h('button', { class: `review-deck is-edit${this.editing ? ' is-on' : ''}`, onclick: () => { this.editing = !this.editing; this.render(); } }, this.editing ? 'Done' : 'Edit decks'));
-    // Inside a folder: its decks, to pick one.
+    // Inside a folder: its decks, to pick one (and drag out of it).
     const subBar = openFolder ? h('div', { class: 'review-decks is-sub', role: 'group', 'aria-label': `Decks in ${openFolder.name}` },
-      openFolder.decks.filter((d) => decks.some(([id]) => id === d)).map((d) => chip(d, this.deckName(d), (decks.find(([id]) => id === d) || [0, { due: 0 }])[1].due))) : null;
+      openFolder.decks.filter(shown).map((d) => deckChip(d, (decks.find(([id]) => id === d) || [0, { due: 0 }])[1]))) : null;
     const head = h('section', { class: 'home-head review-head' },
       h('div', { class: 'home-title' },
         h('span', { class: 'mono-label' }, 'Flashcards'),
@@ -242,27 +358,46 @@ export class ReviewView {
           h('span', { class: 'review-meta' }, 'Goes through this deck without changing any review dates.')) : null);
     }
     const { card, side } = item;
-    const type = this.typeOf(card);
-    if (type === 'quote') return this.quoteArea(this.asQuote(card, side));
+    if (this.typeOf(card) === 'quote') return this.quoteArea(this.asQuote(card, side), card);
     // A quote practised as a plain card: who and where on the front, the quote on the back.
     const question = card.kind === 'quote' ? ([...new Set([card.speaker, card.work, card.theme].filter(Boolean))].join(' · ') || 'Which quote?') : side === 0 ? card.question : card.answer;
     const answer = card.kind === 'quote' ? `“${card.quote}”` : side === 0 ? card.answer : card.question;
-    const schedule = card.schedule[side] || null;
-    const buttons = this.showing
-      ? h('div', { class: 'review-grades' }, GRADES.map((grade, i) => {
-        const next = nextSchedule(schedule, grade);
-        return h('button', { class: `review-grade is-${grade}`, onclick: () => this.grade(grade) },
-          h('span', { class: 'review-grade-name' }, `${LABELS[grade]}`),
-          h('span', { class: 'review-grade-when' }, `${describeInterval(next.interval)} · ${i + 1}`));
-      }))
-      : h('button', { class: 'review-show', onclick: () => { this.showing = true; this.render(); } }, 'Show answer', h('span', { class: 'review-key' }, 'Space'));
     return h('div', { class: 'review-card' },
-      h('div', { class: 'review-meta' },
-        h('span', null, schedule ? `Seen before · every ${describeInterval(schedule.interval)}` : 'New card', ' · ', this.typePicker(card)),
-        h('button', { class: 'review-source', onclick: () => this.io.openFile(card.path) }, card.path.replace(/\.md$/i, ''))),
+      this.cardTop(card),
       h('p', { class: 'review-q' }, ...rich(question)),
       this.showing ? h('p', { class: 'review-a' }, ...rich(answer)) : null,
-      buttons);
+      this.cardFoot(card.schedule[side] || null));
+  }
+
+  // The top of a card: Basic / Quote, and a link to its note.
+  cardTop(card) {
+    const type = this.typeOf(card);
+    return h('div', { class: 'review-top' },
+      h('div', { class: 'review-type-seg', role: 'group', 'aria-label': 'Card type' },
+        Object.entries(TYPE_NAMES).map(([id, label]) => h('button', {
+          class: type === id ? 'is-on' : '',
+          'aria-pressed': String(type === id),
+          onclick: () => {
+            if (type === id) return;
+            this.flash.cardTypes = { ...this.flash.cardTypes, [cardKey(card)]: id };
+            this.save();
+            this.showing = false;
+            this.typed = null;
+            this.render();
+          },
+        }, label))),
+      h('button', { class: 'review-link', title: `Open ${card.path.replace(/\.md$/i, '')}`, 'aria-label': 'Open the note this card is in', onclick: () => this.io.openFile(card.path) }, icon('link', 15)));
+  }
+
+  // Flip, or once flipped, the grades.
+  cardFoot(schedule, { suggested = null, flip = () => { this.showing = true; this.render(); } } = {}) {
+    if (!this.showing) return h('button', { class: 'review-show', onclick: flip }, 'Flip');
+    return h('div', { class: 'review-grades' }, GRADES.map((grade) => {
+      const next = nextSchedule(schedule, grade);
+      return h('button', { class: `review-grade is-${grade}${suggested === grade ? ' is-suggested' : ''}`, onclick: () => this.grade(grade) },
+        h('span', { class: 'review-grade-name' }, LABELS[grade]),
+        this.practice ? null : h('span', { class: 'review-grade-when' }, describeInterval(next.interval)));
+    }));
   }
 
   async grade(grade) {
@@ -306,20 +441,6 @@ export class ReviewView {
     return { ...card, kind: 'quote', quote: words.replace(/^["“‘']|["”’']$/g, ''), speaker: '', work: cue, theme: '', schedule: [card.schedule[side]].filter(Boolean), source: card };
   }
 
-  typePicker(card) {
-    const own = this.flash.cardTypes[cardKey(card)];
-    const sel = h('select', { class: 'review-type-pick', 'aria-label': 'How this card is practised', title: 'How this card is practised' },
-      Object.entries(TYPE_NAMES).map(([id, label]) => h('option', { value: id, selected: this.typeOf(card) === id }, `${label} card${own === id ? '' : ''}`)));
-    sel.addEventListener('change', () => {
-      this.flash.cardTypes = { ...this.flash.cardTypes, [cardKey(card)]: sel.value };
-      this.save();
-      this.showing = false;
-      this.typed = null;
-      this.render();
-    });
-    return sel;
-  }
-
   // ---------- Editing decks ----------
 
   deckEditor() {
@@ -335,7 +456,7 @@ export class ReviewView {
         if (at) at.decks.push(id);
         else folders.push({ name, decks: [id] });
       }
-      this.flash.folders = folders.filter((f) => f.decks.length);
+      this.flash.folders = folders.filter((f) => f.decks.length || f.keep);
     });
     const rows = this.allDecks().map((id) => {
       const name = h('input', { class: 'review-ed-name', value: this.deckName(id), 'aria-label': 'Deck name', title: derivedName(id) });
@@ -348,16 +469,8 @@ export class ReviewView {
       }));
       const folder = h('select', { class: 'review-ed-select', 'aria-label': 'Folder' },
         h('option', { value: '' }, 'No folder'),
-        this.flash.folders.map((f) => h('option', { value: f.name, selected: folderOf(id) === f.name }, f.name)),
-        h('option', { value: '__new' }, 'New folder…'));
-      folder.addEventListener('change', () => {
-        let v = folder.value;
-        if (v === '__new') {
-          v = (window.prompt('Name the folder') || '').trim();
-          if (!v) { folder.value = folderOf(id); return; }
-        }
-        setFolder(id, v);
-      });
+        this.flash.folders.map((f) => h('option', { value: f.name, selected: folderOf(id) === f.name }, f.name)));
+      folder.addEventListener('change', () => setFolder(id, folder.value));
       const type = h('select', { class: 'review-ed-select', 'aria-label': 'Card type' },
         h('option', { value: '' }, 'Each card’s own type'),
         Object.entries(TYPE_NAMES).map(([t, label]) => h('option', { value: t, selected: this.flash.types[id] === t }, `${label} cards`)));
@@ -375,7 +488,7 @@ export class ReviewView {
         show, name, h('span', { class: 'review-ed-count' }, `${counts.get(id) || 0}`), folder, type);
     });
     return h('div', { class: 'review-card review-editor' },
-      h('div', { class: 'review-ed-head' }, h('b', null, 'Decks'), h('span', { class: 'review-meta' }, 'Untick to hide a deck · pick a folder to group decks · kept in .opal/settings.json, not your notes')),
+      h('div', { class: 'review-ed-head' }, h('b', null, 'Decks'), h('span', { class: 'review-meta' }, 'Untick to hide a deck · make folders with + Folder, then pick one here or drag decks onto it · kept in .opal/settings.json, not your notes')),
       h('div', { class: 'review-ed-row is-labels' }, h('span'), h('span', null, 'Name'), h('span', null, 'Cards'), h('span', null, 'Folder'), h('span', null, 'Practise as')),
       rows);
   }
@@ -394,19 +507,13 @@ export class ReviewView {
     this.render();
   }
 
-  quoteArea(card) {
+  quoteArea(card, original = card) {
     const schedule = card.schedule[0] || null;
     const words = card.quote.split(/\s+/).filter(Boolean);
     const where = [...new Set([card.speaker, card.work, card.theme].filter(Boolean))].join(' · ');
-    const modes = h('div', { class: 'review-modes', role: 'group', 'aria-label': 'How to practise quotes' },
-      QUOTE_MODES.map(([id, label]) => h('button', {
-        class: `review-mode${this.mode === id ? ' is-on' : ''}`,
-        'aria-pressed': String(this.mode === id),
-        onclick: () => this.setMode(id),
-      }, label)));
-
     let prompt;
     let suggested = null;
+    let flip;
     if (this.mode === 'letters') {
       prompt = h('p', { class: 'review-q review-quote is-letters' }, words.map((w) => {
         const m = /^([^\p{L}\p{N}]*)([\p{L}\p{N}])(.*?)([^\p{L}\p{N}]*)$/u.exec(w);
@@ -424,53 +531,37 @@ export class ReviewView {
         ? h('button', { class: 'rq-gap', style: `width: ${Math.max(2, bare(w).length) * 0.62}em`, title: 'Click to see this word', onclick: (e) => { e.currentTarget.replaceWith(h('span', { class: 'rq-word is-peeked' }, w)); } })
         : h('span', { class: `rq-word${this.gaps.hidden.has(i) ? ' is-filled' : ''}` }, w))));
     } else if (this.mode === 'type') {
-      if (this.typed) {
+      if (this.typed != null) {
         const marked = markTyped(card.quote, this.typed);
         suggested = marked.score >= 100 ? 'good' : marked.score >= 90 ? 'hard' : 'again';
         prompt = h('div', { class: 'review-typed' },
           h('p', { class: 'review-q review-quote' }, marked.words.map((w) => h('span', { class: `rq-word${w.ok ? '' : ' is-missed'}` }, w.word))),
-          marked.extra.length ? h('p', { class: 'review-meta' }, 'Not in the quote: ', marked.extra.map((w) => h('s', { class: 'rq-extra' }, w))) : null,
-          h('p', { class: 'review-score' }, h('b', null, `${Math.max(0, marked.score)}%`), marked.score >= 100 ? ' — word perfect.' : ' of the words, in order.'));
+          marked.extra.length ? h('p', { class: 'review-cue' }, 'Not in the quote: ', marked.extra.map((w) => h('s', { class: 'rq-extra' }, w))) : null,
+          h('p', { class: 'review-score' }, h('b', null, `${Math.max(0, marked.score)}%`)));
       } else {
-        const box = h('textarea', { class: 'review-type', rows: '3', placeholder: 'Type the quote from memory…', 'aria-label': 'Type the quote' });
-        const check = () => { this.typed = box.value; this.showing = true; this.render(); };
+        const box = h('textarea', { class: 'review-type', rows: '3', placeholder: 'Type it from memory…', 'aria-label': 'Type the quote' });
+        flip = () => { this.typed = box.value; this.showing = true; this.render(); };
         box.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            check();
+            flip();
           }
         });
         setTimeout(() => box.focus(), 0);
-        prompt = h('div', { class: 'review-typed' },
-          box,
-          h('div', { class: 'review-type-row' },
-            h('button', { class: 'deb-btn is-primary', onclick: check }, 'Check'),
-            h('span', { class: 'review-meta' }, 'Enter checks · punctuation and capitals don’t count')));
+        prompt = h('div', { class: 'review-typed' }, box);
       }
     } else {
       prompt = h('p', { class: 'review-q review-quote' }, `“${card.quote}”`);
     }
-
     const answer = this.mode === 'who'
-      ? h('p', { class: 'review-a' }, card.speaker || 'No speaker written', card.work ? h('span', { class: 'review-meta' }, ` · ${card.work}${card.theme ? ` · ${card.theme}` : ''}`) : null)
-      : h('p', { class: 'review-a review-quote-full' }, `“${card.quote}”`);
-    const buttons = this.showing
-      ? h('div', { class: 'review-grades' }, GRADES.map((grade, i) => {
-        const next = nextSchedule(schedule, grade);
-        return h('button', { class: `review-grade is-${grade}${suggested === grade ? ' is-suggested' : ''}`, onclick: () => this.grade(grade) },
-          h('span', { class: 'review-grade-name' }, LABELS[grade]),
-          h('span', { class: 'review-grade-when' }, this.practice ? `${i + 1}` : `${describeInterval(next.interval)} · ${i + 1}`));
-      }))
-      : this.mode === 'type' ? null : h('button', { class: 'review-show', onclick: () => { this.showing = true; this.render(); } }, this.mode === 'who' ? 'Show who' : 'Show the quote', h('span', { class: 'review-key' }, 'Space'));
+      ? h('p', { class: 'review-a' }, where || 'No speaker written')
+      : this.mode === 'type' ? null : h('p', { class: 'review-a review-quote-full' }, `“${card.quote}”`);
     return h('div', { class: 'review-card is-quote' },
-      modes,
-      h('div', { class: 'review-meta' },
-        h('span', null, `${schedule ? `Seen before · every ${describeInterval(schedule.interval)}` : 'New card'} · `, this.typePicker(card.source || card)),
-        h('button', { class: 'review-source', onclick: () => this.io.openFile(card.path) }, card.path.replace(/\.md$/i, ''))),
-      this.mode === 'who' ? null : h('p', { class: 'review-cue' }, where || card.work || ''),
+      this.cardTop(original),
+      this.mode === 'who' ? null : h('p', { class: 'review-cue' }, where),
       prompt,
-      this.showing && this.mode !== 'type' ? answer : null,
-      buttons);
+      this.showing ? answer : null,
+      this.cardFoot(schedule, { suggested, ...(flip ? { flip } : {}) }));
   }
 
   key(e) {

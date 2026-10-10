@@ -1171,3 +1171,21 @@ body, :root[data-theme] body { background: var(--frame); }
 .review-deck.is-edit { margin-left: auto; background: transparent; color: var(--ink-3); }
 .review-decks.is-sub { padding-top: 0; }
 @media (max-width: 760px) { .review-ed-row { grid-template-columns: 22px 1fr 40px; } .review-ed-select { grid-column: 2 / -1; } }
+
+/* Review: a clean card — Basic/Quote, a link to the note, the content, Flip */
+.review-top { display: flex; justify-content: space-between; align-items: center; }
+.review-type-seg { display: flex; padding: 3px; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.05); }
+.review-type-seg button { height: 26px; padding: 0 12px; border-radius: 999px; color: var(--ink-3); font: 500 12.5px var(--sans); }
+.review-type-seg button.is-on { background: var(--paper-2); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgb(var(--ink-rgb) / 0.12); }
+.review-link { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; color: var(--ink-3); }
+.review-link:hover { background: rgb(var(--ink-rgb) / 0.06); color: var(--ink); }
+:is(:root, :root[data-theme]) .review-show { align-self: center; min-width: 140px; height: 42px; padding: 0 28px; font: 700 14px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; }
+.review-grade-when { display: block; font-size: 11.5px; opacity: 0.7; }
+/* Deck row: folders, drag targets, + Folder, the quote mode picker */
+.review-decks { align-items: center; }
+.review-decks-fill { flex: 1; }
+.review-deck.is-add { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); }
+.review-deck.is-drop { box-shadow: 0 0 0 2px var(--accent, #3B2CF5); }
+.review-deck-input { width: 140px; border: 0; outline: 2px solid color-mix(in srgb, var(--accent, #3B2CF5) 45%, transparent); font: 500 13px var(--sans); color: var(--ink); }
+.review-mode-pick { height: 30px; padding: 0 8px; border: 0; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.05); color: var(--ink-2); font: 500 12.5px var(--sans); }
+:is(:root, :root[data-theme]) .review-show { display: inline-flex; justify-content: center; align-items: center; gap: 0; }

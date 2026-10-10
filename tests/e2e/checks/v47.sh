@@ -11,15 +11,15 @@ C "document.querySelector('#rail [data-section=\"flashcards\"]').click(); 1" >/d
 C "[...document.querySelectorAll('.review-deck')].find(b=>b.textContent.startsWith('Quotes')).click(); 1" >/dev/null; sleep 0.8
 ok "lines in a Quotes note become quote cards (a Quotes deck of 2)" '[[ $(C "[...document.querySelectorAll(\".review-deck\")].find(b=>b.textContent.startsWith(\"Quotes\")).textContent") == "\"Quotes2\"" ]]'
 ok "…with who says it, the text (its folder) and the theme (heading)" '[[ $(C "document.querySelector(\".review-cue\").textContent") == *"Gatsby · Hope"* ]]'
-C "[...document.querySelectorAll('.review-mode')].find(b=>b.textContent==='First letters').click(); 1" >/dev/null; sleep 0.3
+C "(()=>{const s=document.querySelector('.review-mode-pick'); s.value='letters'; s.dispatchEvent(new Event('change')); return 1})()" >/dev/null; sleep 0.3
 ok "First letters shows each word's first letter" '[[ $(C "document.querySelector(\".review-quote\").textContent.replace(/\\s/g,\"\")") == "\"Sw"* || $(C "document.querySelector(\".review-quote\").textContent.replace(/\\s/g,\"\")") == "\"C"* ]]'
-C "[...document.querySelectorAll('.review-mode')].find(b=>b.textContent==='Fill the gaps').click(); 1" >/dev/null; sleep 0.3
+C "(()=>{const s=document.querySelector('.review-mode-pick'); s.value='gaps'; s.dispatchEvent(new Event('change')); return 1})()" >/dev/null; sleep 0.3
 ok "Fill the gaps hides some words behind blanks" '[[ $(C "document.querySelectorAll(\".rq-gap\").length > 0") == "true" ]]'
-C "[...document.querySelectorAll('.review-mode')].find(b=>b.textContent==='Type it').click(); 1" >/dev/null; sleep 0.3
-C "(()=>{const q=[...document.querySelectorAll('.review-cue')][0].textContent.startsWith('Nick') ? 'So we beat on, boats against the current, borne back ceaselessly into the past.' : 'Can’t repeat the past? Why of course you can!'; const t=document.querySelector('.review-type'); t.value=q.toLowerCase(); [...document.querySelectorAll('.deb-btn')].find(b=>b.textContent==='Check').click(); return 1})()" >/dev/null; sleep 0.5
+C "(()=>{const s=document.querySelector('.review-mode-pick'); s.value='type'; s.dispatchEvent(new Event('change')); return 1})()" >/dev/null; sleep 0.3
+C "(()=>{const q=[...document.querySelectorAll('.review-cue')][0].textContent.startsWith('Nick') ? 'So we beat on, boats against the current, borne back ceaselessly into the past.' : 'Can’t repeat the past? Why of course you can!'; const t=document.querySelector('.review-type'); t.value=q.toLowerCase(); document.querySelector('.review-show').click(); return 1})()" >/dev/null; sleep 0.5
 ok "Type it marks a word-perfect quote 100% (capitals and punctuation don't count) and suggests Good" '[[ $(C "document.querySelector(\".review-score b\").textContent + \"|\" + document.querySelector(\".review-grade.is-suggested .review-grade-name\").textContent") == "\"100%|Good\"" ]]'
 C "document.querySelector('.review-grade.is-good').click(); 1" >/dev/null; sleep 1.5
 ok "grading saves the schedule at the end of the quote's line" '[[ $(grep -c "<!--SR:!" "$V/School/English/Gatsby/Quotes.md") == 1 ]] && grep -q "^\"" "$V/School/English/Gatsby/Quotes.md"'
-C "[...document.querySelectorAll('.review-mode')].find(b=>b.textContent==='Who said it').click(); 1" >/dev/null; sleep 0.3
-ok "Who said it shows the quote and hides the speaker until asked" '[[ $(C "!document.querySelector(\".review-cue\") && document.querySelector(\".review-show\").textContent.startsWith(\"Show who\")") == "true" ]]'
+C "(()=>{const s=document.querySelector('.review-mode-pick'); s.value='who'; s.dispatchEvent(new Event('change')); return 1})()" >/dev/null; sleep 0.3
+ok "Who said it shows the quote and hides the speaker until flipped" '[[ $(C "!document.querySelector(\".review-cue\") && document.querySelector(\".review-show\").textContent === \"Flip\"") == "true" ]]'
 ok "no errors" '[[ $(C "JSON.stringify(window.__errs||[])") == "\"[]\"" ]]'
