@@ -1007,3 +1007,117 @@ body, :root[data-theme] body { background: var(--frame); }
 .home.is-root .widget, :root[data-theme] .home.is-root .widget { border: 0; border-radius: 16px; background: var(--paper-2); box-shadow: none; overflow: hidden; }
 .home.is-root .widget-head, :root[data-theme] .home.is-root .widget-head { border-bottom: 0; background: none; padding-top: 12px; font-family: var(--sans); font-size: 13.5px; letter-spacing: 0; text-transform: none; }
 .home.is-root .widget-name, :root[data-theme] .home.is-root .widget-name { color: var(--ink); font-weight: 650; }
+
+/* ============================================================
+   Consistency sweep (2026-10-10): every page uses the same pieces as the
+   fidgets — a mono caps kicker, a 46px title, blue primary and grey
+   secondary pills, flat white cards with 16px corners, no hard rules.
+   ============================================================ */
+
+/* Kickers: the small line above a page title */
+:is(:root, :root[data-theme]) .home-head .home-title > .mono-label,
+:is(:root, :root[data-theme]) .ex-head-title > .mono-label,
+:is(:root, :root[data-theme]) .cal-title .cal-hand,
+:is(:root, :root[data-theme]) .money-month { font-family: var(--mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); transform: none; }
+:is(:root, :root[data-theme]) .money-month button { font: inherit; letter-spacing: 0; color: var(--ink-3); }
+
+/* Page titles */
+:is(:root, :root[data-theme]) :is(.home-h1, .money-h1, .cal-h1, .sch-h1, .settings-h1) { font-family: var(--sans); font-size: 46px; font-weight: 800; line-height: 1.02; letter-spacing: -0.035em; }
+:is(:root, :root[data-theme]) .deb-h1:not(.is-long) { font-size: 46px; }
+:is(:root, :root[data-theme]) .settings-head .home-h1 { font-size: 46px; }
+
+/* Buttons: blue for the main action, grey pills for the rest */
+:is(:root, :root[data-theme]) .home-action.is-primary,
+:is(:root, :root[data-theme]) .cal-add { border: 0; border-radius: 999px; background: var(--accent, #3B2CF5); color: var(--on-accent, #FFFFFF); font-weight: 600; }
+:is(:root, :root[data-theme]) .home-action.is-primary:hover,
+:is(:root, :root[data-theme]) .cal-add:hover { background: var(--accent, #3B2CF5); filter: brightness(1.08); opacity: 1; }
+:is(:root, :root[data-theme]) .deb-btn:not(.is-primary) { border: 0; background: rgb(var(--ink-rgb) / 0.06); }
+:is(:root, :root[data-theme]) .deb-btn:not(.is-primary):hover { background: rgb(var(--ink-rgb) / 0.1); }
+:is(:root, :root[data-theme]) .dashed-button { border: 0; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.05); color: var(--ink-2); font-family: var(--sans); font-size: 13px; letter-spacing: 0; text-transform: none; }
+
+/* No hard rules between parts of a page */
+:is(:root, :root[data-theme]) .cal-top { border-bottom: 0; background: transparent; }
+:is(:root, :root[data-theme]) .cal-rail { border-right: 0; background: transparent; }
+:is(:root, :root[data-theme]) .cal-mini { border-bottom: 0; }
+:is(:root, :root[data-theme]) .tasks-rail { border-right: 0; background: transparent; }
+:is(:root, :root[data-theme]) .tasks-rail .side-label { border: 0; font-family: var(--sans); font-size: 11px; text-transform: none; letter-spacing: 0; color: var(--ink-4); }
+:is(:root, :root[data-theme]) .review-decks { border-bottom: 0; padding: 4px 30px 8px; }
+
+/* Flat white cards */
+:is(:root, :root[data-theme]) .task-col,
+:is(:root, :root[data-theme]) .review-card { border: 0; border-radius: 16px; background: var(--paper-2); box-shadow: none; }
+:is(:root, :root[data-theme]) .note-card,
+:is(:root, :root[data-theme]) .file-card { border: 0; border-radius: 16px; background: var(--paper-2); box-shadow: none; }
+:is(:root, :root[data-theme]) .note-card:hover,
+:is(:root, :root[data-theme]) .file-card:hover { box-shadow: 0 2px 10px rgb(var(--ink-rgb) / 0.07); }
+:is(:root, :root[data-theme]) .note-card.look-block { background: var(--paper-2) !important; }
+/* A file's type as a quiet tinted block, not a big stamp */
+:is(:root, :root[data-theme]) .type-block { min-height: 0; height: 52px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--item-color, #F2D38A) 30%, var(--paper-2)) !important; }
+:is(:root, :root[data-theme]) .type-block-ext { font-size: 15px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-3); }
+
+/* Search: a rounded card, quiet rows, a soft highlight */
+:is(:root, :root[data-theme]) .search-box { border: 0; border-radius: 16px; background: var(--paper-2); box-shadow: 0 0 0 0.5px rgb(var(--ink-rgb) / 0.08), 0 16px 40px rgb(var(--ink-rgb) / 0.18); transform: none; overflow: hidden; }
+:is(:root, :root[data-theme]) .search-input { margin: 6px 16px 12px; padding: 10px 14px; border: 0; border-radius: 12px; background: rgb(var(--ink-rgb) / 0.05); font: 600 20px var(--sans); letter-spacing: -0.01em; }
+:is(:root, :root[data-theme]) .search-results { border-top: 0; background: transparent; }
+:is(:root, :root[data-theme]) .search-section { padding: 10px 16px 4px; border: 0; background: transparent; font-size: 11px; color: var(--ink-4); }
+:is(:root, :root[data-theme]) .search-row { margin: 0 8px; padding: 7px 10px; border: 0; border-radius: 9px; }
+:is(:root, :root[data-theme]) .search-row.is-active { background: rgb(var(--ink-rgb) / 0.06); box-shadow: none; }
+:is(:root, :root[data-theme]) .search-kind { width: auto; min-width: 44px; font-size: 11.5px; color: var(--ink-4); }
+:is(:root, :root[data-theme]) .search-name, :is(:root, :root[data-theme]) .search-file-name { font-weight: 600; }
+:is(:root, :root[data-theme]) .search-path { font-family: var(--sans); font-style: normal; font-size: 12.5px; color: var(--ink-3); }
+:is(:root, :root[data-theme]) .search-file { padding: 10px 18px 2px; }
+:is(:root, :root[data-theme]) .search-count { border: 0; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.06); font-family: var(--sans); font-size: 11px; color: var(--ink-3); }
+:is(:root, :root[data-theme]) .search-snippet mark { padding: 0 1px; border: 0; border-radius: 2px; background: rgb(255 210 63 / 0.55); color: inherit; }
+:is(:root, :root[data-theme]) .search-foot { border-top: 1px solid var(--line-soft); font-size: 11px; }
+
+/* Right-click menus: a soft tint on the row you're on, plain hints */
+:is(:root, :root[data-theme]) .ctx-item:hover:not(:disabled),
+:is(:root, :root[data-theme]) .ctx-item:focus-visible,
+:is(:root, :root[data-theme]) .ctx-item:focus { background: rgb(var(--ink-rgb) / 0.06); color: var(--ink); outline: none; box-shadow: none; }
+:is(:root, :root[data-theme]) .ctx-item.is-danger:hover, :is(:root, :root[data-theme]) .ctx-item.is-danger:focus { background: rgb(215 38 61 / 0.1); color: var(--danger); }
+:is(:root, :root[data-theme]) .ctx-hint { font-family: var(--sans); font-size: 11px; opacity: 1; color: var(--ink-4); }
+
+/* Files: one slim bar, like a note's */
+.file-bar { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px 0 20px; border-bottom: 1px solid var(--line-soft); background: var(--paper-2); font-size: 13px; color: var(--ink-3); }
+.file-bar-info { display: flex; align-items: center; gap: 7px; }
+.file-bar-info b { color: var(--ink); font-weight: 600; }
+.file-bar-open { height: 30px; padding: 0 14px; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.06); color: var(--ink); font: 500 13px var(--sans); }
+.file-bar-open:hover { background: rgb(var(--ink-rgb) / 0.1); }
+.note-view.is-file.is-single { height: 100%; min-height: 0; }
+.note-view.is-file.is-single .file-center { display: flex; flex-direction: column; min-height: 0; height: 100%; position: relative; }
+.note-view.is-file.is-single .file-viewer { flex: 1; min-height: 0; }
+
+/* The PDF and spreadsheet bars, in the same plain type */
+:is(:root, :root[data-theme]) .pdf-toolbar { height: 40px; border-bottom: 1px solid var(--line-soft); background: var(--paper-2); font: 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+:is(:root, :root[data-theme]) .pdf-tool { border: 0; padding: 0 10px; }
+:is(:root, :root[data-theme]) .pdf-toolbar .grow + .pdf-tool { border-left: 0; }
+:is(:root, :root[data-theme]) button.pdf-tool { margin: 5px 2px; border-radius: 8px; }
+:is(:root, :root[data-theme]) button.pdf-tool:hover { background: rgb(var(--ink-rgb) / 0.06); }
+:is(:root, :root[data-theme]) .pdf-fit[aria-pressed="true"],
+:is(:root, :root[data-theme]) .pdf-rail-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--accent, #3B2CF5) 11%, transparent); color: var(--accent, #3B2CF5); }
+:is(:root, :root[data-theme]) .sheet-tabs { gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--line-soft); background: var(--paper-2); }
+:is(:root, :root[data-theme]) .sheet-tab { padding: 5px 12px; border: 0; border-radius: 999px; font: 500 12.5px var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+:is(:root, :root[data-theme]) .sheet-tab.is-active { background: var(--strong, var(--ink)); color: var(--on-strong, var(--paper)); }
+
+/* Version history */
+:is(:root, :root[data-theme]) .history-box, :is(:root, :root[data-theme]) .hist { border: 0; border-radius: 16px; }
+.file-bar .rb-fill { flex: 1; }
+.file-bar .rb-btn { min-width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 7px; color: var(--ink-3); }
+.file-bar .rb-btn:hover { background: rgb(var(--ink-rgb) / 0.05); color: var(--ink); }
+:is(:root, :root[data-theme]) .note-details .sibling { border: 0; border-radius: 8px; padding-left: 8px; }
+:is(:root, :root[data-theme]) .note-details .side-label { border: 0; padding: 10px 8px 4px; }
+:is(:root, :root[data-theme]) .note-details .side-block { border: 0; padding-left: 8px; padding-right: 8px; }
+:is(:root, :root[data-theme]) .note-details .meta-list dt, :is(:root, :root[data-theme]) .note-details .meta-list dd { border: 0; }
+
+/* Every pop-up is the same card: rounded, no outline, a soft shadow */
+:is(:root, :root[data-theme]) :is(.ctx-menu, .cal-pop, .tab-peek, .pin-picker, .rb-color-menu, .table-picker, .repeat-picker, .otable-pop, .otable-menu, .create-pop) { border: 0; border-radius: 14px; background: var(--paper-2); box-shadow: 0 0 0 0.5px rgb(var(--ink-rgb) / 0.08), 0 12px 32px rgb(var(--ink-rgb) / 0.16); }
+:is(:root, :root[data-theme]) .create-pop { padding: 12px; }
+:is(:root, :root[data-theme]) .cal-pop-btn.is-primary { border: 0; border-radius: 999px; background: var(--accent, #3B2CF5); color: var(--on-accent, #FFFFFF); }
+:is(:root, :root[data-theme]) .cal-pop-btn:not(.is-primary) { border: 0; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.06); }
+:is(:root, :root[data-theme]) .cal-pop .mono-label { font-family: var(--sans); font-size: 11.5px; letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+
+/* The + menu: plain pills, an icon in a soft circle */
+:is(:root, :root[data-theme]) .fab-item-label { border: 0; border-radius: 999px; background: var(--paper-2); box-shadow: 0 0 0 0.5px rgb(var(--ink-rgb) / 0.08), 0 4px 14px rgb(var(--ink-rgb) / 0.12); font-family: var(--sans); }
+:is(:root, :root[data-theme]) .fab-item-hint { font-family: var(--sans); font-size: 11.5px; }
+:is(:root, :root[data-theme]) .fab-item-icon { border: 0; background: var(--paper-2); box-shadow: 0 0 0 0.5px rgb(var(--ink-rgb) / 0.08), 0 4px 14px rgb(var(--ink-rgb) / 0.12); }
+:is(:root, :root[data-theme]) .fab-item:hover .fab-item-label, :is(:root, :root[data-theme]) .fab-item:focus-visible .fab-item-label { background: color-mix(in srgb, var(--accent, #3B2CF5) 10%, var(--paper-2)); }
