@@ -193,9 +193,55 @@ function enclosing(state, before, from, to) {
 
 // Wraps the selection in `before`/`after`, or removes that style if the
 // selection already has it.
+// The parts of a selection that can take inline formatting: each line's
+// text inside it, without spaces or line breaks at either end, and without a
+// line's own markers (list bullets, "> ", "# ") when the selection starts the
+// line. Markdown styles can't cross a line break, so a selection that runs
+// onto the next line (or over several) is styled line by line.
+const LINE_MARK = /^(\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?|\s*>\s?|#{1,6}\s+)/;
+function wrapSegments(state, from, to) {
+  const segments = [];
+  for (let pos = from; pos <= to;) {
+    const line = state.doc.lineAt(pos);
+    let a = Math.max(from, line.from);
+    let b = Math.min(to, line.to);
+    if (a === line.from) {
+      const mark = LINE_MARK.exec(line.text);
+      if (mark) a = Math.min(b, line.from + mark[0].length);
+    }
+    const text = state.sliceDoc(a, b);
+    a += text.length - text.trimStart().length;
+    b -= text.length - text.trimEnd().length;
+    if (b > a) segments.push([a, b]);
+    if (line.to >= to) break;
+    pos = line.to + 1;
+  }
+  return segments;
+}
+
 export function toggleWrap(view, before, after = before) {
   const { state } = view;
   const changes = state.changeByRange((range) => {
+    if (!range.empty) {
+      const segments = wrapSegments(state, range.from, range.to);
+      // Over more than one line, or with spaces / a line break at the ends:
+      // style each line's own text.
+      if (segments.length > 1 || (segments.length === 1 && (segments[0][0] !== range.from || segments[0][1] !== range.to))) {
+        if (segments.length === 1) range = EditorSelection.range(segments[0][0], segments[0][1]);
+        else {
+          let shift = 0;
+          const list = segments.map(([a, b]) => {
+            const change = { from: a, to: b, insert: before + state.sliceDoc(a, b) + after };
+            shift += before.length + after.length;
+            return change;
+          });
+          return {
+            changes: list,
+            range: EditorSelection.range(segments[0][0] + before.length, segments[segments.length - 1][1] + shift - after.length),
+          };
+        }
+      }
+    }
     const found = enclosing(state, before, range.from, range.to);
     if (found) {
       const openLen = found.open[1] - found.open[0];
