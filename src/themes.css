@@ -1121,3 +1121,36 @@ body, :root[data-theme] body { background: var(--frame); }
 :is(:root, :root[data-theme]) .fab-item-hint { font-family: var(--sans); font-size: 11.5px; }
 :is(:root, :root[data-theme]) .fab-item-icon { border: 0; background: var(--paper-2); box-shadow: 0 0 0 0.5px rgb(var(--ink-rgb) / 0.08), 0 4px 14px rgb(var(--ink-rgb) / 0.12); }
 :is(:root, :root[data-theme]) .fab-item:hover .fab-item-label, :is(:root, :root[data-theme]) .fab-item:focus-visible .fab-item-label { background: color-mix(in srgb, var(--accent, #3B2CF5) 10%, var(--paper-2)); }
+
+/* ---------- Quote cards in Review ---------- */
+.review-modes { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; align-self: flex-start; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.05); }
+.review-mode { height: 28px; padding: 0 12px; border-radius: 999px; color: var(--ink-2); font: 500 12.5px var(--sans); }
+.review-mode:hover { color: var(--ink); }
+.review-mode.is-on { background: var(--strong, var(--ink)); color: var(--on-strong, var(--paper)); font-weight: 600; }
+.review-cue { margin: 0; font-size: 13px; color: var(--ink-3); }
+.review-quote { display: flex; flex-wrap: wrap; gap: 0.18em 0.32em; line-height: 1.5; }
+.review-quote.is-letters { font-family: var(--mono); letter-spacing: 0.04em; }
+.rq-word.is-filled { color: var(--accent, #3B2CF5); }
+.rq-word.is-peeked { color: var(--ink-3); text-decoration: underline dotted; }
+.rq-word.is-missed { color: var(--danger, #D7263D); text-decoration: underline; text-underline-offset: 4px; }
+.rq-gap { display: inline-block; height: 1.05em; margin-top: 0.2em; border-radius: 5px; background: rgb(var(--ink-rgb) / 0.09); vertical-align: middle; cursor: pointer; }
+.rq-gap:hover { background: rgb(var(--ink-rgb) / 0.15); }
+.rq-extra { color: var(--ink-3); margin-left: 6px; }
+.review-quote-full { font-size: 17px; }
+.review-typed { display: flex; flex-direction: column; gap: 10px; }
+.review-type { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 0; border-radius: 12px; background: rgb(var(--ink-rgb) / 0.05); color: var(--ink); font: 17px/1.5 var(--sans); resize: vertical; outline: none; }
+.review-type:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #3B2CF5) 40%, transparent); }
+.review-type-row { display: flex; align-items: center; gap: 12px; }
+.review-score { margin: 0; font-size: 14px; color: var(--ink-2); }
+.review-score b { font-size: 20px; color: var(--ink); }
+.review-grade.is-suggested { box-shadow: 0 0 0 2px var(--accent, #3B2CF5); }
+.review-done-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 6px; }
+.review-q.review-quote { font-size: 22px; line-height: 1.45; }
+:is(:root, :root[data-theme]) .review-a { border-top: 1px solid var(--line-soft); }
+
+/* Bookmarks in the sidebar, in the same plain type as the folders */
+:is(:root, :root[data-theme]) .side-tree.side-tree.side-bookmarks { flex: none; overflow: visible; padding-bottom: 6px; }
+.side-bookmarks .side-bookmark.is-group { padding: 5px 0 3px; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.side-hint { display: block; padding: 2px 0 6px; font-size: 12px; color: var(--ink-4); }
+.review-quote.is-letters { gap: 0.2em 0.55em; }
+:is(:root, :root[data-theme]) .review-show { border: 0; border-radius: 999px; background: var(--accent, #3B2CF5); color: var(--on-accent, #FFFFFF); }

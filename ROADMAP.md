@@ -228,6 +228,12 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   timer along its top. Note page: one slim editing bar with an Insert menu,
   Details in the ⋯ menu (option N2). Settings and the classic home page in the
   fidget style.
+- **Quote cards, 2026-10-10** — in a note named …quote… (or tagged #quotes), each
+  line starting with a quotation mark ("quote" - speaker) is a card; its folder
+  is the text, the heading above its theme. Practised as First letters, Fill the
+  gaps (more hidden as it sticks), Type it (marked word by word) or Who said it;
+  Practise anyway runs a deck without changing dates. Bookmarks are back, in the
+  sidebar.
 
 ## Fidget ideas
 Ethan's:

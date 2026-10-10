@@ -1,4 +1,5 @@
-// Sidebar: the open tabs (one under another), then the vault's folder tree.
+// Sidebar: the open tabs (one under another), your bookmarks (Obsidian's
+// .obsidian/bookmarks.json), then the vault's folder tree.
 // Plain type: grey names with their file counts; the open folder goes black
 // with a full stop, and what's inside it hangs off a thin line. Clicking a
 // folder's name opens its page (click it again to fold it away); the small
@@ -11,7 +12,7 @@ import { noteName } from './format.js';
 import { countNotes } from './tree.js';
 
 export class Sidebar {
-  constructor(container, { onOpenFile, onOpenFolder, onSwitchVault, onColorMenu, onRearrange, onCreate }) {
+  constructor(container, { onOpenFile, onOpenFolder, onSwitchVault, onColorMenu, onRearrange, onCreate, onOpenBookmark, onBookmarkMenu }) {
     this.container = container;
     this.onOpenFile = onOpenFile;
     this.onOpenFolder = onOpenFolder;
@@ -19,6 +20,9 @@ export class Sidebar {
     this.onColorMenu = onColorMenu;
     this.onRearrange = onRearrange;
     this.onCreate = onCreate;
+    this.onOpenBookmark = onOpenBookmark;
+    this.onBookmarkMenu = onBookmarkMenu;
+    this.bookmarks = null; // Obsidian's bookmark items, once loaded
     this.vault = null;
     this.tree = [];
     this.active = { kind: null, path: null };
@@ -31,6 +35,30 @@ export class Sidebar {
     this.active = { kind: null, path: null };
     this.tree = [];
     this.render();
+  }
+
+  setBookmarks(items) {
+    this.bookmarks = items || [];
+    this.render();
+  }
+
+  // Bookmarks in plain type; a group's bookmarks hang off a line under it.
+  bookmarkRows(items, depth = 0) {
+    const name = (item) => item.title || (item.type === 'url' ? item.url : item.type === 'search' ? `Search: ${item.query}` : noteName(item.path || '') || item.path);
+    return items.flatMap((item) => {
+      if (item.type === 'group') {
+        return [h('div', { class: `side-row side-bookmark is-group${depth ? ' is-nested' : ''}`, style: this.nestStyle(depth) }, item.title || 'Group'),
+          ...this.bookmarkRows(item.items || [], depth + 1)];
+      }
+      const active = item.type === 'file' && this.active.kind === 'file' && this.active.path === item.path;
+      return [h('button', {
+        class: `side-row side-file side-bookmark${active ? ' is-active' : ''}${depth ? ' is-nested' : ''}`,
+        style: this.nestStyle(depth),
+        title: item.path || item.url || '',
+        onclick: (event) => this.onOpenBookmark(item, event),
+        oncontextmenu: (event) => { event.preventDefault(); this.onBookmarkMenu(event, item); },
+      }, name(item))];
+    });
   }
 
   // The tab strip (tabs.js draws it); it sits above the folders.
@@ -85,7 +113,12 @@ export class Sidebar {
     list.addEventListener('dblclick', onBlank);
 
     const tabs = this.tabsEl ? [h('div', { class: 'side-heading' }, 'Open'), this.tabsEl] : [];
-    this.container.replaceChildren(vaultRow, ...tabs, label, list);
+    const marks = this.vault && this.bookmarks ? [
+      h('div', { class: 'side-heading' }, 'Bookmarks'),
+      h('nav', { class: 'side-tree side-bookmarks', 'aria-label': 'Bookmarks' },
+        this.bookmarks.length ? this.bookmarkRows(this.bookmarks) : h('span', { class: 'side-hint' }, 'Right-click a note or folder → Bookmark')),
+    ] : [];
+    this.container.replaceChildren(vaultRow, ...tabs, ...marks, label, list);
     list.scrollTop = scrollTop;
   }
 

@@ -117,6 +117,8 @@ const sidebar = new Sidebar(sidebarPanel, {
   onColorMenu: (event, node, kind) => colorMenu(event, node, kind),
   onRearrange: (item, target, zone) => rearrange(item, target, zone),
   onCreate: (event) => newNote('', event),
+  onOpenBookmark: (item, event) => openBookmark(item, event),
+  onBookmarkMenu: (event) => showBookmarks(event.currentTarget),
 });
 
 const chrome = new Chrome(document.getElementById('rail'), document.getElementById('topbar'), {
@@ -1381,6 +1383,7 @@ async function saveBookmarks() {
 
 // Everything showing bookmarks picks up the change.
 function bookmarksChanged() {
+  sidebar.setBookmarks(vault ? bookmarksData.items || [] : null);
   if (current && current.noteView && current.noteView.setBookmarked) current.noteView.setBookmarked(isBookmarked(bookmarksData, { type: 'file', path: current.filePath }));
   if (homeWidgets) homeWidgets.reload();
 }

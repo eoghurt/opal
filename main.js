@@ -1576,7 +1576,46 @@ function tagsOf(text) {
   return [...tags].filter((t) => !/^(color|accent)\//.test(t));
 }
 
+// Quote cards: in a note whose name says "quote" (Quotes.md, Articles and
+// quotes.md) or that's tagged #quotes, every line that starts with a quotation
+// mark is a quote to learn, with who says it after a dash:
+//   "They think I am a Judas" - Whitechapel
+// Its schedule goes at the end of the line, the same hidden comment as a
+// Question::Answer card. The quote's text is its note's folder (The Longest
+// Memory/Quotes.md → The Longest Memory); the heading above it is its theme.
+const OPENERS = '"“‘\'';
+const CLOSERS = '"”’\'';
+const SR_COMMENT = /\s*<!--SR:((?:![0-9-]+,\d+,\d+)+)-->\s*$/;
+
+function isQuoteNote(notePath, text) {
+  return /quote/i.test(path.basename(notePath, '.md')) || tagsOf(text).some((t) => t.toLowerCase() === 'quotes');
+}
+
+function parseQuoteLine(line) {
+  if (line.includes('::')) return null;
+  const sr = SR_COMMENT.exec(line);
+  const body = sr ? line.slice(0, sr.index) : line;
+  const m = /^(\s*(?:[-*+]\s+|>\s?)?)(\S.*)$/.exec(body);
+  if (!m || !OPENERS.includes(m[2][0])) return null;
+  const rest = m[2].trim();
+  let end = -1;
+  for (let i = rest.length - 1; i > 0; i--) if (CLOSERS.includes(rest[i])) { end = i; break; }
+  if (end < 0) return null;
+  const quote = rest.slice(0, end + 1);
+  const after = rest.slice(end + 1).trim();
+  const speaker = /^[-–—]/.test(after) ? after.replace(/^[-–—]+\s*/, '').trim() : '';
+  const plain = (t) => t.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2').replace(/\[\[([^\]]+)\]\]/g, '$1').replace(/[*_=]{1,2}/g, '');
+  const words = plain(quote).replace(/^["“‘']|["”’']$/g, '').trim();
+  if (words.split(/\s+/).length < 3) return null;
+  const schedule = sr ? sr[1].split('!').filter(Boolean).map((part) => {
+    const [due, interval, ease] = part.split(',');
+    return { due, interval: Number(interval), ease: Number(ease) };
+  }) : [];
+  return { kind: 'quote', quote: words, speaker: plain(speaker), question: words, answer: plain(speaker), reversed: false, schedule };
+}
+
 // Every card in the vault: [{ path, line, raw, question, answer, reversed, schedule, decks }]
+// (quote cards also have kind: 'quote', quote, speaker, work and theme)
 async function listCards() {
   if (!vaultPath) return [];
   const cards = [];
@@ -1587,12 +1626,19 @@ async function listCards() {
     } catch {
       continue;
     }
-    if (!text.includes('::')) continue;
+    const quotes = isQuoteNote(notePath, text);
+    if (!text.includes('::') && !quotes) continue;
     const folder = notePath.includes('/') ? notePath.slice(0, notePath.lastIndexOf('/')) : '';
     const decks = [folder || path.basename(vaultPath), ...tagsOf(text).map((t) => `#${t}`)];
+    const work = folder ? folder.split('/').pop() : '';
+    let theme = '';
     for (const { index, text: line } of readableLines(text)) {
-      const card = parseCardLine(line);
-      if (card) cards.push({ path: notePath, line: index + 1, raw: line, ...card, decks });
+      const heading = /^#{1,6}\s+(.*\S)\s*$/.exec(line);
+      if (heading) theme = heading[1].replace(/[*_]/g, '');
+      const card = parseCardLine(line) || (quotes ? parseQuoteLine(line) : null);
+      if (!card) continue;
+      if (card.kind === 'quote') cards.push({ path: notePath, line: index + 1, raw: line, ...card, work, theme, decks: [...decks, 'Quotes'] });
+      else cards.push({ path: notePath, line: index + 1, raw: line, ...card, decks });
     }
   }
   return cards;
