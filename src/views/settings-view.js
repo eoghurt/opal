@@ -1,5 +1,6 @@
-// Settings: sections down the left (like Obsidian's settings), their options
-// on the right. Redrawn after every change.
+// Settings, laid out like a fidget: a big title, the sections as pills along
+// the top, and each group of options in its own card. Redrawn after every
+// change.
 //
 //   renderSettings(container, { section, look, palette, settings, info, extraSections, io })
 //   settings: this vault's settings (see DEFAULT_SETTINGS), kept in .opal/settings.json
@@ -71,7 +72,6 @@ function heading(text) {
   return h('h2', { class: 'set-h2' }, text);
 }
 
-const GROUPS = [['opal', 'Settings'], ['parts', 'Widgets & Fidgets']];
 
 const SECTIONS = [
   { id: 'appearance', group: 'opal', label: 'Appearance', icon: 'palette', title: 'Appearance.', desc: 'Light or dark for the whole app; the palette colours your folders, pages and events.' },
@@ -178,17 +178,13 @@ export function renderSettings(container, opts) {
   const parts = SECTIONS.filter((s) => s.group === 'parts');
   const sections = [...SECTIONS.filter((s) => s.group === 'opal'), parts[0], ...extras, ...parts.slice(1)];
   const section = sections.find((s) => s.id === opts.section) || sections[0];
-  const tab = (s) => h('button', {
-    class: `settings-tab${s.id === section.id ? ' is-on' : ''}`,
+  const pill = (s) => h('button', {
+    class: `settings-tab settings-pill${s.id === section.id ? ' is-on' : ''}`,
     'aria-current': s.id === section.id ? 'page' : null,
     'data-section': s.id,
     onclick: () => opts.io.setSection(s.id),
-  }, icon(s.icon, 15), s.label);
-  const nav = h('nav', { class: 'settings-nav', 'aria-label': 'Settings sections' },
-    GROUPS.flatMap(([id, label]) => [
-      h('span', { class: 'mono-label settings-nav-label' }, label),
-      ...sections.filter((s) => s.group === id).map(tab),
-    ]));
+  }, s.label);
+  const nav = h('nav', { class: 'settings-pills', 'aria-label': 'Settings sections' }, sections.map(pill));
   let body;
   if (section.render) body = section.render();
   else if (section.id === 'parts') body = partsSection(opts, sections);
@@ -198,11 +194,24 @@ export function renderSettings(container, opts) {
   else if (section.id === 'vault') body = vaultSection(opts);
   else if (section.id === 'shortcuts') body = shortcuts();
   else body = about(opts);
+  // Each heading starts a card; anything before the first heading gets its own.
+  const cards = [];
+  let card = null;
+  for (const el of [body].flat()) {
+    if (!el) continue;
+    if (!card || (el.classList && el.classList.contains('set-h2')) || (el.classList && el.classList.contains('set-keys'))) {
+      card = h('section', { class: 'set-card' });
+      cards.push(card);
+    }
+    card.append(el);
+  }
   const main = h('div', { class: 'settings-body' },
     h('header', { class: 'settings-head' },
-      h('span', { class: 'mono-label' }, `Settings · ${section.label}`),
-      h('h1', { class: 'display home-h1' }, section.title),
-      h('p', { class: 'home-desc' }, section.desc)),
-    h('div', { class: 'settings-content' }, body));
-  container.replaceChildren(h('div', { class: 'settings' }, nav, main));
+      h('div', { class: 'settings-title' },
+        h('span', { class: 'settings-kicker' }, `Settings · ${section.label}`),
+        h('h1', { class: 'settings-h1' }, section.id === 'appearance' ? 'Make it yours.' : section.title),
+        h('p', { class: 'settings-desc' }, section.desc)),
+      nav),
+    h('div', { class: `settings-content${section.id === 'appearance' || section.id === 'shortcuts' ? ' is-grid' : ''}` }, cards));
+  container.replaceChildren(h('div', { class: 'settings is-cards' }, main));
 }

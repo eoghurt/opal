@@ -12,23 +12,23 @@ function strip(colors, className) {
     colors.map((color, i) => h('span', { style: `flex-grow: ${STRIP_WEIGHTS[i]}; background: ${color}` })));
 }
 
-// The palette cards. onUse(name).
+// The palette cards: a strip of its colours and its name. Click one to use it.
 export function paletteGrid(active, onUse) {
   const current = PALETTES.find((p) => p.name === active) || PALETTES[0];
   return h('section', { class: 'palette-grid', 'aria-label': 'Palettes' },
     PALETTES.map((p) => {
       const inUse = p.name === current.name;
-      return h('article', { class: `palette-card${inUse ? ' is-active' : ''}` },
+      return h('button', {
+        type: 'button',
+        class: `palette-card${inUse ? ' is-active' : ''}`,
+        'aria-pressed': String(inUse),
+        title: `${p.byline} · ${p.colors.join(' ')}`,
+        onclick: () => { if (!inUse) onUse(p.name); },
+      },
         strip(p.colors, 'palette-strip'),
-        h('div', { class: 'palette-info' },
-          h('span', { class: 'palette-name-row' },
-            h('span', { class: 'display palette-name' }, p.name),
-            inUse ? h('span', { class: 'in-use mono-label' }, 'In use') : null),
-          h('span', { class: 'serif-i' }, `Built in · ${p.byline}`),
-          h('span', { class: 'palette-hexes' }, p.colors.join('  '))),
-        h('div', { class: 'palette-foot mono-label' },
-          h('span', { class: 'palette-installed' }, icon('check', 12), 'Installed'),
-          h('button', { class: 'palette-use', disabled: inUse, onclick: () => onUse(p.name) }, inUse ? 'Using' : 'Use')));
+        h('span', { class: 'palette-name-row' },
+          h('span', { class: 'palette-name' }, p.name),
+          inUse ? h('span', { class: 'in-use' }, 'In use') : null));
     }));
 }
 
@@ -50,5 +50,8 @@ export function themePicker(look, onLook) {
         class: `theme-mode${look.mode === m.id ? ' is-on' : ''}`,
         'aria-pressed': String(look.mode === m.id),
         onclick: () => onLook({ theme: 'minimal', mode: m.id }),
-      }, m.name))));
+      },
+        // A tiny picture of the app in that look.
+        h('span', { class: `theme-shot is-${m.id}`, 'aria-hidden': 'true' }, h('span'), h('span')),
+        m.name))));
 }
