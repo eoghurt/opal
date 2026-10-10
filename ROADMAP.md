@@ -216,6 +216,11 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   mark needed (2 × target − school), WACE papers read from their PDFs and
   marked question by question, by section, with the question types that lose
   the most marks. Literature tracks results only.
+- **School page** — a folder whose subject folders have exam trackers opens as
+  one overview (rail: Overview, Marks, Papers, Dates, Files): predicted ATAR
+  and moderation read from a "Predicted ATAR" PDF, each subject's school mark,
+  target and what it needs in the WACE, exam dates from calendar events that
+  say WACE, latest results. Files is the normal folder page.
 
 ## Fidget ideas
 Ethan's:

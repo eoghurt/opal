@@ -40,12 +40,11 @@ import { FileView } from './views/file-view.js';
 import { fileUrl } from './file-types.js';
 import { StickyLayer } from './widgets/stickies/sticky-layer.js';
 import { makePanel } from './panel.js';
-import { swatchRow } from './item-colors.js';
+import { swatchRow, colorOf } from './item-colors.js';
 import { showMenu, closeMenu } from './context-menu.js';
 import { setProp, getProp, setDescription, getDescription } from '../shared/frontmatter.js';
 import { countWords, countSelected } from '../shared/words.js';
 import { dayKey } from './fidgets/calendar/events.js';
-import { kindOf } from './file-types.js';
 import { CalendarView } from './fidgets/calendar/calendar-view.js';
 import { HomeWidgets, WIDGETS, parseLayout, formatLayout } from './widgets/home/home-widgets.js';
 import { readProperties, writeProperty } from '../shared/properties.js';
@@ -58,7 +57,7 @@ import { applyPalette } from './palettes.js';
 import { applyTheme, currentLook } from './themes.js';
 import { askName, h, scribbleArrow } from './ui.js';
 import { findFile, findFolder, flattenFiles, countNotes } from './tree.js';
-import { noteName, parentOf, relativeDay } from './format.js';
+import { noteName, parentOf, relativeDay, shortDate } from './format.js';
 import { Reminders } from './fidgets/calendar/reminders.js';
 import { openSearch } from './search.js';
 import { InboxView, INBOX_PATH } from './fidgets/inbox/inbox-view.js';
@@ -70,7 +69,9 @@ import { MoneyView } from './fidgets/money/money-view.js';
 import { DebateView } from './fidgets/debate/debate-view.js';
 import { Corkboard, DEFAULT_QUOTES } from './home/corkboard.js';
 import { ExamTracker, ExamPaper } from './fidgets/exams/exam-tracker-view.js';
-import { TRACKER_NAME, guessCourse, formatTracker } from './fidgets/exams/exams.js';
+import { TRACKER_NAME, guessCourse, formatTracker, parseTracker, findPapers } from './fidgets/exams/exams.js';
+import { SchoolView, readPredicted } from './fidgets/exams/school-view.js';
+import { kindOf, kindLabel } from './file-types.js';
 import { pdfLines } from './fidgets/exams/pdf-lines.js';
 import { FIDGETS } from './fidgets/index.js';
 import { noteStructure } from './export/note-structure.js';
@@ -235,6 +236,8 @@ let moneyState = { month: null, tab: 'overview' };
 let inboxView = null;
 let corkboard = null;
 let examPaper = null;
+let schoolView = null;
+const schoolTabs = new Map(); // folder path → the School page's open tab
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
@@ -255,6 +258,8 @@ function leaveCalendar() {
   corkboard = null;
   if (examPaper) examPaper.destroy();
   examPaper = null;
+  if (schoolView) schoolView.destroy();
+  schoolView = null;
 }
 
 async function flushHomeStickies() {
@@ -914,7 +919,19 @@ function showHome(folderPath, notice) {
     showCorkboard();
     return;
   }
-  const home = renderFolderHome(viewEl, {
+  if (schoolSubjects(folder).length >= 2) {
+    showSchool(folder, folderPath);
+    return;
+  }
+  const home = renderFolderHome(viewEl, folderHomeOptions(folder, folderPath, notice));
+  describeAfterOpen = null;
+  homeStickies = folderHomeStickies(folderPath, folder, home);
+  addButton.refresh();
+}
+
+// What renderFolderHome needs for a folder (its normal page, or the School page's Files tab).
+function folderHomeOptions(folder, folderPath, notice) {
+  return {
     folder,
     isRoot: !folderPath,
     notice,
@@ -963,9 +980,114 @@ function showHome(folderPath, notice) {
     mountWidgets: folderPath ? null : (slot) => mountHomeWidgets(slot),
     fidgets: folderPath ? null : homeFidgets(),
     mountExams: examTrackerFor(folder),
+  };
+}
+
+// ---------- School ----------
+//
+// A folder whose subject folders have exam trackers (School/Methods/Exam
+// tracker.md…) opens as the School page (src/fidgets/exams/school-view.js):
+// every subject's marks, the WACE dates from the calendar, and moderation from
+// a "Predicted ATAR" PDF in the folder. Its Files tab is the normal folder page.
+
+function schoolSubjects(folder) {
+  if (!folder || !folder.path) return [];
+  return folder.children.filter((c) => c.type === 'folder' && c.children.some((f) => f.type === 'file' && f.name === `${TRACKER_NAME}.md`));
+}
+
+const predictedCache = new Map(); // pdf path → { modified, value }
+
+async function predictedFor(folder) {
+  const pdf = folder.children.find((c) => c.type === 'file' && /\.pdf$/i.test(c.name) && /predict/i.test(c.name) && /atar/i.test(c.name));
+  if (!pdf) return null;
+  const hit = predictedCache.get(pdf.path);
+  if (hit && hit.modified === pdf.modified) return hit.value;
+  let value = null;
+  try {
+    value = readPredicted((await pdfLines([pdf.path], (p) => window.opal.readBytes(p))).join(' '));
+  } catch {
+    value = null;
+  }
+  predictedCache.set(pdf.path, { modified: pdf.modified, value });
+  return value;
+}
+
+// Each subject's WACE exam: the first calendar event from today on (up to five
+// months ahead) that says WACE and names the subject (its folder's first word).
+async function waceExamsFor(subjects) {
+  const start = new Date();
+  const keys = [];
+  for (let i = 0; i < 160; i++) {
+    const key = dayKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+    if (findFile(tree, dayPath(key))) keys.push(key);
+  }
+  const days = await Promise.all(keys.map((key) => loadDayEvents(key).catch(() => [])));
+  const out = [];
+  for (const s of subjects) {
+    const word = s.name.split(/\s+/)[0].toLowerCase();
+    const alias = /^politics/.test(word) ? /\b(politics|p&l|pal)\b/i : new RegExp(`\\b${word.replace(/[^a-z]/g, '')}`, 'i');
+    for (const events of days) {
+      const ev = events.find((e) => /wace/i.test(e.title || e.text) && alias.test(e.title || e.text));
+      if (ev) {
+        out.push({ subject: s.name, day: ev.day, start: ev.start, end: ev.end, allDay: ev.allDay });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+function showSchool(folder, folderPath) {
+  homeStickies = null;
+  const subjects = schoolSubjects(folder);
+  schoolView = new SchoolView(viewEl, {
+    tab: schoolTabs.get(folderPath),
+    io: {
+      name: folder.name,
+      load: async () => {
+        const list = await Promise.all(subjects.map(async (sub) => {
+          const note = sub.children.find((f) => f.type === 'file' && f.name === `${TRACKER_NAME}.md`);
+          const files = flattenFiles(sub.children);
+          return {
+            name: sub.name,
+            path: sub.path,
+            trackerPath: note.path,
+            color: colorOf(sub),
+            tracker: parseTracker(await window.opal.readFile(note.path), sub.name),
+            papers: findPapers(files.map((f) => ({ path: f.path }))),
+            items: files.filter((f) => !f.quiet).length,
+          };
+        }));
+        const loose = folder.children.filter((c) => c.type === 'file' && !c.quiet).sort((a, b) => (b.modified || 0) - (a.modified || 0));
+        const [exams, predicted] = await Promise.all([waceExamsFor(list), predictedFor(folder)]);
+        return {
+          subjects: list,
+          exams,
+          predicted,
+          files: loose.map((f) => ({
+            path: f.path,
+            name: noteName(f.path).replace(/\.[^.]+$/, ''),
+            meta: `${kindOf(f.path) === 'note' ? 'Note' : kindLabel(kindOf(f.path))}${f.modified ? ` · ${shortDate(f.modified)}` : ''}`,
+          })),
+        };
+      },
+      openFolder: (p) => openFolder(p),
+      openFile: (p) => openFile(p),
+      openPaper: (trackerPath, year) => showExamPaper(trackerPath, year),
+      openDay: (key) => showCalendar(keyToDate(key)),
+      addResult: async (trackerPath, result) => {
+        const text = await window.opal.readFile(trackerPath);
+        const t = parseTracker(text, noteName(parentOf(trackerPath)));
+        t.results.push({ ...result, date: '' });
+        await window.opal.writeFile(trackerPath, formatTracker(t, text));
+      },
+      mountFiles: (slot) => {
+        const home = renderFolderHome(slot, folderHomeOptions(folder, folderPath));
+        home.classList.add('is-inside-school');
+      },
+      onTab: (tab) => schoolTabs.set(folderPath, tab),
+    },
   });
-  describeAfterOpen = null;
-  homeStickies = folderHomeStickies(folderPath, folder, home);
   addButton.refresh();
 }
 
