@@ -28,6 +28,10 @@
 // Promotions / Updates / Social / Forums (companies). People = Primary,
 // Updates = the rest.
 //
+// Accounts are Google (IMAP + SMTP, oauth.js) or Microsoft — Outlook.com,
+// Hotmail, Live — through Microsoft Graph (microsoft.js); school and work
+// Microsoft accounts aren't supported.
+//
 // For the e2e checks, OPAL_MAIL_FIXTURE=<folder of .eml files> swaps Gmail for
 // that folder: one pretend account, new files there count as new mail, and
 // sending goes to Nodemailer's stream transport, written to
@@ -39,6 +43,7 @@ const { ImapFlow } = require('imapflow');
 const nodemailer = require('nodemailer');
 const { readProperties } = require('../shared/properties.js');
 const oauth = require('./oauth.js');
+const microsoft = require('./microsoft.js');
 const note = require('./note.js');
 const compose = require('./compose.js');
 
@@ -65,7 +70,11 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
   // ---------- Accounts ----------
 
   function readAccounts() {
-    if (fixtureDir) return [{ id: 'fixture', email: 'student@example.com', label: 'Fixture' }];
+    if (fixtureDir) {
+      // OPAL_GRAPH_BASE (a pretend Graph server in the checks) adds a pretend Outlook account.
+      return [{ id: 'fixture', email: 'student@example.com', label: 'Fixture' },
+        ...(process.env.OPAL_GRAPH_BASE ? [{ id: 'msfixture', provider: 'microsoft', email: 'student@outlook.com', label: 'Outlook' }] : [])];
+    }
     try {
       const list = JSON.parse(fs.readFileSync(accountsFile(), 'utf8')).accounts;
       return Array.isArray(list) ? list : [];
@@ -82,7 +91,8 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
   }
 
   // What the window may see: never the token.
-  const publicAccount = (a) => ({ id: a.id, email: a.email, label: a.label || a.email, needsSignIn: !!a.needsSignIn });
+  const publicAccount = (a) => ({ id: a.id, email: a.email, label: a.label || a.email, provider: a.provider || 'google', needsSignIn: !!a.needsSignIn });
+  const isMicrosoft = (a) => a && a.provider === 'microsoft';
 
   function refreshTokenOf(account) {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('This Mac can’t encrypt the sign-in right now.');
@@ -95,11 +105,21 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
     return c;
   }
 
-  async function addAccount() {
+  function microsoftClient() {
+    const c = microsoft.loadClient(userData());
+    if (!c) throw new Error('Opal needs Microsoft’s Application (client) ID first (see the setup steps).');
+    return c;
+  }
+
+  // kind: 'google' or 'microsoft' (Outlook.com, Hotmail, Live).
+  async function addAccount(kind = 'google') {
     if (fixtureDir) return readAccounts().map(publicAccount);
     if (!safeStorage.isEncryptionAvailable()) throw new Error('This Mac can’t encrypt the sign-in right now, so Opal won’t store it.');
-    const result = await oauth.signIn(client(), (url) => shell.openExternal(url));
-    if (!result.email) throw new Error('Google didn’t say which address signed in.');
+    const ms = kind === 'microsoft';
+    const result = ms
+      ? await microsoft.signIn(microsoftClient(), (url) => shell.openExternal(url))
+      : await oauth.signIn(client(), (url) => shell.openExternal(url));
+    if (!result.email) throw new Error(`${ms ? 'Microsoft' : 'Google'} didn’t say which address signed in.`);
     const list = readAccounts();
     const token = safeStorage.encryptString(result.refreshToken).toString('base64');
     const existing = list.find((a) => a.email.toLowerCase() === result.email.toLowerCase());
@@ -107,7 +127,9 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
       existing.token = token;
       delete existing.needsSignIn;
     } else {
-      list.push({ id: `a${Date.now().toString(36)}`, email: result.email, label: result.email.endsWith('@gmail.com') ? 'Personal' : result.email.split('@')[1].split('.')[0], token });
+      const domain = result.email.split('@')[1] || '';
+      const label = ms ? 'Outlook' : domain === 'gmail.com' ? 'Personal' : domain.split('.')[0];
+      list.push({ id: `a${Date.now().toString(36)}`, provider: ms ? 'microsoft' : 'google', email: result.email, label, token });
     }
     writeAccounts(list);
     const account = list.find((a) => a.email.toLowerCase() === result.email.toLowerCase());
@@ -142,7 +164,22 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
   async function accessToken(account) {
     const known = access.get(account.id);
     if (known && known.expiresAt - Date.now() > 60 * 1000) return known.accessToken;
+    if (fixtureDir) return 'test-token';
     try {
+      if (isMicrosoft(account)) {
+        // Microsoft sends a new refresh token each time: keep it (encrypted).
+        const fresh = await microsoft.refreshAccess(microsoftClient(), refreshTokenOf(account));
+        access.set(account.id, fresh);
+        if (fresh.refreshToken) {
+          const list = readAccounts();
+          const a = list.find((x) => x.id === account.id);
+          if (a) {
+            a.token = safeStorage.encryptString(fresh.refreshToken).toString('base64');
+            writeAccounts(list);
+          }
+        }
+        return fresh.accessToken;
+      }
       const fresh = await oauth.refreshAccess(client(), refreshTokenOf(account));
       access.set(account.id, fresh);
       return fresh.accessToken;
@@ -193,6 +230,9 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
       c.timer = setTimeout(() => closeClient(account.id), IDLE_CLOSE_MS);
     }
   }
+
+  // Outlook accounts go through Graph instead of IMAP.
+  const outlook = microsoft.provider({ readCache: (id) => readCache(id), writeCache: (id, c) => writeCache(id, c), token: (a) => accessToken(a) });
 
   async function specialFolder(imap, use) {
     const list = await imap.list();
@@ -250,6 +290,7 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
   }
 
   async function syncAccount(account) {
+    if (isMicrosoft(account)) return outlook.sync(account);
     if (fixtureDir) return syncFixture();
     await withImap(account, async (imap) => {
       const lock = await imap.getMailboxLock('INBOX');
@@ -390,6 +431,17 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
   const snippetOf = (text) => String(text || '').replace(/\s+/g, ' ').trim().slice(0, 140);
 
   async function rawMessage(account, uid, folder = 'inbox') {
+    if (isMicrosoft(account)) {
+      const file = cacheDir(safeId(account.id), `${uid}.eml`); // one number per message, Inbox or Sent
+      try {
+        return await fs.promises.readFile(file);
+      } catch {
+        const raw = await outlook.raw(account, uid);
+        await fs.promises.mkdir(path.dirname(file), { recursive: true });
+        await fs.promises.writeFile(file, raw);
+        return raw;
+      }
+    }
     if (fixtureDir && folder === 'sent') return fs.promises.readFile(path.join(outboxDir(), `${String(uid).padStart(4, '0')}.eml`));
     if (fixtureDir) return fs.promises.readFile(path.join(fixtureDir, fixtureFiles()[uid - 1]));
     const file = cacheDir(safeId(account.id), `${folder === 'sent' ? 'sent-' : ''}${uid}.eml`);
@@ -448,6 +500,11 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
     if (fixtureDir) return null;
     for (const account of readAccounts()) {
       if (account.needsSignIn) continue;
+      if (isMicrosoft(account)) {
+        const uid = await outlook.find(account, bare).catch(() => null);
+        if (uid) return `${account.id}:${uid}`;
+        continue;
+      }
       try {
         const uid = await withImap(account, async (imap) => {
           const lock = await imap.getMailboxLock('INBOX');
@@ -474,7 +531,9 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
   async function setRead(ids, read) {
     for (const id of [].concat(ids)) {
       const { account, uid } = splitId(id);
-      if (fixtureDir) {
+      if (isMicrosoft(account)) {
+        await outlook.setRead(account, uid, read);
+      } else if (fixtureDir) {
         fixtureFlags.set(uid, { ...(fixtureFlags.get(uid) || {}), unread: !read });
       } else {
         await withImap(account, async (imap) => {
@@ -495,7 +554,9 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
   // Archive (out of the inbox, still in All Mail) or Trash.
   async function moveOut(id, where) {
     const { account, uid } = splitId(id);
-    if (fixtureDir) {
+    if (isMicrosoft(account)) {
+      await outlook.moveOut(account, uid, where);
+    } else if (fixtureDir) {
       fixtureFlags.set(uid, { ...(fixtureFlags.get(uid) || {}), gone: true });
     } else {
       await withImap(account, async (imap) => {
@@ -660,6 +721,7 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
       if (typeof next[key] === 'string') draft[key] = next[key].slice(0, key === 'body' ? 2000000 : 20000);
     }
     if (next.quote === null) draft.quote = null;
+    if (typeof next.account === 'string' && readAccounts().some((a) => a.id === next.account && !a.needsSignIn)) draft.account = next.account;
     if (Array.isArray(next.keep)) draft.attachments = draft.attachments.filter((_, i) => next.keep.includes(i));
     draft.updated = new Date().toISOString();
     return writeDraft(draft);
@@ -747,6 +809,14 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
     }
     try {
       const options = compose.mailOptions(draft, account, await attachmentFiles(draft));
+      if (isMicrosoft(account)) {
+        // Nodemailer builds the whole email (threading headers and all); Graph sends it.
+        const built = await nodemailer.createTransport({ streamTransport: true, buffer: true }).sendMail(options);
+        await outlook.send(account, built.message);
+        await discardDraft(draft.id);
+        syncAccount(account).then(() => tell('mail:changed', null)).catch(() => {});
+        return { sent: true, inReplyTo: draft.inReplyTo, count };
+      }
       const { transport, test } = await transportFor(account);
       const info = await transport.sendMail(options);
       if (test) {
@@ -783,7 +853,32 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
     tell('mail:arrived', { messages: listFor(readAccounts()), fresh });
   }
 
+  // Outlook: no IDLE through Graph, so the Inbox is checked every minute.
+  const POLL_MS = Number(process.env.OPAL_MS_POLL_MS) || 60 * 1000;
+  function watchOutlook(account) {
+    if (watchers.has(account.id) || account.needsSignIn) return;
+    const w = { stopped: false, timer: null, imap: null };
+    watchers.set(account.id, w);
+    let before = null;
+    const tick = async () => {
+      if (w.stopped) return;
+      try {
+        if (before === null) {
+          await syncAccount(account);
+        } else {
+          await checkNew(account, before);
+        }
+        before = knownUids(account.id);
+      } catch {
+        // offline or asleep: try again next time
+      }
+      if (!w.stopped) w.timer = setTimeout(tick, POLL_MS);
+    };
+    tick();
+  }
+
   function watch(account) {
+    if (isMicrosoft(account)) return watchOutlook(account);
     if (fixtureDir) return watchFixture();
     if (watchers.has(account.id) || account.needsSignIn) return;
     const w = { imap: null, timer: null, stopped: false, backoff: 5000, busy: Promise.resolve() };
@@ -872,8 +967,14 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
 
   // ---------- The window's channels ----------
 
-  ipcMain.handle('mail:status', () => ({ accounts: readAccounts().map(publicAccount), configured: !!fixtureDir || !!oauth.loadClient(userData(), app.getAppPath()), fixture: !!fixtureDir }));
-  ipcMain.handle('mail:add-account', () => addAccount());
+  ipcMain.handle('mail:status', () => ({
+    accounts: readAccounts().map(publicAccount),
+    configured: !!fixtureDir || !!oauth.loadClient(userData(), app.getAppPath()), // Google
+    microsoftConfigured: !!fixtureDir || !!microsoft.loadClient(userData()),
+    fixture: !!fixtureDir,
+  }));
+  ipcMain.handle('mail:add-account', (_e, kind) => addAccount(kind === 'microsoft' ? 'microsoft' : 'google'));
+  ipcMain.handle('mail:set-microsoft-client', (_e, clientId) => microsoft.saveClient(userData(), clientId));
   ipcMain.handle('mail:remove-account', (_e, id) => removeAccount(id));
   ipcMain.handle('mail:rename-account', (_e, id, label) => renameAccount(id, label));
   ipcMain.handle('mail:list', () => listFor(readAccounts()));

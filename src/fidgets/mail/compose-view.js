@@ -8,7 +8,8 @@
 // More than 10 people: the button first shows everyone it will go to, and a
 // second click sends.
 //
-//   new ComposeView(container, { draft, account, io, onClose, onSent })
+//   new ComposeView(container, { draft, account, accounts, io, onClose, onSent })
+//   (accounts: the signed-in ones, for the From picker)
 //   io: the window.opal.mail functions, plus vaultFiles() → [{ path, name }]
 
 import { h, icon } from '../../ui.js';
@@ -32,10 +33,11 @@ function splitList(text) {
 const looksLikeAddress = (s) => /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(s) || /<[^\s<>@]+@[^\s<>@]+>\s*$/.test(s);
 
 export class ComposeView {
-  constructor(container, { draft, account, io, onClose, onSent }) {
+  constructor(container, { draft, account, accounts, io, onClose, onSent }) {
     this.container = container;
     this.draft = draft;
     this.account = account;
+    this.accounts = accounts || (account ? [account] : []);
     this.io = io;
     this.onClose = onClose;
     this.onSent = onSent;
@@ -64,7 +66,7 @@ export class ComposeView {
     for (const key of ['to', 'cc', 'bcc']) if (this.chips[key]) this.draft[key] = this.chips[key].value();
     this.draft.subject = this.subjectEl ? this.subjectEl.value : this.draft.subject;
     if (this.editor) this.draft.body = this.editor.getText();
-    return { id: this.draft.id, to: this.draft.to, cc: this.draft.cc, bcc: this.draft.bcc, subject: this.draft.subject, body: this.draft.body, quote: this.draft.quote };
+    return { id: this.draft.id, account: this.draft.account, to: this.draft.to, cc: this.draft.cc, bcc: this.draft.bcc, subject: this.draft.subject, body: this.draft.body, quote: this.draft.quote };
   }
 
   changed() {
@@ -90,10 +92,22 @@ export class ComposeView {
     this.chips = {};
     const d = this.draft;
     const head = h('div', { class: 'compose-head' },
-      h('span', { class: 'deb-kicker' }, `${MODES[d.mode] || 'EMAIL'} · FROM ${this.account ? this.account.email.toUpperCase() : ''}`),
+      h('span', { class: 'deb-kicker' }, MODES[d.mode] || 'EMAIL'),
       h('button', { type: 'button', class: 'compose-close', 'aria-label': 'Close (kept until you send or discard it)', title: 'Close — kept until you send or discard it', onclick: () => this.close() }, icon('x', 15)));
     const problem = d.error ? h('div', { class: 'compose-error', role: 'alert' }, h('b', null, 'Not sent. '), d.error, ' Everything you wrote is still here, and kept on this Mac.') : null;
 
+    // From: which account it goes out of (a reply starts on the one it came to).
+    const from = h('label', { class: 'compose-field' }, h('span', { class: 'compose-label' }, 'From'),
+      this.accounts.length > 1
+        ? h('select', {
+          class: 'compose-from', 'aria-label': 'Send from',
+          onchange: (e) => {
+            this.draft.account = e.target.value;
+            this.account = this.accounts.find((a) => a.id === e.target.value) || this.account;
+            this.changed();
+          },
+        }, this.accounts.map((a) => h('option', { value: a.id, selected: a.id === d.account || null }, `${a.label} · ${a.email}`)))
+        : h('span', { class: 'compose-from-one' }, this.account ? `${this.account.label} · ${this.account.email}` : ''));
     const to = this.chipField('to', 'To');
     const ccToggle = this.showCc ? null : h('button', { type: 'button', class: 'compose-link', onclick: () => { this.fields(); this.showCc = true; this.render(); } }, 'Cc / Bcc');
     to.append(ccToggle || '');
@@ -134,7 +148,7 @@ export class ComposeView {
       h('span', { style: 'flex: 1' }),
       h('button', { type: 'button', class: 'compose-link is-quiet', onclick: () => this.discard() }, 'Discard'));
 
-    this.container.replaceChildren(head, problem || '', to, cc || '', bcc || '', subject, tools, bodyEl, quote || '', files, foot);
+    this.container.replaceChildren(head, problem || '', from, to, cc || '', bcc || '', subject, tools, bodyEl, quote || '', files, foot);
     this.editor = new MarkdownEditor({
       parent: bodyEl,
       content: d.body || '',

@@ -82,7 +82,8 @@ contextBridge.exposeInMainWorld('opal', {
   openCheckboxes: () => call('vault:checkboxes'),
   mail: {
     status: () => call('mail:status'),
-    addAccount: () => call('mail:add-account'),
+    addAccount: (kind) => call('mail:add-account', kind),
+    setMicrosoftClient: (clientId) => call('mail:set-microsoft-client', clientId),
     removeAccount: (id) => call('mail:remove-account', id),
     renameAccount: (id, label) => call('mail:rename-account', id, label),
     list: () => call('mail:list'),

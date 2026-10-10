@@ -169,7 +169,7 @@ export class MailView {
         }, icon(ic, 20), h('span', null, label), n ? h('span', { class: 'mail-rail-count' }, String(n)) : null);
       }));
     let main;
-    if (!this.status.accounts.length) main = this.signInPage();
+    if (!this.status.accounts.length || this.adding) main = this.addPage();
     else if (this.box === 'saved') main = this.savedPage();
     else if (this.box === 'sent') main = this.boxPage(true);
     else main = this.boxPage();
@@ -193,7 +193,7 @@ export class MailView {
     return h('div', { class: 'sch-seg mail-accounts', role: 'group', 'aria-label': 'Account' },
       accounts.length > 1 ? pick('all', 'All') : null,
       accounts.map((a) => pick(a.id, a.label, this.accountColor(a.id))),
-      h('button', { type: 'button', 'aria-label': 'Add an account', title: 'Add an account', onclick: () => this.addAccount() }, '+'));
+      h('button', { type: 'button', 'aria-label': 'Add an account', title: 'Add an account', onclick: () => this.go({ adding: 'choose', problem: '' }) }, '+'));
   }
 
   accountMenu(a) {
@@ -204,7 +204,7 @@ export class MailView {
           const name = await askName(`Call ${a.email}`, 'e.g. School', a.label);
           if (name) { this.status.accounts = await this.io.renameAccount(a.id, name); this.render(); }
         } },
-        a.needsSignIn ? { label: 'Sign in again', onSelect: () => this.addAccount() } : null,
+        a.needsSignIn ? { label: 'Sign in again', onSelect: () => this.addAccount(a.provider) } : null,
         'separator',
         { label: 'Sign out of this account', danger: true, onSelect: async () => {
           this.status.accounts = await this.io.removeAccount(a.id);
@@ -216,12 +216,13 @@ export class MailView {
     };
   }
 
-  async addAccount() {
+  async addAccount(kind = 'google') {
     this.problem = 'Finish signing in in your browser…';
     this.render();
     try {
-      this.status.accounts = await this.io.addAccount();
+      this.status.accounts = await this.io.addAccount(kind);
       this.problem = '';
+      this.adding = null;
       this.render();
       this.sync();
     } catch (err) {
@@ -506,6 +507,7 @@ export class MailView {
     this.compose = new ComposeView(this.composeEl, {
       draft,
       account,
+      accounts: this.status.accounts.filter((a) => !a.needsSignIn),
       io: this.io,
       onClose: () => this.afterCompose(),
       onSent: (result) => {
@@ -612,31 +614,78 @@ export class MailView {
     ];
   }
 
-  signInPage() {
-    const configured = this.status.configured;
+  // Adding an account: which kind, then that kind's sign-in (and its one-time setup).
+  addPage() {
+    const kind = this.adding === 'google' || this.adding === 'microsoft' ? this.adding : 'choose';
+    const has = this.status.accounts.length > 0;
+    const cancel = has ? h('button', { type: 'button', class: 'deb-btn', onclick: () => this.go({ adding: null, problem: '' }) }, 'Cancel') : null;
+    if (kind === 'choose') {
+      const pick = (id, letter, title, text) => h('button', { type: 'button', class: `mail-pick is-${id}`, onclick: () => this.go({ adding: id, problem: '' }) },
+        h('span', { class: 'mail-pick-logo', 'aria-hidden': 'true' }, letter), h('span', null, h('b', null, title), h('small', null, text)));
+      return [
+        this.head(has ? 'MAIL · ADD AN ACCOUNT' : 'MAIL · NOT CONNECTED', has ? 'Add an account.' : 'Bring in your mail.', cancel ? [cancel] : null),
+        h('p', { class: 'mail-lead' }, 'Which kind of email is it? Your mail stays where it is; nothing reaches your notes until you press Save on an email.'),
+        h('div', { class: 'mail-picks' },
+          pick('google', 'G', 'Google', 'Gmail, and addresses that use Gmail'),
+          pick('microsoft', 'M', 'Microsoft', 'Outlook.com, Hotmail and Live (personal accounts; not school or work ones)')),
+        h('p', { class: 'deb-muted' }, 'You sign in on Google’s or Microsoft’s own page, in your browser. Opal never sees your password.'),
+      ];
+    }
+    const ms = kind === 'microsoft';
+    const name = ms ? 'Microsoft' : 'Google';
+    const configured = ms ? this.status.microsoftConfigured : this.status.configured;
     const step = (n, text, small) => h('div', { class: 'mail-step' }, h('span', { class: 'mail-step-n' }, String(n)), h('div', null, text, h('small', null, small)));
+    const back = h('button', { type: 'button', class: 'deb-btn', onclick: () => this.go({ adding: 'choose', problem: '' }) }, '‹ Back');
     return [
-      this.head('MAIL · NOT CONNECTED', 'Bring in your mail.', null),
-      h('p', { class: 'mail-lead' }, 'Opal reads your Gmail inbox. Your mail stays on Google; nothing reaches your notes until you press Save on an email.'),
+      this.head(`MAIL · ${name.toUpperCase()}`, `Sign in with ${name}.`, [back]),
       h('div', { class: 'deb-actions' },
-        h('button', { type: 'button', class: 'deb-btn is-primary', disabled: configured ? null : true, onclick: () => this.addAccount() }, 'Sign in with Google')),
+        h('button', { type: 'button', class: 'deb-btn is-primary', disabled: configured ? null : true, onclick: () => this.addAccount(kind) }, `Sign in with ${name}`)),
       this.problem ? h('p', { class: 'mail-problem' }, this.problem) : null,
+      configured ? null : (ms ? this.microsoftSetup() : this.googleSetup()),
       h('section', { class: 'deb-card mail-steps' },
         h('div', { class: 'deb-card-head' }, h('h2', null, 'What happens')),
-        step(1, 'Your browser opens Google’s sign-in page.', 'You type your password there, never in Opal.'),
-        step(2, 'Google asks you to let Opal use your mail.', 'Opal only reads it for now; writing comes in a later version.'),
+        step(1, `Your browser opens ${name}’s sign-in page.`, 'You type your password there, never in Opal.'),
+        step(2, `${name} asks you to let Opal use your mail.`, 'Opal reads it, and sends only when you press Send.'),
         step(3, 'You’re sent back here and the inbox appears.', 'The sign-in is kept encrypted on this Mac, never in your vault.')),
-      configured ? null : h('section', { class: 'deb-card mail-setup' },
-        h('div', { class: 'deb-card-head' }, h('h2', null, 'Setup needed first')),
-        h('p', null, 'Opal needs a Google sign-in client, made once in Google Cloud Console and saved as mail-client.json:'),
-        h('ol', { class: 'mail-setup-steps' },
-          h('li', null, 'At console.cloud.google.com, make a project and turn on the Gmail API.'),
-          h('li', null, 'Google Auth Platform › Branding: app name Opal, your address. Audience: External, then add yourself as a test user.'),
-          h('li', null, 'Clients › Create client › Desktop app. Download its JSON file.'),
-          h('li', null, 'Rename it mail-client.json and put it in Opal’s settings folder (button below), then come back here.')),
-        h('div', { class: 'deb-actions' },
-          h('button', { type: 'button', class: 'deb-btn', onclick: () => this.io.revealSetup() }, 'Show the settings folder'),
-          h('button', { type: 'button', class: 'deb-btn', onclick: () => this.load() }, 'I’ve added it'))),
     ];
   }
+
+  googleSetup() {
+    return h('section', { class: 'deb-card mail-setup' },
+      h('div', { class: 'deb-card-head' }, h('h2', null, 'Setup needed first')),
+      h('p', null, 'Opal needs a Google sign-in client, made once in Google Cloud Console and saved as mail-client.json:'),
+      h('ol', { class: 'mail-setup-steps' },
+        h('li', null, 'At console.cloud.google.com, make a project and turn on the Gmail API.'),
+        h('li', null, 'Google Auth Platform › Branding: app name Opal, your address. Audience: External, then add yourself as a test user.'),
+        h('li', null, 'Clients › Create client › Desktop app. Download its JSON file.'),
+        h('li', null, 'Rename it mail-client.json and put it in Opal’s settings folder (button below), then come back here.')),
+      h('div', { class: 'deb-actions' },
+        h('button', { type: 'button', class: 'deb-btn', onclick: () => this.io.revealSetup() }, 'Show the settings folder'),
+        h('button', { type: 'button', class: 'deb-btn', onclick: () => this.load() }, 'I’ve added it')));
+  }
+
+  // Microsoft needs no file: just the Application (client) ID, pasted here.
+  microsoftSetup() {
+    const input = h('input', { class: 'mail-client-id', 'aria-label': 'Application (client) ID', placeholder: '0f3e1a2b-…', spellcheck: 'false' });
+    const save = async () => {
+      try {
+        await this.io.setMicrosoftClient(input.value);
+        this.status = await this.io.status();
+        this.problem = '';
+      } catch (err) {
+        this.problem = err.message;
+      }
+      this.render();
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+    return h('section', { class: 'deb-card mail-setup' },
+      h('div', { class: 'deb-card-head' }, h('h2', null, 'Set up Microsoft sign-in'), h('small', null, 'once, about 5 minutes')),
+      h('ol', { class: 'mail-setup-steps' },
+        h('li', null, 'At portal.azure.com, sign in with your Outlook account. If it says there’s no directory, make the free Azure account first (it may check your identity with a card; there’s no charge).'),
+        h('li', null, 'Search for App registrations › New registration. Name: Opal. Supported account types: Personal Microsoft accounts only.'),
+        h('li', null, 'Redirect URI: choose Public client/native (mobile & desktop) and type http://localhost — then Register.'),
+        h('li', null, 'On its Overview page, copy the Application (client) ID and paste it here. No secret is needed.')),
+      h('div', { class: 'mail-client-row' }, input, h('button', { type: 'button', class: 'deb-btn is-primary', onclick: save }, 'Save')));
+  }
+
 }

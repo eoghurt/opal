@@ -13,7 +13,7 @@ C "document.querySelector('.mail-row').click(); 1" >/dev/null; sleep 1.2
 
 # Reply
 clickText '.mail-answer .deb-btn' 'Reply' 1.5
-ok "Reply opens the writing card in the reader's place, addressed to the sender, with Re: once" '[[ $(C "[document.querySelector(\".mail-compose .deb-kicker\").textContent, [...document.querySelectorAll(\".compose-field\")][0].textContent, document.querySelector(\".compose-subject\").value].join(\"|\")") == "\"REPLY · FROM STUDENT@EXAMPLE.COM|ToYear 12 Coordinator×Cc / Bcc|Re: WACE exam timetable and seat numbers\"" ]]'
+ok "Reply opens the writing card in the reader's place, addressed to the sender, with Re: once" '[[ $(C "[document.querySelector(\".mail-compose .deb-kicker\").textContent, [...document.querySelectorAll(\".compose-field\")].slice(0,2).map(f=>f.textContent).join(\"/\"), document.querySelector(\".compose-subject\").value].join(\"|\")") == "\"REPLY|FromFixture · student@example.com/ToYear 12 Coordinator×Cc / Bcc|Re: WACE exam timetable and seat numbers\"" ]]'
 type_body '"Thanks — **see you** there.\n\n- seat 14"'
 sleep 0.6
 ok "what's typed is kept on this Mac as a draft (not in the vault)" '[[ $(cat "$S"/userdata/mail-drafts/*.json | grep -c "see you") == 1 ]] && [[ -z "$(grep -rl "see you" "$V")" ]]'
@@ -77,7 +77,7 @@ ok "To reply › Tomorrow adds “Reply to <subject> / <sender>” due tomorrow,
 M "require('electron').BrowserWindow.getAllWindows()[0].webContents.send('ui:show-tasks'); 1" >/dev/null; sleep 1.5
 ok "in Tasks it has an envelope instead of a tick box" '[[ $(C "!!document.querySelector(\".task-check.task-mail[aria-label^=\\\"Write the reply\\\"]\")") == "true" ]]'
 C "document.querySelector('.task-check.task-mail').click(); 1" >/dev/null; sleep 2.5
-ok "the envelope opens the reply, addressed and threaded" '[[ $(C "document.querySelector(\".mail-compose .deb-kicker\").textContent + \"|\" + document.querySelector(\".compose-subject\").value") == "\"REPLY · FROM STUDENT@EXAMPLE.COM|Re: WACE exam timetable and seat numbers\"" ]]'
+ok "the envelope opens the reply, addressed and threaded" '[[ $(C "document.querySelector(\".mail-compose .deb-kicker\").textContent + \"|\" + document.querySelector(\".compose-subject\").value") == "\"REPLY|Re: WACE exam timetable and seat numbers\"" ]]'
 send
 ok "sending that reply ticks the task off" 'grep -q "^- \[x\] Reply to WACE exam timetable" "$T"'
 

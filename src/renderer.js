@@ -2374,7 +2374,7 @@ async function addReplyTask(message, day) {
     title: `Reply to ${String(message.subject || '(no subject)').replace(/\s+/g, ' ')} / ${sender}`.replace(/[\[\]]/g, ''),
     done: false, due: day, time: null, endTime: null, startDate: null, repeat: null, starred: false,
     primary: null, secondary: null, created: todayKey(), doneOn: null,
-    mailLink: mailLink(message.messageId, account ? account.email : ''),
+    mailLink: mailLink(message.messageId, account ? account.email : '', account ? account.provider : 'google'),
     details: [], subtasks: [],
   };
   const text = (await readTaskList(DEFAULT_LIST)) || '';

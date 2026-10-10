@@ -4369,3 +4369,20 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 :is(:root, :root[data-theme]) .compose-body .cm-editor .cm-scroller { padding: 0; }
 :is(:root, :root[data-theme]) .compose-body .cm-editor .cm-content { max-width: none; margin: 0; padding: 4px 0 12px; }
 :is(:root, :root[data-theme]) .compose-body .cm-editor .cm-line { padding-left: 0; padding-right: 0; }
+
+/* ---------- Mail 0.14: accounts ---------- */
+.mail-picks { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+.mail-pick { display: flex; align-items: center; gap: 16px; width: 100%; padding: 18px 20px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--paper-2); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.mail-pick:hover { border-color: var(--deb-tint-edge); background: var(--deb-tint); }
+.mail-pick b { display: block; font-size: 16px; margin-bottom: 3px; }
+.mail-pick small { display: block; font-size: 13px; color: var(--ink-3); line-height: 1.4; }
+.mail-pick-logo { flex: 0 0 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+.mail-pick.is-google .mail-pick-logo { background: rgb(197 34 31 / 0.10); color: #C5221F; }
+.mail-pick.is-microsoft .mail-pick-logo { background: rgb(15 91 168 / 0.10); color: #0F5BA8; }
+:root[data-mode="dark"] .mail-pick.is-google .mail-pick-logo { color: #F28B82; }
+:root[data-mode="dark"] .mail-pick.is-microsoft .mail-pick-logo { color: #8AB4F8; }
+.mail-setup .deb-card-head small { font-size: 12.5px; color: var(--ink-3); }
+.mail-client-row { display: flex; gap: 8px; align-items: center; }
+.mail-client-id { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: 14px var(--mono); }
+.compose-from { height: 32px; max-width: 100%; padding: 0 30px 0 12px; border: 1px solid var(--line); border-radius: 16px; background-color: var(--paper); color: var(--ink); font: 13.5px var(--sans); }
+.compose-from-one { font-size: 13.5px; color: var(--ink-2, var(--ink)); }

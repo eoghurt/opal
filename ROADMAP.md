@@ -281,6 +281,26 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   Settings › Widgets & Fidgets › Mail turns the notifications off.
 - Tests send only to Nodemailer's stream transport (OPAL_MAIL_FIXTURE), check v51.
 
+## v0.14 — Mail, Outlook accounts (done)
+- **Outlook.com, Hotmail and Live** accounts beside Gmail (personal Microsoft
+  accounts only; school and work Microsoft accounts are left out), through
+  Microsoft Graph (mail/microsoft.js): sign-in with PKCE in the browser to a
+  one-off http://localhost address; only the Application (client) ID is needed,
+  pasted into the setup card and kept in mail-microsoft.json in Opal's settings
+  folder. Refresh tokens are encrypted with safeStorage like Google's.
+- People / Updates come from Outlook's Focused / Other inbox. Opening fetches
+  the original email, so it reads and saves exactly like Gmail's; read/unread,
+  archive and delete go back to Outlook; Sent Items show under Sent.
+- Sending posts the email Nodemailer builds (threading headers kept) to Graph's
+  sendMail; Outlook files the copy in Sent Items. New mail is checked every
+  minute (Graph has no IDLE for desktop apps), with the same NEW mark and
+  notification.
+- **+ Add an account** asks Google or Microsoft; the writing card has a **From**
+  picker (a reply starts on the account the email came to). "To reply" tasks for
+  Outlook emails link to Outlook on the web.
+- Mockups: the 0.14 row on https://claude.ai/artifact/2x3wcG523GX9Z4pec2CkGw.
+  Check v52 runs against a pretend Graph server (tests/e2e/fake-graph.mjs).
+
 ## Fidget ideas
 Ethan's:
 - **Bouldering tracker** — problems by gym, wall, grade and colour; sends,

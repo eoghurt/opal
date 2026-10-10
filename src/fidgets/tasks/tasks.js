@@ -8,9 +8,10 @@
 //
 // 📅 due date, ⏰ time, ⭐ starred, ➕ date it was added, ✅ date it was done, 🔁 repeat (e.g.
 // "🔁 every week" — ticking it off adds the next one, as Obsidian Tasks does).
-// A "to reply" task from Mail ends with [📧](https://mail.google.com/…#search/rfc822msgid%3A…):
-// a link that opens the email in Gmail from Obsidian; in Opal it shows an
-// envelope instead of a tick box, which opens the reply.
+// A "to reply" task from Mail ends with [📧](https://mail.google.com/…#search/rfc822msgid%3A…)
+// (or https://outlook.live.com/mail/…#rfc822msgid%3A… for Outlook): a link that opens
+// the email's mailbox from Obsidian; in Opal it shows an envelope instead of a
+// tick box, which opens the reply.
 // Anything else in the note (headings, text) is left alone.
 
 import { RULE_TEXT, normaliseRule, nextDate } from '../calendar/repeat.js';
@@ -27,7 +28,7 @@ const PRIMARY = /\s*#color\/([a-z]+)\b/;
 const SECONDARY = /\s*#accent\/([a-z]+)\b/;
 const CREATED = /\s*➕\s*(\d{4}-\d{2}-\d{2})/;
 const STAR = /\s*⭐️?/;
-const MAIL = /\s*\[📧\]\((https:\/\/mail\.google\.com\/[^\s)]*rfc822msgid%3A([^\s)&#]+)[^\s)]*)\)/;
+const MAIL = /\s*\[📧\]\((https:\/\/(?:mail\.google\.com|outlook\.live\.com)\/[^\s)]*rfc822msgid%3A([^\s)&#]+)[^\s)]*)\)/;
 const REPEAT = new RegExp(`\\s*🔁\\s*${RULE_TEXT.source}`, 'i');
 
 function safeDecode(text) {
@@ -39,8 +40,9 @@ function safeDecode(text) {
 }
 
 // The link a "to reply" task carries (see the top of this file).
-export function mailLink(messageId, account = '') {
+export function mailLink(messageId, account = '', provider = 'google') {
   const id = encodeURIComponent(String(messageId).replace(/^<|>$/g, '')).replace(/[()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  if (provider === 'microsoft') return `https://outlook.live.com/mail/0/inbox#rfc822msgid%3A${id}`;
   return `https://mail.google.com/mail/${account ? `?authuser=${encodeURIComponent(account)}` : ''}#search/rfc822msgid%3A${id}`;
 }
 
