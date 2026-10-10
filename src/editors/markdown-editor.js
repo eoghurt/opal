@@ -12,7 +12,7 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Prec } from '@codemirror/state';
-import { livePreview, formatBar, formatKeymap } from './markdown-live.js';
+import { livePreview, formatKeymap } from './markdown-live.js';
 import { parseStickies, writeStickies, stickyBlockRange } from '../../shared/stickies.js';
 import { frontmatterRange } from '../../shared/frontmatter.js';
 import { tableBlocks, insertTable } from '../widgets/tables/table-widget.js';
@@ -178,7 +178,6 @@ export class MarkdownEditor {
         windowsLines ? EditorState.lineSeparator.of('\r\n') : [],
         markdown({ base: markdownLanguage }),
         livePreview,
-        formatBar,
         syntaxHighlighting(scrapbookHighlight),
         EditorView.lineWrapping,
         theme,
