@@ -31,12 +31,14 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(rail, topbar, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks, onMoney, onDebate, fidgets, railPlace }) {
+  constructor(rail, topbar, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks, onMoney, onDebate, fidgets, railPlace, onToggleSidebar, sidebarClosed }) {
     this.rail = rail;
     this.topbar = topbar;
     this.footer = h('div', { class: 'sheet-status' });
     this.fidgets = fidgets || (() => []); // [{ id, name, icon, open }]
     this.railPlace = railPlace || (() => null); // the fidget id of the page you're on
+    this.onToggleSidebar = onToggleSidebar;
+    this.sidebarClosed = sidebarClosed || (() => false);
     this.onHome = onHome;
     this.onSettings = onSettings;
     this.onBookmarks = onBookmarks;
@@ -141,7 +143,15 @@ export class Chrome {
       link('settings', 'settings', 'Settings', () => this.onSettings(), { class: 'bar-settings', title: 'Settings (⌘,)' }),
     ].filter(Boolean));
 
+    const closed = this.sidebarClosed();
     this.topbar.replaceChildren(...[
+      this.onToggleSidebar ? h('button', {
+        class: `bar-arrow bar-sidebar${closed ? ' is-closed' : ''}`,
+        'aria-label': closed ? 'Show the sidebar' : 'Hide the sidebar',
+        'aria-pressed': String(!closed),
+        title: `${closed ? 'Show' : 'Hide'} the sidebar (⌘\\)`,
+        onclick: () => this.onToggleSidebar(),
+      }, icon('sidebar', 17)) : null,
       h('div', { class: 'bar-history' },
         h('button', { class: 'bar-arrow', 'aria-label': 'Back', title: 'Back (⌘[)', disabled: !this.canBack || null, onclick: () => this.onBack() }, icon('chevron', 15)),
         h('button', { class: 'bar-arrow is-forward', 'aria-label': 'Forward', title: 'Forward (⌘])', disabled: !this.canForward || null, onclick: () => this.onForward() }, icon('chevron', 15))),

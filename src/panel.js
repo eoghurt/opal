@@ -23,7 +23,7 @@ function save(id, state) {
 
 // Turns `el` into a panel and returns the element its contents belong in.
 // side: which side of the screen the panel is on ('left' or 'right').
-export function makePanel(el, { id, side, label, width, min = 160, max = 560 }) {
+export function makePanel(el, { id, side, label, width, min = 160, max = 560, reopenTab = true, onChange }) {
   const state = { width, closed: false, ...load(id) };
   const body = h('div', { class: 'panel-body' });
   body.append(...el.childNodes);
@@ -56,8 +56,9 @@ export function makePanel(el, { id, side, label, width, min = 160, max = 560 }) 
   const setClosed = (closed) => {
     state.closed = closed;
     el.classList.toggle('is-closed', closed);
-    tab.hidden = !closed;
+    tab.hidden = !closed || !reopenTab;
     save(id, state);
+    if (onChange) onChange(closed);
   };
 
   handle.addEventListener('pointerdown', (event) => {
@@ -95,7 +96,9 @@ export function makePanel(el, { id, side, label, width, min = 160, max = 560 }) 
   tab.addEventListener('click', () => setClosed(false));
 
   el.classList.add('panel');
-  el.replaceChildren(body, handle, close);
+  // A panel with its own button elsewhere (the sidebar's, top left of the
+  // page) has no reopen tab and no round close button: hidden means gone.
+  el.replaceChildren(body, handle, ...(reopenTab ? [close] : []));
   // The reopen tab sits right next to the panel.
   if (side === 'left') el.after(tab);
   else el.before(tab);
@@ -109,6 +112,6 @@ export function makePanel(el, { id, side, label, width, min = 160, max = 560 }) 
 
   setWidth(state.width);
   setClosed(state.closed);
-  el.panel = { toggle: () => setClosed(!state.closed), body };
+  el.panel = { toggle: () => setClosed(!state.closed), isClosed: () => state.closed, body };
   return body;
 }

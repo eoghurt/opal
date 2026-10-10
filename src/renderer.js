@@ -109,7 +109,7 @@ let screen = { kind: 'welcome' }; // plus folderPath / filePath
 // The open note: { filePath, editor, noteView } or null.
 let current = null;
 
-const sidebarPanel = makePanel(document.getElementById('sidebar'), { id: 'sidebar', side: 'left', label: 'Sidebar', width: 240, min: 180, max: 480 });
+const sidebarPanel = makePanel(document.getElementById('sidebar'), { id: 'sidebar', side: 'left', label: 'Sidebar', width: 240, min: 180, max: 480, reopenTab: false, onChange: () => { try { chrome.renderTop(); } catch { /* not drawn yet */ } } });
 const sidebar = new Sidebar(sidebarPanel, {
   onOpenFile: (p) => openFile(p),
   onOpenFolder: (p) => openFolder(p),
@@ -132,6 +132,8 @@ const chrome = new Chrome(document.getElementById('rail'), document.getElementBy
   onSearch: () => startSearch('open'),
   onInbox: INBOX_ENABLED ? () => showInbox() : null,
   onTasks: () => showTasks(),
+  onToggleSidebar: () => document.getElementById('sidebar').panel.toggle(),
+  sidebarClosed: () => document.getElementById('sidebar').panel.isClosed(),
   fidgets: () => (vault ? homeFidgets() : []),
   railPlace: () => ({ money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', inbox: 'inbox', settings: 'settings' })[screen.kind] || null,
 });
