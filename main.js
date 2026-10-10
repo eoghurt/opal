@@ -1,7 +1,7 @@
 // Main process: the only part of Opal that touches the disk.
 // The window (renderer) asks for things through IPC; see preload.js.
 
-const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -12,6 +12,7 @@ const { relinkText, resolve: resolveTarget, joinPath, folderOf } = require('./sh
 const { countWords } = require('./shared/words.js');
 const { readProperties, writeProperty } = require('./shared/properties.js');
 const tracker = require('./shared/tracker.js');
+const { setupMail } = require('./mail/index.js');
 const { stripFrontmatter } = frontmatter;
 
 app.setName('Opal');
@@ -2005,6 +2006,9 @@ ipcMain.handle('palette:set', (_event, name) => setPalette(name));
 ipcMain.handle('look:get', () => getLook());
 ipcMain.handle('look:set', (_event, look) => setLook(look));
 
+// Mail (mail:* channels): Gmail over IMAP. Lives in mail/; only saving touches the vault.
+setupMail({ app, ipcMain, safeStorage, shell, ctx: { resolveFolderPath, scheduleRefresh } });
+
 // ---------- Window and menu ----------
 
 function buildMenu() {
@@ -2064,6 +2068,7 @@ function buildMenu() {
         { label: 'Tasks', accelerator: 'CmdOrCtrl+Shift+T', click: () => { if (win) win.webContents.send('ui:show-tasks'); } },
         { label: 'Money', accelerator: 'CmdOrCtrl+Shift+M', click: () => { if (win) win.webContents.send('ui:show-money'); } },
         { label: 'Debate', accelerator: 'CmdOrCtrl+Shift+B', click: () => { if (win) win.webContents.send('ui:show-debate'); } },
+        { label: 'Mail', accelerator: 'CmdOrCtrl+Shift+E', click: () => { if (win) win.webContents.send('ui:show-mail'); } },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

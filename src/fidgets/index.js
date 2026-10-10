@@ -30,6 +30,16 @@ export const FIDGETS = [
     files: ['fidgets/money/money-view.js', 'fidgets/money/model.js', 'fidgets/money/ledger.js'],
   },
   {
+    id: 'mail',
+    page: true, // a page of its own: a tile on the home page
+    short: 'Gmail inbox',
+    name: 'Mail',
+    icon: 'mail',
+    what: 'Your Gmail inboxes: People and Updates, unread and attachments, one account or all; save an email into the vault as a note.',
+    where: 'Its tile on the home page, or ⌘⇧E. Mail stays on Gmail; only emails you save become notes in Mail/.',
+    files: ['fidgets/mail/mail-view.js', 'fidgets/mail/markdown.js'],
+  },
+  {
     id: 'debate',
     name: 'Debate',
     icon: 'debate',

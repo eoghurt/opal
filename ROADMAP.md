@@ -235,6 +235,27 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   Practise anyway runs a deck without changing dates. Bookmarks are back, in the
   sidebar.
 
+## v0.12 — Mail, reading (done)
+- **Mail** fidget (design A, mockups: https://claude.ai/artifact/2x3wcG523GX9Z4pec2CkGw):
+  Gmail accounts over IMAP (ImapFlow, XOAUTH2), parsed with mailparser, all in
+  the main process (`mail/`, `mail:*` channels). Rail: People (Gmail's Primary),
+  Updates (Promotions, Updates, Social, Forums) and Saved; switch between
+  accounts or see them all; All / Unread / Attachments and search; the list on
+  the left, the open email on the right. Right-click or double-click a message:
+  Open, Reply in Gmail, mark read/unread, Save to vault, move the sender to
+  People/Updates, Archive, Delete. ⌘⇧E.
+- **The mailbox stays on Gmail.** A cache of headers and bodies lives in Opal's
+  settings folder (mail-cache/), never in the vault. **Save to vault** writes
+  `Mail/YYYY-MM-DD Subject.md` (from, to, cc, date, message-id as properties,
+  the body as markdown) with attachments beside it as [[name.ext]].
+- **Sign-in** — OAuth 2.0 for a desktop app with PKCE: Google's page opens in the
+  browser, the reply comes back to a one-off 127.0.0.1 address. The client is
+  mail-client.json (from Google Cloud Console, not in git); refresh tokens are
+  encrypted with safeStorage in mail-accounts.json, never logged.
+- **Safe reading** — email HTML goes through viewers/sanitize.js; cid: pictures
+  become data: URLs, pictures from the web stay blocked, links open in the browser.
+- Next (0.13): writing, replying, drafts, new-mail notifications.
+
 ## Fidget ideas
 Ethan's:
 - **Bouldering tracker** — problems by gym, wall, grade and colour; sends,

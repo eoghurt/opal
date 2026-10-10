@@ -68,6 +68,7 @@ import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
+import { MailView } from './fidgets/mail/mail-view.js';
 import { DebateView } from './fidgets/debate/debate-view.js';
 import { Corkboard, DEFAULT_QUOTES } from './home/corkboard.js';
 import { ExamTracker, ExamPaper } from './fidgets/exams/exam-tracker-view.js';
@@ -139,7 +140,7 @@ const chrome = new Chrome(document.getElementById('rail'), document.getElementBy
   onToggleSidebar: () => document.getElementById('sidebar').panel.toggle(),
   sidebarClosed: () => document.getElementById('sidebar').panel.isClosed(),
   fidgets: () => (vault ? homeFidgets() : []),
-  railPlace: () => ({ money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', inbox: 'inbox', settings: 'settings' })[screen.kind] || null,
+  railPlace: () => ({ mail: 'mail', money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', inbox: 'inbox', settings: 'settings' })[screen.kind] || null,
 });
 
 // The tabs sit in the sidebar, one under another (Sidebar places this element).
@@ -232,6 +233,8 @@ let homeEditing = false;
 let tasksView = null;
 let reviewView = null;
 let moneyView = null;
+let mailView = null;
+let mailState = { box: 'people', account: 'all' };
 let debateView = null;
 let debateState = null;
 let moneyState = { month: null, tab: 'overview' };
@@ -247,6 +250,8 @@ function leaveCalendar() {
   debateView = null;
   if (moneyView) moneyView.destroy();
   moneyView = null;
+  if (mailView) mailView.destroy();
+  mailView = null;
   if (reviewView) reviewView.destroy();
   reviewView = null;
   if (tasksView && tasksView.destroy) tasksView.destroy();
@@ -454,9 +459,9 @@ function loadBacklinks() {
 // anything opened from it goes to a new tab. The tabs are saved in the
 // vault's .opal/workspace.json so they come back next time.
 
-const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review', 'money', 'debate'];
-const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review', money: 'Money', debate: 'Debate' };
-const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review', money: 'money', debate: 'debate' };
+const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review', 'money', 'debate', 'mail'];
+const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review', money: 'Money', debate: 'Debate', mail: 'Mail' };
+const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review', money: 'money', debate: 'debate', mail: 'mail' };
 
 let tabs = []; // [{ id, pinned, pin: { emoji, color }, places: [place], at, scroll }]
 let activeTabId = null;
@@ -593,6 +598,7 @@ function goToPlace(place) {
   if (place.kind === 'settings') return showSettings();
   if (place.kind === 'inbox') return showInbox();
   if (place.kind === 'review') return showReview();
+  if (place.kind === 'mail') return showMail();
   if (place.kind === 'money') {
     if (place.sub) moneyState = { month: place.sub.month || null, tab: place.sub.tab || 'overview' };
     return showMoney();
@@ -2270,7 +2276,7 @@ function showDebate() {
 // ---------- Money ----------
 
 // The fidget tiles at the top of the vault's home page.
-const FIDGET_PAGES = { money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), debate: () => showDebate(), flashcards: () => showReview() };
+const FIDGET_PAGES = { mail: () => showMail(), money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), debate: () => showDebate(), flashcards: () => showReview() };
 function homeFidgets() {
   const order = Object.keys(FIDGET_PAGES);
   return FIDGETS.filter((f) => f.page && !f.off && FIDGET_PAGES[f.id]).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)).map((f, i) => ({
@@ -2313,6 +2319,34 @@ function showMoney() {
           moneyState = state;
           remember();
         },
+      },
+    });
+  });
+}
+
+// ---------- Mail ----------
+
+function showMail() {
+  if (!vault) return Promise.resolve();
+  return navigate(async () => {
+    homeStickies = null;
+    leaveCalendar();
+    screen = { kind: 'mail' };
+    setTitle('Mail');
+    sidebar.setActive(null, null);
+    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Mail' }]);
+    viewEl.scrollTop = 0;
+    mailView = new MailView(viewEl, {
+      box: mailState.box,
+      account: mailState.account,
+      io: {
+        ...window.opal.mail,
+        openNote: async (path) => {
+          await reloadTree();
+          openFile(path);
+        },
+        openWeb: (url) => window.opal.openWebLink(url).catch(() => {}),
+        onChange: (state) => { mailState = state; },
       },
     });
   });
@@ -3112,6 +3146,7 @@ window.opal.onShowTasks(() => showTasks());
 window.opal.onShowInbox(() => showInbox());
 window.opal.onShowMoney(() => showMoney());
 window.opal.onShowDebate(() => showDebate());
+window.opal.onShowMail(() => showMail());
 window.opal.onOpenReminder(openReminder);
 window.opal.onSearch(startSearch);
 window.opal.onVaultChanged(loadVault);
