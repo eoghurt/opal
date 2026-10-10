@@ -4222,3 +4222,35 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 .deb-btn.sch-small { height: 28px; padding: 0 12px; font-size: 12.5px; }
 .sch-files .home { margin: 0 -14px; }
 @media (max-width: 760px) { .sch-h1 { font-size: 34px; } }
+
+/* ---------- Sidebar folder list: plain type (src/sidebar.js) ----------
+   Grey names and counts; the open folder black with a full stop; what's
+   inside a folder hangs off a thin line. Prefixed with :root and the class doubled so it wins
+   over the theme's sidebar styles (themes.css loads later). */
+.side-heading { padding: 14px 26px 8px; font-size: 11px; color: var(--ink-4); }
+/* The vault's name, "Folders" and the folder names share one left edge (26px). */
+:is(:root, :root[data-theme]) .side-vault.side-vault { padding-left: 16px; }
+:is(:root, :root[data-theme]) .side-tree.side-tree { padding: 0 14px 20px 26px; overflow-x: hidden; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row { position: relative; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row:hover:not(.is-current):not(.is-active) { background: none; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-caret { position: absolute; left: -16px; top: 50%; width: 14px; height: 20px; margin-top: -10px; color: var(--ink-4); opacity: 0; transition: opacity 0.12s; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row:hover > .side-caret, :is(:root, :root[data-theme]) .side-tree.side-tree .side-caret:focus-visible { opacity: 1; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-name { flex: 1 1 auto; height: auto; padding: 5px 0; gap: 0; font: 500 14px var(--sans); color: var(--ink-3); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-name:hover { color: var(--ink); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-count { flex: none; padding-left: 10px; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink-4); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-folder.is-current { background: none; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-folder.is-current .side-name { color: var(--ink); font-weight: 700; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-folder.is-current .side-name::after { content: '.'; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-folder.is-current .side-count { color: var(--ink-3); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-file { padding: 4px 0; font: 400 13px var(--sans); color: var(--ink-3); text-align: left; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-file:hover { color: var(--ink); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-file.is-active { background: none; color: var(--ink); font-weight: 600; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row.is-nested { padding-left: 12px; border-left: 1px solid var(--line-soft); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row.is-nested .side-caret { left: -4px; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row.is-nested .side-name { font-size: 13px; font-weight: 400; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-folder.is-nested.is-current .side-name { font-weight: 600; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-folder.is-nested.is-current .side-name::after { content: none; }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row.is-nested.is-current, :is(:root, :root[data-theme]) .side-tree.side-tree .side-file.is-nested.is-active { border-left-color: var(--ink); box-shadow: inset 0.5px 0 0 var(--ink); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row.drop-before { box-shadow: inset 0 2px 0 var(--ink); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row.drop-after { box-shadow: inset 0 -2px 0 var(--ink); }
+:is(:root, :root[data-theme]) .side-tree.side-tree .side-row.drop-into { background: rgb(var(--ink-rgb) / 0.06); outline: 0; }

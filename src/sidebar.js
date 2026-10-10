@@ -1,11 +1,14 @@
 // Sidebar: the vault's folder tree — the second way to get around.
-// Clicking a folder's name opens its home page; the arrow just expands it.
+// Plain type: grey names with their file counts; the open folder goes black
+// with a full stop, and what's inside it hangs off a thin line. Clicking a
+// folder's name opens its page (click it again to fold it away); the small
+// arrow that shows on hover just expands it.
 // Drag a page or folder onto a folder to move it in, or between rows to put
 // it in your own order. Right-click empty space to make something new.
 
 import { h, icon } from './ui.js';
-import { colorOf } from './item-colors.js';
-import { noteName, pad2 } from './format.js';
+import { noteName } from './format.js';
+import { countNotes } from './tree.js';
 
 export class Sidebar {
   constructor(container, { onOpenFile, onOpenFolder, onSwitchVault, onColorMenu, onRearrange, onCreate }) {
@@ -59,8 +62,7 @@ export class Sidebar {
       h('button', { class: 'side-switch mono-label', onclick: this.onSwitchVault }, this.vault ? 'Switch' : 'Choose…'),
     );
 
-    const folderCount = this.tree.filter((n) => n.type === 'folder').length;
-    const label = h('div', { class: 'side-label mono-label' }, h('span', null, 'Folders'), h('span', null, pad2(folderCount)));
+    const label = h('div', { class: 'side-heading' }, 'Folders');
 
     const list = h('nav', { class: 'side-tree', 'aria-label': 'Vault' });
     if (this.vault && !this.tree.length) {
@@ -93,12 +95,17 @@ export class Sidebar {
     return out;
   }
 
+  // Rows inside a folder are indented and hang off a thin line (.is-nested).
+  nestStyle(depth) {
+    return depth ? `margin-left: ${(depth - 1) * 12}px` : null;
+  }
+
   folderRow(node, depth) {
     const open = this.expanded.has(node.path);
     const current = this.active.kind === 'folder' && this.active.path === node.path;
     return this.draggable(h('div', {
-      class: `side-row side-folder${current ? ' is-current' : ''}`,
-      style: `padding-left: ${4 + depth * 14}px`,
+      class: `side-row side-folder${current ? ' is-current' : ''}${open ? ' is-open' : ''}${depth ? ' is-nested' : ''}`,
+      style: this.nestStyle(depth),
       oncontextmenu: (event) => this.onColorMenu(event, node, 'folder'),
       ondblclick: (event) => this.onColorMenu(event, node, 'folder'),
     },
@@ -111,30 +118,35 @@ export class Sidebar {
           else this.expanded.add(node.path);
           this.render();
         },
-      }, icon('chevron', 11)),
+      }, icon('chevron', 9)),
       h('button', {
         class: 'side-name',
         title: node.path,
         onclick: () => {
+          // Clicking the open folder again folds it away.
+          if (current && open) {
+            this.expanded.delete(node.path);
+            this.render();
+            return;
+          }
           this.expanded.add(node.path);
           this.onOpenFolder(node.path);
         },
-      },
-      h('span', { class: 'swatch', style: `background: ${colorOf(node)}` }),
-      node.name),
+      }, node.name),
+      h('span', { class: 'side-count', 'aria-hidden': 'true' }, String(countNotes(node))),
     ), node);
   }
 
   fileRow(node, depth) {
     const active = this.active.kind === 'file' && this.active.path === node.path;
     return this.draggable(h('button', {
-      class: `side-row side-file${active ? ' is-active' : ''}`,
-      style: `padding-left: ${26 + depth * 14}px`,
+      class: `side-row side-file${active ? ' is-active' : ''}${depth ? ' is-nested' : ''}`,
+      style: this.nestStyle(depth),
       title: node.path,
       onclick: () => this.onOpenFile(node.path),
       oncontextmenu: (event) => this.onColorMenu(event, node, 'file'),
       ondblclick: (event) => this.onColorMenu(event, node, 'file'),
-    }, h('span', { class: 'swatch swatch-dot', style: `background: ${colorOf(node)}` }), noteName(node.path)), node);
+    }, noteName(node.path)), node);
   }
 
   // ---------- Dragging to move and reorder ----------
