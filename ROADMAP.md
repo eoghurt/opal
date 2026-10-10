@@ -221,6 +221,13 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   and moderation read from a "Predicted ATAR" PDF, each subject's school mark,
   target and what it needs in the WACE, exam dates from calendar events that
   say WACE, latest results. Files is the normal folder page.
+- **New frame (design B), 2026-10-10** — mockups: https://claude.ai/artifact/GF3rRdmSKrPmaE3nBNQq1G.
+  A rail of icons on the left (home, search, the fidgets, settings); open tabs
+  down the sidebar above the folders (plain-type list, option 4a); the page on
+  a rounded sheet with back/forward, breadcrumb, word count, save status and the
+  timer along its top. Note page: one slim editing bar with an Insert menu,
+  Details in the ⋯ menu (option N2). Settings and the classic home page in the
+  fidget style.
 
 ## Fidget ideas
 Ethan's:

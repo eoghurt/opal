@@ -58,7 +58,8 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
     h('div', { class: 'home-title' },
       metaLabel,
       editableTitle({
-        name: folder.name,
+        // The vault's own page greets you, like a fidget's title.
+        name: isRoot ? greeting() : folder.name,
         canRename: !isRoot,
         onRename,
         onEnter: () => description.open(),
@@ -151,7 +152,15 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   }
 
   const scrollTop = container.scrollTop;
-  const home = h('div', { class: 'home' }, sections);
+  const home = h('div', { class: `home${isRoot ? ' is-root' : ''}` }, sections);
+  if (isRoot) {
+    // A small date line above the greeting; the counts go under it.
+    const d = new Date();
+    const day = `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]} ${d.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]}`;
+    const title = metaLabel.parentElement;
+    title.insertBefore(h('span', { class: 'home-kicker' }, `${folder.name} · ${day}`), metaLabel);
+    title.querySelector('.home-h1').after(metaLabel);
+  }
   container.replaceChildren(home);
   if (widgetSlot) mountWidgets(widgetSlot);
   if (examSlot) mountExams(examSlot);
@@ -189,6 +198,11 @@ export function renderFolderHome(container, { folder, isRoot, notice, getPreview
   }
   if (describeNow) description.open();
   return home;
+}
+
+function greeting(d = new Date()) {
+  const hr = d.getHours();
+  return hr < 5 ? 'Up late' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
 }
 
 // The big folder name, editable in place: Enter or clicking away renames,
