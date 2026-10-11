@@ -91,6 +91,9 @@ import { BookmarkList, openBookmarksPanel, isBookmarked, toggleBookmark } from '
 import { ITEM_COLORS } from './item-colors.js';
 import { showToast } from './toast.js';
 import { showConflict } from './conflict.js';
+import {
+  vault, tree, paletteName, screen, current, queue, homeStickies, calendar, calendarState, homeWidgets, homeEditing, tasksView, reviewView, moneyView, mailView, mailState, debateView, debateState, moneyState, corkboard, examPaper, schoolView, describeAfterOpen, wordTimer, backlinkTimer, tabs, activeTabId, nextTabId, movingTo, newTabAt, workspaceTimer, bookmarksData, homeLayoutForSettings, vaultSettings, settingsSection, appInfo, cardsDueTimer, cardsDueCount, setVault, setTree, setPaletteName, setScreen, setCurrent, setQueue, setHomeStickies, setCalendar, setCalendarState, setHomeWidgets, setHomeEditing, setTasksView, setReviewView, setMoneyView, setMailView, setMailState, setDebateView, setDebateState, setMoneyState, setCorkboard, setExamPaper, setSchoolView, setDescribeAfterOpen, setWordTimer, setBacklinkTimer, setTabs, setActiveTabId, setNextTabId, setMovingTo, setNewTabAt, setWorkspaceTimer, setBookmarksData, setHomeLayoutForSettings, setVaultSettings, setSettingsSection, setAppInfo, setCardsDueTimer, setCardsDueCount,
+} from './app/state.js';
 
 const viewEl = document.getElementById('view');
 
@@ -103,12 +106,10 @@ if (initialPalette) applyPalette(initialPalette);
   applyTheme({ theme: params.get('theme') || 'minimal', mode: params.get('mode') || 'light' });
 }
 
-let vault = null;
-let tree = [];
-let paletteName = initialPalette || 'Riso';
-let screen = { kind: 'welcome' }; // plus folderPath / filePath
-// The open note: { filePath, editor, noteView } or null.
-let current = null;
+
+setPaletteName(initialPalette || 'Riso');
+ // plus folderPath / filePath
+
 
 const sidebarPanel = makePanel(document.getElementById('sidebar'), { id: 'sidebar', side: 'left', label: 'Sidebar', width: 240, min: 180, max: 480, reopenTab: false, onChange: () => { try { chrome.renderTop(); } catch { /* not drawn yet */ } } });
 const sidebar = new Sidebar(sidebarPanel, {
@@ -196,12 +197,10 @@ function addItems() {
 
 // ---------- Everything happens one step at a time ----------
 
-// Opening, closing and saving run one after another, never overlapping,
-// so a fast click can't skip saving the previous note.
-let queue = Promise.resolve();
+
 function enqueue(task) {
   const run = queue.then(task);
-  queue = run.catch((err) => console.error(err));
+  setQueue(run.catch((err) => console.error(err)));
   return run;
 }
 
@@ -214,54 +213,34 @@ async function closeCurrent() {
     await window.opal.saveSnapshot(current.filePath, current.editor.getText(), 'leave').catch(() => {});
   }
   current.editor.destroy();
-  current = null;
+  setCurrent(null);
 }
 
-// Stickies on the folder home on screen: { layer, flush } or null.
-let homeStickies = null;
-// The calendar on screen (and where it was last left).
-let calendar = null;
-let calendarState = { date: new Date(), mode: 'day' };
 
-// The home page's widgets on screen, and whether they're being arranged.
-let homeWidgets = null;
-let homeEditing = false;
-
-let tasksView = null;
-let reviewView = null;
-let moneyView = null;
-let mailView = null;
-let mailState = { box: 'people', account: 'all' };
-let debateView = null;
-let debateState = null;
-let moneyState = { month: null, tab: 'overview' };
-let corkboard = null;
-let examPaper = null;
-let schoolView = null;
 const schoolTabs = new Map(); // folder path → the School page's open tab
 
 // Called whenever another screen takes over.
 function leaveCalendar() {
   if (debateView) debateView.destroy();
-  debateView = null;
+  setDebateView(null);
   if (moneyView) moneyView.destroy();
-  moneyView = null;
+  setMoneyView(null);
   if (mailView) mailView.destroy();
-  mailView = null;
+  setMailView(null);
   if (reviewView) reviewView.destroy();
-  reviewView = null;
+  setReviewView(null);
   if (tasksView && tasksView.destroy) tasksView.destroy();
-  tasksView = null;
+  setTasksView(null);
   if (calendar) calendar.destroy();
-  calendar = null;
+  setCalendar(null);
   if (homeWidgets) homeWidgets.destroy();
-  homeWidgets = null;
+  setHomeWidgets(null);
   if (corkboard) corkboard.destroy();
-  corkboard = null;
+  setCorkboard(null);
   if (examPaper) examPaper.destroy();
-  examPaper = null;
+  setExamPaper(null);
   if (schoolView) schoolView.destroy();
-  schoolView = null;
+  setSchoolView(null);
 }
 
 async function flushHomeStickies() {
@@ -284,7 +263,7 @@ function navigate(task) {
 }
 
 async function reloadTree() {
-  tree = await window.opal.listFiles();
+  setTree(await window.opal.listFiles());
   sidebar.setTree(tree);
   reminders.refresh();
   updateCardsDue();
@@ -310,7 +289,7 @@ async function renameOpenNote(filePath, newName, { describe = false } = {}) {
     // save would bring it back), then reopen the note under its new name.
     if (current && current.filePath === filePath) {
       current.editor.destroy();
-      current = null;
+      setCurrent(null);
     }
     await navigate(() => showNote(newPath));
   }
@@ -335,17 +314,16 @@ async function describeFolder(folderPath, text) {
   }
 }
 
-// Folder renamed from its own page (the big title).
-let describeAfterOpen = null; // a folder whose description should open when it's shown
+ // a folder whose description should open when it's shown
 async function renameFolderFromHome(folderPath, next, { describe = false } = {}) {
   const node = findFolder(tree, folderPath, vault.name);
   if (!node) return;
   // Renaming reopens the folder's page; this tells it to open the description.
-  describeAfterOpen = describe ? '*' : null;
+  setDescribeAfterOpen(describe ? '*' : null);
   try {
     await renameItemTo(node, 'folder', next);
   } finally {
-    describeAfterOpen = null;
+    setDescribeAfterOpen(null);
   }
 }
 
@@ -370,7 +348,7 @@ function openReminder(open) {
   if (open.kind === 'tasks') {
     showTasks();
   } else if (open.kind === 'calendar') {
-    calendarState = { ...calendarState, mode: 'day' };
+    setCalendarState({ ...calendarState, mode: 'day' });
     showCalendar(keyToDate(open.day));
   } else if (open.kind === 'mail') {
     showMail((view) => view.openMessage(open.id));
@@ -392,10 +370,10 @@ function showCrumbs(crumbs) {
 
 // ---------- Word count (status bar) ----------
 
-let wordTimer = null;
+
 function showWordCount() {
   clearTimeout(wordTimer);
-  wordTimer = setTimeout(() => {
+  setWordTimer(setTimeout(() => {
     if (!current || !current.editor.view) {
       chrome.setWords(null);
       return;
@@ -405,7 +383,7 @@ function showWordCount() {
     const selected = state.selection.ranges.reduce((n, r) => n + (r.empty ? 0 : countSelected(state.sliceDoc(r.from, r.to))), 0);
     const target = parseInt(String(getProp(text, 'word-target') || ''), 10) || null;
     chrome.setWords({ words: countWords(text), selected, target });
-  }, 120);
+  }, 120));
 }
 
 // ---------- Version history ----------
@@ -430,11 +408,10 @@ async function showHistory(filePath) {
 
 // ---------- Backlinks ----------
 
-// Fills the open note's Linked from / Unlinked mentions lists.
-let backlinkTimer = null;
+
 function loadBacklinks() {
   clearTimeout(backlinkTimer);
-  backlinkTimer = setTimeout(async () => {
+  setBacklinkTimer(setTimeout(async () => {
     const open = current;
     if (!open || !open.noteView || !open.noteView.setBacklinks) return;
     try {
@@ -443,7 +420,7 @@ function loadBacklinks() {
     } catch {
       // Leave the lists as they were.
     }
-  }, 120);
+  }, 120));
 }
 
 // ---------- Tabs, and back and forward ----------
@@ -459,13 +436,11 @@ const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'review', 'money', 'debate
 const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', review: 'Review', money: 'Money', debate: 'Debate', mail: 'Mail' };
 const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', review: 'review', money: 'money', debate: 'debate', mail: 'mail' };
 
-let tabs = []; // [{ id, pinned, pin: { emoji, color }, places: [place], at, scroll }]
-let activeTabId = null;
-let nextTabId = 1;
-// A page being drawn from a tab's history (or another tab): not a new visit.
-let movingTo = null; // { place, at }
-// A ⌘-click just asked for the next page to open in a new tab.
-let newTabAt = 0;
+ // [{ id, pinned, pin: { emoji, color }, places: [place], at, scroll }]
+
+
+ // { place, at }
+
 
 function currentPlace() {
   if (!screen) return null;
@@ -494,7 +469,7 @@ function samePlace(a, b) {
 }
 
 function makeTab(place = null, pinned = false, pin = null) {
-  return { id: nextTabId++, pinned, pin: pinned ? pin : null, places: place ? [place] : [], at: place ? 0 : -1, scroll: 0 };
+  return { id: (setNextTabId(nextTabId + 1) - 1), pinned, pin: pinned ? pin : null, places: place ? [place] : [], at: place ? 0 : -1, scroll: 0 };
 }
 
 function activeTab() {
@@ -532,17 +507,17 @@ function remember() {
   const tab = activeTab();
   const here = tabPlace(tab);
   const moving = movingTo && Date.now() - movingTo.at < 3000;
-  movingTo = null;
+  setMovingTo(null);
   if (moving) {
     // From history: if the page couldn't be shown (a deleted note), the tab shows where it ended up.
     if (tab && !samePlace(place, here)) tab.places[tab.at] = place;
   } else {
     const toNewTab = wantsNewTab() || Boolean(tab && tab.pinned && here && !samePlace(place, here));
-    newTabAt = 0;
+    setNewTabAt(0);
     if (!tab || toNewTab) {
       const fresh = makeTab(place);
       tabs.splice(tab ? tabs.indexOf(tab) + 1 : tabs.length, 0, fresh);
-      activeTabId = fresh.id;
+      setActiveTabId(fresh.id);
     } else if (!samePlace(place, here)) {
       tab.places = tab.places.slice(0, tab.at + 1);
       tab.places.push(place);
@@ -595,11 +570,11 @@ function goToPlace(place) {
   if (place.kind === 'review') return showReview();
   if (place.kind === 'mail') return showMail();
   if (place.kind === 'money') {
-    if (place.sub) moneyState = { month: place.sub.month || null, tab: place.sub.tab || 'overview' };
+    if (place.sub) setMoneyState({ month: place.sub.month || null, tab: place.sub.tab || 'overview' });
     return showMoney();
   }
   if (place.kind === 'debate') {
-    if (place.sub) debateState = { ...place.sub };
+    if (place.sub) setDebateState({ ...place.sub });
     return showDebate();
   }
   if (place.kind === 'exam-paper') return showExamPaper(place.filePath, place.sub && place.sub.paper);
@@ -608,8 +583,8 @@ function goToPlace(place) {
 
 // Shows a page without counting it as a new visit.
 async function showPlace(place) {
-  movingTo = { place, at: Date.now() };
-  newTabAt = 0;
+  setMovingTo({ place, at: Date.now() });
+  setNewTabAt(0);
   await goToPlace(place);
 }
 
@@ -634,7 +609,7 @@ viewEl.addEventListener('scroll', () => {
 async function activateTab(id) {
   const tab = tabs.find((t) => t.id === id);
   if (!tab || id === activeTabId) return;
-  activeTabId = id;
+  setActiveTabId(id);
   drawTabs();
   const scroll = tab.scroll;
   const place = tabPlace(tab);
@@ -654,7 +629,7 @@ function newTab() {
   if (!vault) return;
   const fresh = makeTab();
   tabs.push(fresh);
-  activeTabId = fresh.id;
+  setActiveTabId(fresh.id);
   drawTabs();
   openFolder('');
 }
@@ -664,8 +639,8 @@ function closeTab(id) {
   if (index === -1) return;
   if (tabs.length === 1) {
     // The last tab: a fresh one on the home page instead.
-    tabs = [makeTab()];
-    activeTabId = tabs[0].id;
+    setTabs([makeTab()]);
+    setActiveTabId(tabs[0].id);
     drawTabs();
     openFolder('');
     return;
@@ -673,7 +648,7 @@ function closeTab(id) {
   const wasActive = id === activeTabId;
   tabs.splice(index, 1);
   if (wasActive) {
-    activeTabId = null;
+    setActiveTabId(null);
     activateTab((tabs[index] || tabs[index - 1]).id);
   } else {
     drawTabs();
@@ -685,9 +660,9 @@ function closeTabs(keep) {
   const active = activeTab();
   const survivors = tabs.filter(keep);
   if (!survivors.length) return;
-  tabs = survivors;
+  setTabs(survivors);
   if (!tabs.includes(active)) {
-    activeTabId = null;
+    setActiveTabId(null);
     activateTab(tabs[0].id);
   } else {
     drawTabs();
@@ -807,7 +782,7 @@ function duplicateTab(id) {
 
 // Opens something in a new tab (the "Open in new tab" menu items).
 function inNewTab(open) {
-  newTabAt = Date.now();
+  setNewTabAt(Date.now());
   return open();
 }
 
@@ -825,24 +800,24 @@ function renamePlaces(oldPath, newPath, isFolder) {
   saveWorkspace();
 }
 
-let workspaceTimer = null;
+
 function saveWorkspace() {
   if (!vault) return;
   clearTimeout(workspaceTimer);
-  workspaceTimer = setTimeout(() => {
+  setWorkspaceTimer(setTimeout(() => {
     const data = {
       tabs: tabs.map((t) => ({ place: tabPlace(t), pinned: t.pinned || undefined, pin: t.pinned && t.pin && (t.pin.emoji || t.pin.color) ? t.pin : undefined })).filter((t) => t.place),
       active: Math.max(0, tabs.filter((t) => tabPlace(t)).indexOf(activeTab())),
     };
     window.opal.writeOpalJson('workspace.json', data).catch(() => {});
-  }, 400);
+  }, 400));
 }
 
 // The tabs saved last time (or one tab on the home page). → the page to show first.
 async function restoreTabs() {
   clearTimeout(workspaceTimer);
-  tabs = [];
-  activeTabId = null;
+  setTabs([]);
+  setActiveTabId(null);
   const saved = vault && vaultSettings.tabs.restore ? await window.opal.readOpalJson('workspace.json').catch(() => ({})) : {};
   const clean = (place) => {
     if (!place || typeof place !== 'object') return null;
@@ -872,7 +847,7 @@ async function restoreTabs() {
   }
   if (!tabs.length) tabs.push(makeTab({ kind: 'home', folderPath: '' }));
   const tab = tabs[Math.min(Math.max(0, Number(saved.active) || 0), tabs.length - 1)];
-  activeTabId = tab.id;
+  setActiveTabId(tab.id);
   drawTabs();
   return tabPlace(tab);
 }
@@ -900,7 +875,7 @@ function setTitle(text) {
 
 function showWelcome(problem) {
   leaveCalendar();
-  screen = { kind: 'welcome' };
+  setScreen({ kind: 'welcome' });
   setTitle('');
   sidebar.setActive(null, null);
   showCrumbs([{ label: 'Welcome' }]);
@@ -922,7 +897,7 @@ function showHome(folderPath, notice) {
     folder = findFolder(tree, '', vault.name);
   }
   leaveCalendar();
-  screen = { kind: 'home', folderPath };
+  setScreen({ kind: 'home', folderPath });
   setTitle(folder.name);
   sidebar.setActive('folder', folderPath);
   showCrumbs(crumbsFor(folderPath));
@@ -935,8 +910,8 @@ function showHome(folderPath, notice) {
     return;
   }
   const home = renderFolderHome(viewEl, folderHomeOptions(folder, folderPath, notice));
-  describeAfterOpen = null;
-  homeStickies = folderHomeStickies(folderPath, folder, home);
+  setDescribeAfterOpen(null);
+  setHomeStickies(folderHomeStickies(folderPath, folder, home));
   addButton.refresh();
 }
 
@@ -1049,9 +1024,9 @@ async function waceExamsFor(subjects) {
 }
 
 function showSchool(folder, folderPath) {
-  homeStickies = null;
+  setHomeStickies(null);
   const subjects = schoolSubjects(folder);
-  schoolView = new SchoolView(viewEl, {
+  setSchoolView(new SchoolView(viewEl, {
     tab: schoolTabs.get(folderPath),
     io: {
       name: folder.name,
@@ -1098,7 +1073,7 @@ function showSchool(folder, folderPath) {
       },
       onTab: (tab) => schoolTabs.set(folderPath, tab),
     },
-  });
+  }));
   addButton.refresh();
 }
 
@@ -1130,14 +1105,14 @@ function showExamPaper(trackerPath, paper) {
     const folderPath = parentOf(trackerPath);
     const folder = findFolder(tree, folderPath, vault.name);
     if (!folder || !findFile(tree, trackerPath)) return showHome(folderPath, `Can't find ${trackerPath} any more.`);
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    screen = { kind: 'exam-paper', filePath: trackerPath, paper };
+    setScreen({ kind: 'exam-paper', filePath: trackerPath, paper });
     setTitle(`${folder.name} · WACE ${paper}`);
     sidebar.setActive('folder', folderPath);
     showCrumbs([...crumbsFor(folderPath).map((c, i, all) => (i === all.length - 1 ? { ...c, onClick: () => openFolder(folderPath) } : c)), { label: `WACE ${paper}` }]);
     viewEl.scrollTop = 0;
-    examPaper = new ExamPaper(viewEl, {
+    setExamPaper(new ExamPaper(viewEl, {
       path: trackerPath,
       paper,
       folderName: folder.name,
@@ -1151,7 +1126,7 @@ function showExamPaper(trackerPath, paper) {
         if (tab && tab.at > 0 && samePlace(tab.places[tab.at - 1], { kind: 'home', folderPath })) goHistory(-1);
         else openFolder(folderPath);
       },
-    });
+    }));
   });
 }
 
@@ -1175,12 +1150,12 @@ async function addExamTracker(node) {
 // in Settings › Appearance, or right-click the frame, for the classic home.
 
 async function showCorkboard() {
-  homeStickies = null;
+  setHomeStickies(null);
   viewEl.scrollTop = 0;
   const quotes = await loadQuotes();
   if (screen.kind !== 'home' || screen.folderPath) return;
   if (corkboard) corkboard.destroy();
-  corkboard = new Corkboard(viewEl, {
+  setCorkboard(new Corkboard(viewEl, {
     openFidget: (id) => FIDGET_PAGES[id] && FIDGET_PAGES[id](),
     openFolder: (path) => openFolder(path),
     openDay: (year, month, day) => showCalendar(new Date(year, month, day)),
@@ -1229,7 +1204,7 @@ async function showCorkboard() {
         { label: 'Classic home page', hint: 'folders and widgets', onSelect: () => setHomeStyle('classic') },
       ],
     }),
-  });
+  }));
   addButton.refresh();
 }
 
@@ -1376,10 +1351,9 @@ async function loadMonthEvents(year, month) {
 //
 // In .obsidian/bookmarks.json (Obsidian's format — see bookmarks.js and main.js).
 
-let bookmarksData = { items: [] };
 
 async function loadBookmarks() {
-  bookmarksData = vault ? await window.opal.readBookmarks().catch(() => ({ items: [] })) : { items: [] };
+  setBookmarksData(vault ? await window.opal.readBookmarks().catch(() => ({ items: [] })) : { items: [] });
   bookmarksChanged();
 }
 
@@ -1408,7 +1382,7 @@ function bookmarkTarget(path, isFolder) {
 async function toggleBookmarkOf(target) {
   if (!target) return;
   // Read them again first, so a change made in Obsidian isn't overwritten.
-  bookmarksData = await window.opal.readBookmarks().catch(() => bookmarksData);
+  setBookmarksData(await window.opal.readBookmarks().catch(() => bookmarksData));
   toggleBookmark(bookmarksData, target);
   await saveBookmarks();
 }
@@ -1469,17 +1443,17 @@ async function mountHomeWidgets(slot) {
   const layout = await readHomeLayout();
   if (!slot.isConnected) return;
   if (homeWidgets) homeWidgets.destroy();
-  homeWidgets = new HomeWidgets(slot, {
+  setHomeWidgets(new HomeWidgets(slot, {
     layout,
     editing: homeEditing,
     io: {
       saveLayout: (items) => saveHomeLayout(items),
-      onEditing: (on) => { homeEditing = on; },
+      onEditing: (on) => { setHomeEditing(on); },
       files: () => flattenFiles(tree),
       openFile: (path) => openFile(path),
       openFolder: (path) => openFolder(path),
       openCalendarDay: (key) => {
-        calendarState = { ...calendarState, mode: 'day' };
+        setCalendarState({ ...calendarState, mode: 'day' });
         showCalendar(keyToDate(key));
       },
       openTasks: () => showTasks(),
@@ -1510,11 +1484,10 @@ async function mountHomeWidgets(slot) {
         if (homeWidgets) homeWidgets.reload();
       },
     },
-  });
+  }));
 }
 
-// Settings → Home page: every widget with a switch and a size.
-let homeLayoutForSettings = [];
+
 function homeSettingsSection() {
   return {
     id: 'home',
@@ -1555,7 +1528,7 @@ function homeSettingsSection() {
         ...rows,
         h('div', { class: 'set-buttons', style: 'margin-top: 18px' },
           h('button', { class: 'set-btn', onclick: () => openFolder('') }, 'Open the home page'),
-          h('button', { class: 'set-btn', onclick: () => { homeLayoutForSettings = parseLayout(null); save(); } }, 'Reset to the default widgets')),
+          h('button', { class: 'set-btn', onclick: () => { setHomeLayoutForSettings(parseLayout(null)); save(); } }, 'Reset to the default widgets')),
       ];
     },
   };
@@ -1594,7 +1567,7 @@ function folderHomeStickies(folderPath, folder, home) {
 }
 
 async function showNote(filePath) {
-  homeStickies = null;
+  setHomeStickies(null);
   leaveCalendar();
   let EditorType = await editorForFile(filePath);
   if (!EditorType) {
@@ -1617,7 +1590,7 @@ async function showNote(filePath) {
   // A flow sheet (opal-type: flow) opens as speaker columns.
   if (isFlowNote(content)) EditorType = FlowEditor;
 
-  screen = { kind: 'note', filePath };
+  setScreen({ kind: 'note', filePath });
   viewEl.scrollTop = 0;
   const noteView = new NoteView(viewEl, {
     filePath,
@@ -1721,7 +1694,7 @@ async function showNote(filePath) {
   });
   stickies.refresh();
   noteView.connectEditor(editor.view);
-  current = { filePath, editor, noteView, stickies, sync };
+  setCurrent({ filePath, editor, noteView, stickies, sync });
   addButton.refresh();
   noteView.setBookmarked(isBookmarked(bookmarksData, { type: 'file', path: filePath }));
   loadBacklinks();
@@ -1743,7 +1716,7 @@ async function showViewer(filePath, ViewerType) {
     return;
   }
 
-  screen = { kind: 'note', filePath };
+  setScreen({ kind: 'note', filePath });
   viewEl.scrollTop = 0;
   const fileView = new FileView(viewEl, {
     filePath,
@@ -1758,7 +1731,7 @@ async function showViewer(filePath, ViewerType) {
     url: fileUrl(filePath, node.modified),
     onStatus: (status) => chrome.setStatus(status),
   });
-  current = { filePath, editor: viewer, noteView: fileView, modified: node.modified };
+  setCurrent({ filePath, editor: viewer, noteView: fileView, modified: node.modified });
   fileView.setTree(tree);
 
   chrome.setStatus('Saved');
@@ -1784,18 +1757,15 @@ function openFile(filePath) {
 
 // ---------- Settings ----------
 
-// This vault's settings (.opal/settings.json), with defaults filled in.
-let vaultSettings = withDefaults({});
-let settingsSection = 'appearance';
 
 async function loadVaultSettings() {
-  vaultSettings = withDefaults(vault ? await window.opal.readOpalJson('settings.json').catch(() => ({})) : {});
+  setVaultSettings(withDefaults(vault ? await window.opal.readOpalJson('settings.json').catch(() => ({})) : {}));
   settingsChanged();
 }
 
 // Changes some of this vault's settings and saves them.
 async function saveVaultSettings(patch) {
-  vaultSettings = withDefaults({ ...vaultSettings, ...patch });
+  setVaultSettings(withDefaults({ ...vaultSettings, ...patch }));
   settingsChanged();
   try {
     await window.opal.writeOpalJson('settings.json', vaultSettings);
@@ -1812,22 +1782,22 @@ function settingsChanged() {
 
 function showSettings(section) {
   if (!vault) return Promise.resolve();
-  if (section) settingsSection = section;
+  if (section) setSettingsSection(section);
   return navigate(async () => {
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    screen = { kind: 'settings' };
+    setScreen({ kind: 'settings' });
     setTitle('Settings');
     sidebar.setActive(null, null);
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Settings' }]);
     viewEl.scrollTop = 0;
-    appInfo = appInfo || await window.opal.appInfo().catch(() => null);
-    homeLayoutForSettings = parseLayout(await readHomeLayout());
+    setAppInfo(appInfo || await window.opal.appInfo().catch(() => null));
+    setHomeLayoutForSettings(parseLayout(await readHomeLayout()));
     drawSettings();
   });
 }
 
-let appInfo = null;
+
 function drawSettings() {
   if (screen.kind !== 'settings') return;
   const scrollTop = viewEl.scrollTop;
@@ -1840,7 +1810,7 @@ function drawSettings() {
     extraSections: [homeSettingsSection()],
     io: {
       setSection: (id) => {
-        settingsSection = id;
+        setSettingsSection(id);
         viewEl.scrollTop = 0;
         drawSettings();
       },
@@ -1853,7 +1823,7 @@ function drawSettings() {
         drawSettings();
       },
       setPalette: async (name) => {
-        paletteName = await window.opal.setPalette(name);
+        setPaletteName(await window.opal.setPalette(name));
         applyPalette(paletteName);
         drawSettings();
       },
@@ -1933,15 +1903,15 @@ async function undoCalendar(redo = false) {
 function showCalendar(date) {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    if (date) calendarState = { ...calendarState, date };
-    screen = { kind: 'calendar' };
+    if (date) setCalendarState({ ...calendarState, date });
+    setScreen({ kind: 'calendar' });
     setTitle('Calendar');
     sidebar.setActive(null, null);
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Calendar' }]);
     viewEl.scrollTop = 0;
-    calendar = new CalendarView(viewEl, {
+    setCalendar(new CalendarView(viewEl, {
       openMailReply,
       date: calendarState.date,
       mode: calendarState.mode,
@@ -2014,8 +1984,8 @@ function showCalendar(date) {
       openTasks: () => showTasks(),
       recordStep: recordCalendarStep,
       undo: undoCalendar,
-      onChange: (state) => { calendarState = state; },
-    });
+      onChange: (state) => { setCalendarState(state); },
+    }));
     calendar.setCardsDue(cardsDueCount);
   });
 }
@@ -2067,14 +2037,14 @@ async function toggleTaskDone(task) {
 function showTasks() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    screen = { kind: 'tasks' };
+    setScreen({ kind: 'tasks' });
     setTitle('Tasks');
     sidebar.setActive(null, null);
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Tasks' }]);
     viewEl.scrollTop = 0;
-    tasksView = new TasksView(viewEl, {
+    setTasksView(new TasksView(viewEl, {
       // "My Tasks" first, like Google Tasks; the rest alphabetically.
       listNames: () => taskListNodes().map((n) => n.name.slice(0, -3)).sort((a, b) => (b === 'My Tasks') - (a === 'My Tasks') || a.localeCompare(b)),
       readList: readTaskList,
@@ -2088,7 +2058,7 @@ function showTasks() {
         await reloadTree();
       },
       openMailReply,
-    });
+    }));
   });
 }
 
@@ -2134,9 +2104,9 @@ function debateFolder() {
 function showDebate() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    screen = { kind: 'debate' };
+    setScreen({ kind: 'debate' });
     setTitle('Debate');
     sidebar.setActive(null, null);
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Debate' }]);
@@ -2162,7 +2132,7 @@ function showDebate() {
         if (!findFolder(tree, sub, vault.name)) await window.opal.createFolder(parts[i - 1], parts.slice(0, i - 1).join('/'));
       }
     };
-    debateView = new DebateView(viewEl, {
+    setDebateView(new DebateView(viewEl, {
       page: debateState,
       io: {
         folder: folderPath,
@@ -2198,11 +2168,11 @@ function showDebate() {
         startPrep: (minutes) => prepTimer.start(minutes),
         // The page reports { page: { page, path, … } }.
         onChange: (state) => {
-          debateState = state && state.page && typeof state.page === 'object' ? state.page : state;
+          setDebateState(state && state.page && typeof state.page === 'object' ? state.page : state);
           remember();
         },
       },
-    });
+    }));
   });
 }
 
@@ -2226,14 +2196,14 @@ function homeFidgets() {
 function showMoney() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    screen = { kind: 'money' };
+    setScreen({ kind: 'money' });
     setTitle('Money');
     sidebar.setActive(null, null);
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Money' }]);
     viewEl.scrollTop = 0;
-    moneyView = new MoneyView(viewEl, {
+    setMoneyView(new MoneyView(viewEl, {
       month: moneyState.month,
       tab: moneyState.tab,
       io: {
@@ -2249,11 +2219,11 @@ function showMoney() {
           await reloadTree();
         },
         onChange: (state) => {
-          moneyState = state;
+          setMoneyState(state);
           remember();
         },
       },
-    });
+    }));
   });
 }
 
@@ -2266,14 +2236,14 @@ function showMail(then) {
     return Promise.resolve();
   }
   return navigate(async () => {
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    screen = { kind: 'mail' };
+    setScreen({ kind: 'mail' });
     setTitle('Mail');
     sidebar.setActive(null, null);
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Mail' }]);
     viewEl.scrollTop = 0;
-    mailView = new MailView(viewEl, {
+    setMailView(new MailView(viewEl, {
       box: mailState.box,
       account: mailState.account,
       io: {
@@ -2283,12 +2253,12 @@ function showMail(then) {
           openFile(path);
         },
         openWeb: (url) => window.opal.openWebLink(url).catch(() => {}),
-        onChange: (state) => { mailState = state; },
+        onChange: (state) => { setMailState(state); },
         vaultFiles: () => flattenFiles(tree).map((f) => ({ path: f.path, name: f.name })),
         addReplyTask: (message, day) => addReplyTask(message, day),
         onSent: (result) => { if (result && result.inReplyTo) tickReplyTasks(result.inReplyTo).catch(() => {}); },
       },
-    });
+    }));
     if (then) mailView.whenReady(() => then(mailView));
   });
 }
@@ -2345,14 +2315,14 @@ window.opal.mail.onChanged(() => { if (mailView) mailView.refreshList().catch(()
 function showReview() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
-    homeStickies = null;
+    setHomeStickies(null);
     leaveCalendar();
-    screen = { kind: 'review' };
+    setScreen({ kind: 'review' });
     setTitle('Review');
     sidebar.setActive(null, null);
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Review' }]);
     viewEl.scrollTop = 0;
-    reviewView = new ReviewView(viewEl, {
+    setReviewView(new ReviewView(viewEl, {
       io: {
         listCards: () => window.opal.listCards(),
         reviewCard: (path, line, raw, schedule) => window.opal.reviewCard(path, line, raw, schedule),
@@ -2361,27 +2331,25 @@ function showReview() {
         settings: () => vaultSettings.flashcards || null,
         saveSettings: (flashcards) => saveVaultSettings({ flashcards }),
       },
-    });
+    }));
   });
 }
 
-// How many cards are due today: on Review and the calendar's today.
-let cardsDueTimer = null;
-let cardsDueCount = 0;
+
 function updateCardsDue() {
   clearTimeout(cardsDueTimer);
-  cardsDueTimer = setTimeout(async () => {
+  setCardsDueTimer(setTimeout(async () => {
     if (!vault) return;
     try {
       // Cards in hidden decks (Review › Edit decks) don't count.
       const hidden = new Set(((vaultSettings.flashcards || {}).hidden) || []);
-      cardsDueCount = countDue((await window.opal.listCards()).filter((c) => c.decks.some((d) => !hidden.has(d))));
+      setCardsDueCount(countDue((await window.opal.listCards()).filter((c) => c.decks.some((d) => !hidden.has(d)))));
     } catch {
       return;
     }
     chrome.setCardsDue(cardsDueCount);
     if (calendar) calendar.setCardsDue(cardsDueCount);
-  }, 400);
+  }, 400));
 }
 
 // ---------- Folder & page colours ----------
@@ -2684,7 +2652,7 @@ async function rearrange(item, target, zone) {
       renamePlaces(item.path, newPath, kind === 'folder');
       if (reopen) {
         current.editor.destroy();
-        current = null;
+        setCurrent(null);
         await reloadTree();
         await navigate(() => showNote(`${newPath}${reopen.slice(item.path.length)}`));
       } else if (kind === 'folder' && screen.kind === 'home' && (screen.folderPath === item.path || screen.folderPath.startsWith(`${item.path}/`))) {
@@ -2734,7 +2702,7 @@ async function renameItemTo(node, kind, next) {
     renamePlaces(node.path, newPath, isFolder);
     if (reopen) {
       current.editor.destroy();
-      current = null;
+      setCurrent(null);
       await reloadTree();
       await navigate(() => showNote(`${newPath}${reopen.slice(node.path.length)}`));
       return newPath;
@@ -2992,7 +2960,7 @@ function refreshFiles() {
       if (!current.editor.isDirty && !findFile(tree, current.filePath)) {
         const gone = current.filePath;
         current.editor.destroy();
-        current = null;
+        setCurrent(null);
         showHome(parentOf(gone), `“${gone}” was moved or deleted outside Opal.`);
       } else {
         current.noteView.setTree(tree);
@@ -3048,9 +3016,9 @@ function vaultWentMissing() {
   if (current && current.editor.isDirty) return; // keep typing; its save will say if it fails
   if (current) {
     current.editor.destroy();
-    current = null;
+    setCurrent(null);
   }
-  tree = [];
+  setTree([]);
   sidebar.setTree([]);
   showWelcome(`Can't find your vault folder “${vault.name}” any more — it may have been moved, renamed or deleted. Choose it again (or another folder).`);
 }
@@ -3061,14 +3029,14 @@ function loadVault(newVault) {
     // Main already saved and closed the note before switching; this is a safety net.
     if (current) {
       current.editor.destroy();
-      current = null;
+      setCurrent(null);
     }
-    vault = newVault;
-    tree = [];
+    setVault(newVault);
+    setTree([]);
     sidebar.setVault(vault);
       if (!vault) {
-      tabs = [];
-      activeTabId = null;
+      setTabs([]);
+      setActiveTabId(null);
       drawTabs();
       showWelcome();
       return;
@@ -3097,7 +3065,7 @@ window.opal.onFlushRequest(({ closeEditor }) =>
     await flushHomeStickies();
     if (closeEditor) {
       await closeCurrent();
-      screen = { kind: 'welcome' };
+      setScreen({ kind: 'welcome' });
       viewEl.replaceChildren(h('div', { class: 'welcome' }, h('p', { class: 'hand welcome-hint' }, 'switching vault…')));
     } else if (current) {
       await current.editor.flush();
@@ -3116,7 +3084,7 @@ window.opal.onTab((action) => {
 // ⌘-click opens in a new tab; any other click clears that.
 document.addEventListener('mousedown', (event) => {
   if (event.button !== 0) return;
-  newTabAt = event.metaKey && !event.target.closest('#tabbar, #topbar .bar-history') ? Date.now() : 0;
+  setNewTabAt(event.metaKey && !event.target.closest('#tabbar, #topbar .bar-history') ? Date.now() : 0);
 }, true);
 // Middle-click on a note or folder in the sidebar: a new tab too.
 document.addEventListener('auxclick', (event) => {
@@ -3124,7 +3092,7 @@ document.addEventListener('auxclick', (event) => {
   const item = event.target.closest('#sidebar .side-file, #sidebar .side-name');
   if (!item) return;
   event.preventDefault();
-  newTabAt = Date.now();
+  setNewTabAt(Date.now());
   item.click();
 }, true);
 // Tab keys: ⌃Tab / ⌃⇧Tab next / previous, ⌘1…⌘8 that tab, ⌘9 the last.
@@ -3168,7 +3136,7 @@ window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);
 
 window.opal.getPalette().then((name) => {
-  paletteName = name;
+  setPaletteName(name);
   applyPalette(name);
 });
 window.opal.getVault().then(loadVault);
