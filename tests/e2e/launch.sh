@@ -1,7 +1,9 @@
 #!/bin/zsh
 # Builds Opal and starts a test copy on the test vault, with debugging ports open.
-source /Users/ethan/opal/tests/e2e/lib.sh
-cd /Users/ethan/opal && npm run build >/dev/null 2>&1
+source ${0:A:h}/lib.sh
+# run-all.sh builds once up front and sets OPAL_SKIP_BUILD, so each check starts faster.
+[[ -z $OPAL_SKIP_BUILD ]] && (cd "$R" && npm run build >/dev/null 2>&1)
+cd "$R"
 OPAL_USER_DATA=$S/userdata OPAL_MAIL_FIXTURE=$S/mail-fixture ELECTRON_ENABLE_LOGGING=1 npx electron . --inspect=9334 --remote-debugging-port=9333 > $S/app.log 2>&1 &
 echo $! > $S/app.pid
 sleep 6

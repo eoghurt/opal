@@ -1,5 +1,6 @@
 # Shared by the end-to-end checks. Sourced by quick.sh / fresh.sh.
-E=/Users/ethan/opal/tests/e2e          # these tools
+E=${${(%):-%x}:A:h}                    # these tools (found from this file's own location)
+R=${E:h:h}                             # the repo
 S=$E/.run                              # scratch: test vault, app data, exports
 V=$S/test-vault                        # the vault the test copy opens
 mkdir -p "$S"

@@ -1,4 +1,7 @@
 # ---- School page: a folder whose subjects have exam trackers opens as the School overview ----
+# Needs the real "Predicted ATAR" PDF from your own vault (not kept in the repo).
+P=${OPAL_PRIVATE_VAULT:-$HOME/Desktop/vaults/v3}
+if [[ ! -f "$P/School/Predicted ATAR.pdf" ]]; then echo "SKIP  v46 (needs School/Predicted ATAR.pdf in $P)"; return 0; fi
 C "window.__errs=[]; addEventListener(\"error\",e=>window.__errs.push(e.message)); addEventListener(\"unhandledrejection\",e=>window.__errs.push(String(e.reason))); 1" >/dev/null
 mkdir -p "$V/School/Methods"
 printf -- '---\nopal-type: exam-tracker\ncourse: methods\ntarget: 75\nmoderated: 58\n---\n# Methods exam tracker\n\n## School results\n\n| Assessment | Weight | Mark |\n| --- | --- | --- |\n| Test 1 | 4 | 56 |\n| Test 2 | 12 | 42 |\n| Test 4 | 12 | 57.7 |\n' > "$V/School/Methods/Exam tracker.md"
@@ -6,7 +9,7 @@ printf -- '---\nopal-type: exam-tracker\ncourse: economics\ntarget: 80\nmoderate
 D1=$(date -v+5d +%Y-%m-%d); D2=$(date -v+9d +%Y-%m-%d)
 printf -- '# Exam\n## Schedule\n- 09:00–12:00 Methods WACE\n' > "$V/Calendar/$D1.md"
 printf -- '# Exam\n## Schedule\n- 14:00–17:00 History WACE\n' > "$V/Calendar/$D2.md"
-cp "/Users/ethan/Desktop/vaults/v3/School/Predicted ATAR.pdf" "$V/School/"
+cp "$P/School/Predicted ATAR.pdf" "$V/School/"
 sleep 2
 C "document.querySelector('.wordmark').click(); 1" >/dev/null; sleep 1.5
 C "[...document.querySelectorAll('.cork-key')].find(k=>k.textContent.includes('School')).click(); 1" >/dev/null; sleep 3

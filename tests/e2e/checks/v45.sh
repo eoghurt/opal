@@ -1,6 +1,8 @@
 # ---- Exam tracker: a subject folder's tracker, reading a WACE paper's PDF, marking it, saving to the note ----
 C "window.__errs=[]; addEventListener(\"error\",e=>window.__errs.push(e.message)); addEventListener(\"unhandledrejection\",e=>window.__errs.push(String(e.reason))); 1" >/dev/null
-W=/Users/ethan/Desktop/vaults/v3/School/Methods/Past\ Assessments/WACE
+# Needs two real WACE papers from your own vault (not kept in the repo).
+W="${OPAL_PRIVATE_VAULT:-$HOME/Desktop/vaults/v3}/School/Methods/Past Assessments/WACE"
+if [[ ! -f "$W/2025 WACE S1.pdf" ]]; then echo "SKIP  v45 (needs the 2025 WACE Methods papers in $W)"; return 0; fi
 mkdir -p "$V/School/Methods/WACE"; cp "$W/2025 WACE S1.pdf" "$W/2025 WACE S2.pdf" "$V/School/Methods/WACE/"
 printf -- '---\nopal-type: exam-tracker\ncourse: methods\ntarget: 70\nmoderated: 58\n---\n# Methods exam tracker\n\n## School results\n\n| Assessment | Weight | Mark |\n| --- | --- | --- |\n| Test 1 | 4 | 56 |\n| Test 2 | 12 | 42 |\n| Investigation 1 | 10 | 68 |\n| Exam 1 | 16 | 58 |\n\n## Question types\n\n| Paper | Q | Type |\n| --- | --- | --- |\n| 2025 | 14 | Trig functions |\n| 2025 | 9 | Exponentials & logarithms |\n' > "$V/School/Methods/Exam tracker.md"
 sleep 2
