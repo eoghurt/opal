@@ -60,31 +60,31 @@ their own Mac app with one click. File types live in file-types.json.
 - **Search** — ⌘O jumps to any page, folder or file by name; ⌘⇧F searches inside
   every note and opens the note with the match selected. Also a Search button in the top bar.
 
-## v0.9 — Tables, sleeker calendar, Inbox (done)
+## v0.9 — Tables, sleeker calendar (done)
 - **Tables** — Word-style tables inside notes, saved as HTML `<table>` (shows in
   Obsidian too): merge/split, resize columns and rows, cell colours, alignment,
   borders, margins, header row. `+ Table` in a note, or ⌘⌥T.
 - **Calendar** — Apple Calendar look: tinted events, red today circle and now-line.
-- **Inbox** — ⌘⇧I: quick capture into `Inbox.md`, then → task or → note; overdue,
-  today, next 7 days, undated tasks, and loose checklist items from any note.
+- **Inbox** — built here (quick capture into `Inbox.md`, overdue and upcoming
+  tasks, loose checklist items), switched off later and deleted in the v0.16
+  clean-up. `Inbox.md` notes are left alone.
 
 ## v0.10 — Themes and editing (done)
 - **Ribbon** — a Word-style editing bar at the top of every note (styles, text
-  colour, lists, indent, insert link/table/sticky/date, find); the pop-up bar
-  over selected text keeps just the basics.
+  colour, lists, indent, insert link/table/sticky/date, find). Since v0.12 it is
+  one slim bar of line icons; the pop-up bar over selected text is gone (the
+  shortcuts still work).
 - **Create pop-up** — new notes and folders from a pop-up like the calendar's
   (name, note/folder, where, colour); right-click or double-click empty space.
 - **Links follow renames** — renaming or moving a note, file or folder updates
   every link to it across the vault. Links show as plain coloured text.
-- **Themes** — Scrapbook (the original), Minimal and GitHub, picked on the
-  Theme & palettes screen. Minimal and GitHub come in Light, Dark or Match Mac.
-- **Minimal** — quiet paper, pill buttons, frosted folders, and a calendar of
-  solid colour blocks with bold titles.
-- **GitHub** — tabs, a file-tree sidebar, notes in a README box, folders as a
-  file list, lists as project columns, green activity squares in the Logbook.
-- **Font sets** — Scrapbook: SF Pro, Instrument Serif, Caveat, JetBrains Mono.
-  Minimal: Geist, Geist Mono, Nanum Pen Script. GitHub: Mona Sans, Helvetica /
-  Arial, Monaspace Neon. All bundled, nothing loaded from the web.
+- **Theme** — Minimal: quiet paper, pill buttons and a calendar of solid colour
+  blocks with bold titles, in Light, Dark or Match Mac (Settings › Appearance),
+  coloured by one of the palettes. (Scrapbook and GitHub themes were built here
+  and retired in v0.12.)
+- **Fonts** — Geist and Geist Mono for the app, Inter for notes (since v0.12),
+  Nanum Pen Script and Caveat for handwriting. All bundled, nothing loaded from
+  the web.
 - **Descriptions** — a line under a note's or folder's title, edited in place
   (Enter after the name opens it), saved as the `description` property.
 - **Hidden folder settings** — a folder's colour, order, description and page
@@ -108,7 +108,11 @@ their own Mac app with one click. File types live in file-types.json.
 - **Dark mode fixes** — tables, search results, highlights, stickies and the
   find bar all read properly; search skips sticky data and reads table text.
 
-## Study, writing and debate tools (done)
+## v0.12 — Study tools, home, fidgets and the new frame (done)
+Everything built between v0.11 and Mail, numbered afterwards (tagged on the
+last commit before Mail).
+
+### Study, writing and debate tools
 Everything lives in the notes, in properties, in `.opal.md` folder settings or
 in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Backlinks** — "Linked from" and "Unlinked mentions" under each note, with a
@@ -139,7 +143,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Flow sheets** — `opal-type: flow` notes as speaker columns (Australs 3v3,
   World Schools, BP or your own), Tab between columns, export as a Word table.
 
-## Home, tabs and settings (done)
+### Home, tabs and settings
 - **Home page widgets** — the vault's home page has a clock, Today (events and
   tasks due, tick them off there), Flashcards, the Timer, Recent pages, Writing,
   and the Logbook's Numbers, Activity, Where you worked and Busiest days.
@@ -151,17 +155,19 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   start from .opal/workspace.json. Resting on a tab shows where it is, with
   each folder on the way as a link; pinned tabs are small, with an emoji and
   a colour you pick when pinning.
-- **One-row top bar** — logo (as wide as the sidebar), back/forward, tabs, then
-  icons (Tabler Icons) for Search, Calendar, Tasks, Review, the Timer and
-  Settings. No Recent strip at the bottom.
-- **Settings** — Appearance (theme, palette), Home page, Timer, Tabs, Vault,
-  Shortcuts, About (⌘,). Vault settings live in .opal/settings.json.
+- **The frame** — since v0.12 (design B): a rail of icons on the left (home,
+  search, the fidgets, settings), the open tabs listed down the sidebar above
+  Bookmarks and Folders, and the page on a rounded sheet whose top row holds
+  back/forward, the path, word count, save status and the timer.
+- **Settings** — Appearance (light/dark, palette, home page), Tabs, Vault,
+  Shortcuts, About, and Widgets & Fidgets (Mail, Timer) (⌘,). Vault settings
+  live in .opal/settings.json.
 - **Pomodoro** — focus / short break / long break, lengths in Settings; focus
   parts are saved with the timer sessions.
 - **Flow sheets are templates** — apply one (or any vault template) to a note
   from its Template button; Normal note turns it back.
 
-## Later list, round one (done)
+### Later list, round one
 - **Checkboxes** — `- [ ]` items in notes show a real box; clicking it writes
   [x] / [ ] into the note; ticked items are crossed out.
 - **Heatmaps from notes** — ```tracker blocks (Obsidian's Tracker plugin
@@ -171,20 +177,21 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **The + button** — bottom right; Note, Folder and Sticky note.
 - **Tab double-click** — Show in Finder, Copy path, Copy vault path.
 - **Bookmarks** — in .obsidian/bookmarks.json (Obsidian's format), with
-  sections; top bar icon, note button, menus, home widget; follow renames.
+  sections; in the sidebar (since v0.12), the note's ⋯ menu, right-click menus
+  and a home widget; they follow renames.
 - **Skipping in audio and video** — click the sides for 5 s, twice for 10;
   ← / →.
 - **Plain exports** — PDF and Word for any note: Arial 11pt, black on white,
   A4, 2.54 cm margins. Manuscripts and flow sheets use the same style.
 - **Fixed** — a task dragged between lists could get stuck on screen.
 
-## Widgets and fidgets (done)
+### Widgets and fidgets
 - **Two kinds of "fun" features**, each in its own folder in the code:
   - **Widgets** (`src/widgets/`) are small things inside a page that do one
     job: heatmaps, tables, the home page widgets, sticky notes, the timer.
   - **Fidgets** (`src/fidgets/`) are heavier and take a whole page: calendar,
-    tasks, inbox, flashcard review, flow sheets, folder databases,
-    manuscripts.
+    tasks, mail, money, debate, flashcard review, flow sheets, folder
+    databases, manuscripts, the exam tracker.
   - Each folder has an `index.js` listing what's in it. Settings has a
     Widgets & Fidgets group: an overview of every one, then their settings
     (Home page, Timer).
@@ -193,7 +200,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   ⌘Z undo, ⇧⌘Z redo; titles edited in place; switch an event to a task and
   back; popovers stay on screen; a Tasks switch hides tasks.
 
-## Money, and a tidier look (done)
+### Money, and a tidier look
 - **Money** fidget (design A): a month at a glance — net worth, spending
   against the budget, saving goals, income, recent entries; Budget, Saving,
   Income and History pages; quick add ("Lunch 12.50 food"); edit and delete.
@@ -202,11 +209,12 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   format). Move money between categories for one month; carry leftovers over;
   goals are Assets:Savings accounts. Investing left out for now. ⌘⇧M.
 - **Home page** — fidget tiles first (Money, Calendar, Tasks, Review), then
-  the folders, then the widgets, then loose notes.
+  the folders, then the widgets, then loose notes. (Now the classic home; the
+  corkboard is the default since v0.12.)
 - **Themes** — Minimal only, light or dark (Scrapbook and GitHub retired).
 - **Dark mode** — scrollbars and built-in controls are dark too.
 
-## Corkboard home and exam tracker (done)
+### Corkboard home and exam tracker
 - **Corkboard home** — the vault's home page as a pinboard: hand-drawn month
   calendar, passport stamps that open the fidgets, today's tasks on a receipt
   with a tear-off to-do stub (Tasks/Quick list.md), quote card, folders as
@@ -235,7 +243,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   Practise anyway runs a deck without changing dates. Bookmarks are back, in the
   sidebar.
 
-## v0.12 — Mail, reading (done)
+## v0.13 — Mail, reading (done)
 - **Mail** fidget (design A, mockups: https://claude.ai/artifact/2x3wcG523GX9Z4pec2CkGw):
   Gmail accounts over IMAP (ImapFlow, XOAUTH2), parsed with mailparser, all in
   the main process (`mail/`, `mail:*` channels). Rail: People (Gmail's Primary),
@@ -255,8 +263,8 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Safe reading** — email HTML goes through viewers/sanitize.js; cid: pictures
   become data: URLs, pictures from the web stay blocked, links open in the browser.
 
-## v0.13 — Mail, writing (done)
-- **Writing** (design A, same mockups as 0.12): + Write, Reply, Reply all and
+## v0.14 — Mail, writing (done)
+- **Writing** (design A, same mockups as 0.13): + Write, Reply, Reply all and
   Forward open a writing card in the reader's place — To / Cc / Bcc as address
   bubbles, Subject, the body in Opal's markdown editor (sent as plain text and
   as HTML made from it), the original folded underneath, attachments from the
@@ -281,7 +289,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   Settings › Widgets & Fidgets › Mail turns the notifications off.
 - Tests send only to Nodemailer's stream transport (OPAL_MAIL_FIXTURE), check v51.
 
-## v0.14 — Mail, Outlook accounts (done)
+## v0.15 — Mail, Outlook accounts (done)
 - **Outlook.com, Hotmail and Live** accounts beside Gmail (personal Microsoft
   accounts only; school and work Microsoft accounts are left out), through
   Microsoft Graph (mail/microsoft.js): sign-in with PKCE in the browser to a
@@ -298,8 +306,34 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **+ Add an account** asks Google or Microsoft; the writing card has a **From**
   picker (a reply starts on the account the email came to). "To reply" tasks for
   Outlook emails link to Outlook on the web.
-- Mockups: the 0.14 row on https://claude.ai/artifact/2x3wcG523GX9Z4pec2CkGw.
+- Mockups: the "0.14 · Outlook" row (now v0.15) on https://claude.ai/artifact/2x3wcG523GX9Z4pec2CkGw.
   Check v52 runs against a pretend Graph server (tests/e2e/fake-graph.mjs).
+
+## v0.16 — Clean-up (done)
+- **Versions** — the sections after v0.11 numbered (v0.12 for everything up to
+  the new frame, Mail as v0.13–v0.15) and tagged on the matching commits; this
+  file brought up to date with the app (one theme, the frame, the Inbox gone).
+- **Inbox deleted** — switched off since v0.12; its screen, rail button, menu
+  item and code are gone (Inbox.md notes are left alone).
+- **Outside edits** — if another app changes a note while it has unsaved typing
+  in Opal, the other app's version goes into the note's version history before
+  Opal's save replaces it, and a notice offers Compare (side by side), Keep
+  mine, Keep theirs, or Merge (both sets of changes, line by line; lines both
+  changed are kept and marked <<<<<<< Opal / >>>>>>> Other app).
+- **Errors** — a short message at the bottom of the window when a save, rename,
+  move or link update fails; every error is written to opal.log in Opal's
+  settings folder (opal.old.log after 1 MB); uncaught exceptions and unhandled
+  rejections in the main process are caught and logged instead of lost.
+- **Tests** — `npm test`: unit tests in plain Node for the code that reads and
+  writes vault files (ledger, tasks, repeats, flashcard schedule, front matter
+  and properties, stickies, relink, merge), then every e2e check on a fresh demo
+  vault. The e2e scripts find the repo from their own location.
+- **renderer.js split** — into src/app/state.js (the shared state, with
+  setters), navigation.js (the save-first step queue, tabs, back/forward),
+  screens.js (School, homes, Settings, the fidgets) and shortcuts.js (keys,
+  mouse buttons, menu commands), with no change in behaviour.
+- **One menu** — a tab's right-click menu has the same items and colours as the
+  sidebar's (plus Pin, Duplicate and Close), without explanations under them.
 
 ## Fidget ideas
 Ethan's:
