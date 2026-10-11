@@ -2,9 +2,9 @@
 for i in $(seq -w 1 40); do mkdir -p "$V/Zfolder $i"; echo "# Note $i" > "$V/Zfolder $i/Note $i.md"; done; sleep 2.5
 openfile "Welcome"; sleep 1
 alpha(){ C "(()=>{const c=getComputedStyle(document.querySelector('$1')).backgroundColor; if(c==='transparent') return 0; const a=c.match(/\\/\\s*([\\d.]+)\\s*\\)$/) || c.match(/^rgba\\([^,]+,[^,]+,[^,]+,\\s*([\\d.]+)\\)$/); return a?Number(a[1]):1})()"; }   # 1 = solid (rgb(), rgba() or color(srgb …))
-ok "light: the bar and its keys are solid" '[[ $(alpha ".note-view .ribbon") == 1 && $(alpha ".note-view .ribbon .rb-btn") == 1 ]]'
+ok "light: the bar is solid, its tools plain (no boxes)" '[[ $(alpha ".note-view .ribbon") == 1 && $(alpha ".note-view .ribbon .rb-btn:not(.is-on)") == 0 ]]'
 C "document.documentElement.dataset.mode='dark'; 1" >/dev/null; sleep 0.3
-ok "dark: the bar and its keys are solid too" '[[ $(alpha ".note-view .ribbon") == 1 && $(alpha ".note-view .ribbon .rb-btn") == 1 ]]'
+ok "dark: the bar is solid too" '[[ $(alpha ".note-view .ribbon") == 1 && $(alpha ".note-view .ribbon .rb-btn:not(.is-on)") == 0 ]]'
 C "document.documentElement.dataset.mode='light'; 1" >/dev/null
 C "const t=document.querySelector('#sidebar .side-tree:not(.side-bookmarks)'); t.scrollTop=t.scrollHeight; 1" >/dev/null; sleep 0.3
 before=$(C "document.querySelector('#sidebar .side-tree:not(.side-bookmarks)').scrollTop")

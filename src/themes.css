@@ -1254,21 +1254,16 @@ body, :root[data-theme] body { background: var(--frame); }
 :root[data-mode="dark"] .note-view .ribbon { background: rgb(255 255 255 / 0.06); }
 :is(:root, :root[data-theme]) .note-view .ribbon .rb-style { min-width: 150px; }
 
-/* The note's editing bar: a solid panel (nothing shows through it when the
-   page scrolls under), each tool a solid key. */
+/* The note's editing bar: a solid panel, so nothing shows through it when the
+   page scrolls under. The tools are plain icons on it (no boxes). */
 :is(:root, :root[data-theme]) .note-view .ribbon,
 :root[data-mode="dark"] .note-view .ribbon {
   background: color-mix(in srgb, var(--ink, #16140F) 7%, var(--paper-2, #FFFFFF));
   box-shadow: 0 0 0 1px rgb(var(--ink-rgb) / 0.06), 0 6px 18px rgb(var(--ink-rgb) / 0.10);
 }
-:is(:root, :root[data-theme]) .note-view .ribbon .rb-btn {
-  background: var(--paper-2, #FFFFFF);
-  box-shadow: 0 0 0 1px rgb(var(--ink-rgb) / 0.07), 0 1px 1px rgb(var(--ink-rgb) / 0.05);
-}
-:is(:root, :root[data-theme]) .note-view .ribbon .rb-btn:hover { background: color-mix(in srgb, var(--ink, #16140F) 5%, var(--paper-2, #FFFFFF)); }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-btn { background: transparent; box-shadow: none; }
+:is(:root, :root[data-theme]) .note-view .ribbon .rb-btn:hover { background: rgb(var(--ink-rgb) / 0.07); }
 :is(:root, :root[data-theme]) .note-view .ribbon .rb-btn.is-on {
-  background: color-mix(in srgb, var(--accent, #3B2CF5) 16%, var(--paper-2, #FFFFFF)); color: var(--accent, #3B2CF5);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3B2CF5) 35%, transparent);
+  background: color-mix(in srgb, var(--accent, #3B2CF5) 16%, transparent); color: var(--accent, #3B2CF5); box-shadow: none;
 }
 :root[data-mode="dark"] .note-view .ribbon .rb-btn.is-on { color: color-mix(in srgb, var(--accent, #3B2CF5) 45%, #FFFFFF); }
-:is(:root, :root[data-theme]) .note-view .ribbon .rb-split .rb-btn.rb-more { box-shadow: none; background: transparent; }
