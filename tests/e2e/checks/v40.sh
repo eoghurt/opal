@@ -1,6 +1,7 @@
 # ---- 30 calendar colours; tasks outlined (events filled) ----
 C --key Escape >/dev/null
-T=$(date +%Y-%m-%d); T1=$(date -v+1d +%Y-%m-%d)
+# T1: another day in this week (tomorrow, or yesterday on a Sunday — weeks run Monday to Sunday).
+T=$(date +%Y-%m-%d); if [[ $(date +%u) == 7 ]]; then T1=$(date -v-1d +%Y-%m-%d); else T1=$(date -v+1d +%Y-%m-%d); fi
 printf -- '- [ ] Essay draft #color/amber 📅 %s ⏰ 09:00–13:00\n- [x] Revise Chem #color/banana 📅 %s ⏰ 09:30–12:00 ✅ %s\n' $T $T1 $T1 >> "$V/Tasks/My Tasks.md"
 f="$V/Calendar/$T1.md"; [ -f "$f" ] || printf -- "# $T1\n\n" > "$f"; printf -- "- 13:00–15:00 Study group #color/blueberry\n" >> "$f"; sleep 2
 fidget Calendar; C "document.querySelector('.cal-today')?.click(); 1" >/dev/null; clickText .cal-seg Week
