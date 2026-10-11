@@ -334,6 +334,9 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   mouse buttons, menu commands), with no change in behaviour.
 - **One menu** — a tab's right-click menu has the same items and colours as the
   sidebar's (plus Pin, Duplicate and Close), without explanations under them.
+- **Search timed on 5,000 notes (38 MB)** — the sidebar's scan 136 ms (84 ms
+  after), ⌘⇧F 141–268 ms depending on matches, and no pause over 50 ms in the
+  window when the sidebar redraws; all under half a second, so no search index.
 
 ## Fidget ideas
 Ethan's:
