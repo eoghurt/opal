@@ -757,14 +757,14 @@ function tabMenu(event, id) {
   showMenu(event, {
     title: placeTitle(place),
     items: [
-      { label: tab.pinned ? 'Unpin' : 'Pin', hint: tab.pinned ? '' : 'small, with an emoji', onSelect: () => togglePin(id) },
+      { label: tab.pinned ? 'Unpin' : 'Pin', onSelect: () => togglePin(id) },
       tab.pinned ? { label: 'Emoji and colour…', onSelect: () => choosePin(id) } : null,
       { label: 'Duplicate tab', onSelect: () => duplicateTab(id) },
       'separator',
       ...own,
       'separator',
       { label: 'Close', hint: '⌘W', onSelect: () => closeTab(id) },
-      { label: 'Close others', hint: 'keeps pinned tabs', disabled: tabs.length < 2, onSelect: () => closeTabs((t) => t === tab || t.pinned) },
+      { label: 'Close others', disabled: tabs.length < 2, onSelect: () => closeTabs((t) => t === tab || t.pinned) },
       { label: 'Close tabs to the right', disabled: index === tabs.length - 1, onSelect: () => closeTabs((t, i) => i <= index || t.pinned) },
     ].filter(Boolean),
     extra: node ? colourSwatches(node, kind) : null,
@@ -787,8 +787,8 @@ function fileItems(tab) {
   };
   return [
     { label: 'Show in Finder', onSelect: () => (place.kind === 'note' ? window.opal.revealInFinder(rel) : window.opal.revealFolder(rel)) },
-    { label: 'Copy path', hint: 'the full path on this Mac', onSelect: () => copy(full, 'the path') },
-    rel ? { label: 'Copy vault path', hint: rel.length > 28 ? `…${rel.slice(-27)}` : rel, onSelect: () => copy(rel, 'the vault path') } : null,
+    { label: 'Copy path', onSelect: () => copy(full, 'the path') },
+    rel ? { label: 'Copy vault path', onSelect: () => copy(rel, 'the vault path') } : null,
   ].filter(Boolean);
 }
 
@@ -2502,7 +2502,7 @@ function itemMenuItems(node, kind, at) {
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
       ...copyPathItems(node.path),
       'separator',
-      { label: 'Delete folder…', danger: true, hint: 'to the Trash', onSelect: () => deleteItem(node, kind) },
+      { label: 'Delete folder…', danger: true, onSelect: () => deleteItem(node, kind) },
     ]
     : [
       { label: 'Open', onSelect: () => openFile(node.path) },
@@ -2511,13 +2511,13 @@ function itemMenuItems(node, kind, at) {
       isNote ? null : { label: 'Open in its own app', onSelect: () => window.opal.openExternal(node.path) },
       isNote ? { label: 'Export to PDF…', onSelect: () => exportNote(node.path, 'pdf') } : null,
       isNote ? { label: 'Export to Word…', onSelect: () => exportNote(node.path, 'docx') } : null,
-      isNote ? { label: 'Apply template…', hint: 'or a flow sheet', onSelect: async () => { await openFile(node.path); if (current && current.filePath === node.path) chooseTemplateFor(node.path, at); } } : null,
+      isNote ? { label: 'Apply template…', onSelect: async () => { await openFile(node.path); if (current && current.filePath === node.path) chooseTemplateFor(node.path, at); } } : null,
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealInFinder(node.path) },
       ...copyPathItems(node.path),
       'separator',
-      { label: isNote ? 'Delete note…' : 'Delete file…', danger: true, hint: 'to the Trash', onSelect: () => deleteItem(node, kind) },
+      { label: isNote ? 'Delete note…' : 'Delete file…', danger: true, onSelect: () => deleteItem(node, kind) },
     ];
   return items;
 }
@@ -2535,8 +2535,8 @@ function copyPathItems(rel) {
     }
   };
   return [
-    { label: 'Copy path', hint: 'the full path on this Mac', onSelect: () => copy(full, 'the path') },
-    rel ? { label: 'Copy vault path', hint: rel.length > 28 ? `…${rel.slice(-27)}` : rel, onSelect: () => copy(rel, 'the vault path') } : null,
+    { label: 'Copy path', onSelect: () => copy(full, 'the path') },
+    rel ? { label: 'Copy vault path', onSelect: () => copy(rel, 'the vault path') } : null,
   ].filter(Boolean);
 }
 
