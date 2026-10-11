@@ -84,7 +84,7 @@ export class Sidebar {
   }
 
   render() {
-    const oldTree = this.container.querySelector('.side-tree');
+    const oldTree = this.container.querySelector('.side-tree:not(.side-bookmarks)'); // the folder list, not Bookmarks
     const scrollTop = oldTree ? oldTree.scrollTop : 0;
 
     const vaultRow = h('div', { class: 'side-vault' },
