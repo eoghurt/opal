@@ -1259,7 +1259,7 @@ body, :root[data-theme] body { background: var(--frame); }
 :is(:root, :root[data-theme]) .note-view .ribbon,
 :root[data-mode="dark"] .note-view .ribbon {
   background: color-mix(in srgb, var(--ink, #16140F) 7%, var(--paper-2, #FFFFFF));
-  box-shadow: 0 0 0 1px rgb(var(--ink-rgb) / 0.06), 0 6px 18px rgb(var(--ink-rgb) / 0.10);
+  box-shadow: none; /* no glow or outline around it */
 }
 :is(:root, :root[data-theme]) .note-view .ribbon .rb-btn { background: transparent; box-shadow: none; }
 :is(:root, :root[data-theme]) .note-view .ribbon .rb-btn:hover { background: rgb(var(--ink-rgb) / 0.07); }
