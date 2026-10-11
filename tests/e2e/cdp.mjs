@@ -23,7 +23,13 @@ const send = (method, params) => new Promise((resolve) => {
   ws.send(JSON.stringify({ id: my, method, params }));
 });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const done = (text) => { console.log(text); ws.close(); process.exit(0); };
+// The test window sits behind other windows, so macOS doesn't give it focus;
+// a page without focus ignores selections made by code (the editor never sees
+// them). With OPAL_FOCUS=1, Chrome acts as if it had focus for this one call,
+// without bringing it forward. (Not always on: when the call ends the page
+// counts it as losing focus, which closes any open menu.)
+if (process.env.OPAL_FOCUS === '1') await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+const done = async (text) => { console.log(text); await wait(60); ws.close(); process.exit(0); };
 
 if (flag === '--drag') {
   const [x1, y1, x2, y2] = arg.split(',').map(Number);
@@ -32,13 +38,13 @@ if (flag === '--drag') {
   for (let i = 1; i <= 12; i++) { await wait(16); await ev('mouseMoved', x1 + ((x2 - x1) * i) / 12, y1 + ((y2 - y1) * i) / 12, 1); }
   await ev('mouseReleased', x2, y2, 0);
   await wait(200);
-  done('"dragged"');
+  await done('"dragged"');
 }
 if (flag === '--move') {
   const [x, y] = arg.split(',').map(Number);
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
   await wait(100);
-  done('"moved"');
+  await done('"moved"');
 }
 if (flag === '--key') {
   const parts = arg.split('+');
@@ -51,18 +57,18 @@ if (flag === '--key') {
   if (key.length === 1 && !(modifiers & 6)) await send('Input.dispatchKeyEvent', { type: 'char', text: key, key, modifiers });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode: vk });
   await wait(250);
-  done('"pressed"');
+  await done('"pressed"');
 }
 if (flag === '--type') {
   await send('Input.insertText', { text: arg });
   await wait(150);
-  done('"typed"');
+  await done('"typed"');
 }
 if (flag === '--shot') {
   const d = await send('Page.captureScreenshot', { format: 'png' });
   (await import('fs')).writeFileSync(arg, Buffer.from(d.result.data, 'base64'));
-  done('"saved"');
+  await done('"saved"');
 }
 const r = await send('Runtime.evaluate', { expression: flag, awaitPromise: true, returnByValue: true });
-if (r.result.exceptionDetails) done(`EXCEPTION: ${r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text}`);
-done(JSON.stringify(r.result.result.value));
+if (r.result.exceptionDetails) await done(`EXCEPTION: ${r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text}`);
+await done(JSON.stringify(r.result.result.value));

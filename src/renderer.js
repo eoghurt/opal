@@ -740,23 +740,34 @@ function moveTab(id, index) {
   saveWorkspace();
 }
 
+// A tab's menu: Pin and Duplicate, then — for a note, file or folder — the
+// same items (and colours) as its right-click menu in the sidebar, then Close.
 function tabMenu(event, id) {
   const tab = tabs.find((t) => t.id === id);
   if (!tab) return;
   const index = tabs.indexOf(tab);
+  const place = tabPlace(tab);
+  const node = place && place.kind === 'note' ? findFile(tree, place.filePath)
+    : place && place.kind === 'home' && place.folderPath ? findFolder(tree, place.folderPath, vault && vault.name) : null;
+  const kind = place && place.kind === 'home' ? 'folder' : 'file';
+  const at = { clientX: event.clientX, clientY: event.clientY };
+  const own = node
+    ? itemMenuItems(node, kind, at).filter((item) => item && (item === 'separator' || item.label !== 'Open'))
+    : [tabBookmarkItem(tab), ...(fileItems(tab).length ? ['separator', ...fileItems(tab)] : [])];
   showMenu(event, {
-    title: placeTitle(tabPlace(tab)),
+    title: placeTitle(place),
     items: [
       { label: tab.pinned ? 'Unpin' : 'Pin', hint: tab.pinned ? '' : 'small, with an emoji', onSelect: () => togglePin(id) },
       tab.pinned ? { label: 'Emoji and colour…', onSelect: () => choosePin(id) } : null,
       { label: 'Duplicate tab', onSelect: () => duplicateTab(id) },
-      tabBookmarkItem(tab),
-      ...(fileItems(tab).length ? ['separator', ...fileItems(tab)] : []),
+      'separator',
+      ...own,
       'separator',
       { label: 'Close', hint: '⌘W', onSelect: () => closeTab(id) },
       { label: 'Close others', hint: 'keeps pinned tabs', disabled: tabs.length < 2, onSelect: () => closeTabs((t) => t === tab || t.pinned) },
       { label: 'Close tabs to the right', disabled: index === tabs.length - 1, onSelect: () => closeTabs((t, i) => i <= index || t.pinned) },
     ].filter(Boolean),
+    extra: node ? colourSwatches(node, kind) : null,
   });
 }
 
@@ -788,12 +799,9 @@ function tabBookmarkItem(tab) {
   return { label: isBookmarked(bookmarksData, target) ? 'Remove bookmark' : 'Bookmark', onSelect: () => toggleBookmarkOf(target) };
 }
 
+// Double-clicking a tab opens the same menu as right-clicking it.
 function tabFileMenu(event, id) {
-  const tab = tabs.find((t) => t.id === id);
-  if (!tab) return;
-  const items = fileItems(tab);
-  if (!items.length) return;
-  showMenu(event, { title: placeTitle(tabPlace(tab)), items });
+  tabMenu(event, id);
 }
 
 function duplicateTab(id) {
@@ -2457,12 +2465,25 @@ function updateCardsDue() {
 
 // ---------- Folder & page colours ----------
 
-// The right-click / double-click menu for a page, file or folder.
+// The right-click / double-click menu for a page, file or folder — the same
+// in the sidebar and on a tab (a tab adds its own items around these).
 function colorMenu(event, node, kind) {
   const at = { clientX: event.clientX, clientY: event.clientY };
+  showMenu(event, { title: kind === 'folder' ? node.name : noteName(node.path), items: itemMenuItems(node, kind, at), extra: colourSwatches(node, kind) });
+}
+
+function colourSwatches(node, kind) {
+  return h('div', { class: 'ctx-colours' },
+    h('span', { class: 'mono-label' }, 'Colour'),
+    swatchRow(node.color, (color) => {
+      closeMenu();
+      setItemColor(node.path, kind, color);
+    }));
+}
+
+function itemMenuItems(node, kind, at) {
   const isFolder = kind === 'folder';
   const isNote = !isFolder && kindOf(node.path) === 'note';
-  const name = isFolder ? node.name : noteName(node.path);
   const items = isFolder
     ? [
       { label: 'Open', onSelect: () => openFolder(node.path) },
@@ -2479,6 +2500,7 @@ function colorMenu(event, node, kind) {
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealFolder(node.path) },
+      ...copyPathItems(node.path),
       'separator',
       { label: 'Delete folder…', danger: true, hint: 'to the Trash', onSelect: () => deleteItem(node, kind) },
     ]
@@ -2493,19 +2515,29 @@ function colorMenu(event, node, kind) {
       'separator',
       { label: 'Rename…', onSelect: () => renameItem(node, kind) },
       { label: 'Show in Finder', onSelect: () => window.opal.revealInFinder(node.path) },
+      ...copyPathItems(node.path),
       'separator',
       { label: isNote ? 'Delete note…' : 'Delete file…', danger: true, hint: 'to the Trash', onSelect: () => deleteItem(node, kind) },
     ];
-  showMenu(event, {
-    title: name,
-    items,
-    extra: h('div', { class: 'ctx-colours' },
-      h('span', { class: 'mono-label' }, 'Colour'),
-      swatchRow(node.color, (color) => {
-        closeMenu();
-        setItemColor(node.path, kind, color);
-      })),
-  });
+  return items;
+}
+
+// Copy path (the full path on this Mac) and Copy vault path.
+function copyPathItems(rel) {
+  if (!vault) return [];
+  const full = rel ? `${vault.path}/${rel}` : vault.path;
+  const copy = async (text, what) => {
+    try {
+      await window.opal.copyText(text);
+      chrome.setStatus(`Copied ${what}`);
+    } catch (err) {
+      alert(`Couldn't copy the path.\n\n${err.message}`);
+    }
+  };
+  return [
+    { label: 'Copy path', hint: 'the full path on this Mac', onSelect: () => copy(full, 'the path') },
+    rel ? { label: 'Copy vault path', hint: rel.length > 28 ? `…${rel.slice(-27)}` : rel, onSelect: () => copy(rel, 'the vault path') } : null,
+  ].filter(Boolean);
 }
 
 // ---------- Manuscripts ----------
