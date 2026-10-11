@@ -62,7 +62,6 @@ import { findFile, findFolder, flattenFiles, countNotes } from './tree.js';
 import { noteName, parentOf, relativeDay, shortDate } from './format.js';
 import { Reminders } from './fidgets/calendar/reminders.js';
 import { openSearch } from './search.js';
-import { InboxView, INBOX_PATH } from './fidgets/inbox/inbox-view.js';
 import { openCreateItem } from './create-popover.js';
 import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
@@ -90,9 +89,8 @@ import { TabBar, openPinPicker } from './tabs.js';
 import { AddButton } from './fab.js';
 import { BookmarkList, openBookmarksPanel, isBookmarked, toggleBookmark } from './bookmarks.js';
 import { ITEM_COLORS } from './item-colors.js';
-
-// The Inbox is switched off for now (its code stays, ready to come back).
-const INBOX_ENABLED = false;
+import { showToast } from './toast.js';
+import { showConflict } from './conflict.js';
 
 const viewEl = document.getElementById('view');
 
@@ -135,12 +133,11 @@ const chrome = new Chrome(document.getElementById('rail'), document.getElementBy
   onDebate: () => showDebate(),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
-  onInbox: INBOX_ENABLED ? () => showInbox() : null,
   onTasks: () => showTasks(),
   onToggleSidebar: () => document.getElementById('sidebar').panel.toggle(),
   sidebarClosed: () => document.getElementById('sidebar').panel.isClosed(),
   fidgets: () => (vault ? homeFidgets() : []),
-  railPlace: () => ({ mail: 'mail', money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', inbox: 'inbox', settings: 'settings' })[screen.kind] || null,
+  railPlace: () => ({ mail: 'mail', money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', settings: 'settings' })[screen.kind] || null,
 });
 
 // The tabs sit in the sidebar, one under another (Sidebar places this element).
@@ -238,7 +235,6 @@ let mailState = { box: 'people', account: 'all' };
 let debateView = null;
 let debateState = null;
 let moneyState = { month: null, tab: 'overview' };
-let inboxView = null;
 let corkboard = null;
 let examPaper = null;
 let schoolView = null;
@@ -256,7 +252,6 @@ function leaveCalendar() {
   reviewView = null;
   if (tasksView && tasksView.destroy) tasksView.destroy();
   tasksView = null;
-  inboxView = null;
   if (calendar) calendar.destroy();
   calendar = null;
   if (homeWidgets) homeWidgets.destroy();
@@ -293,7 +288,6 @@ async function reloadTree() {
   sidebar.setTree(tree);
   reminders.refresh();
   updateCardsDue();
-  updateInboxCount();
 }
 
 // ---------- Reminders ----------
@@ -461,9 +455,9 @@ function loadBacklinks() {
 // anything opened from it goes to a new tab. The tabs are saved in the
 // vault's .opal/workspace.json so they come back next time.
 
-const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'inbox', 'review', 'money', 'debate', 'mail'];
-const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', inbox: 'Inbox', review: 'Review', money: 'Money', debate: 'Debate', mail: 'Mail' };
-const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', inbox: 'tasks', review: 'review', money: 'money', debate: 'debate', mail: 'mail' };
+const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'review', 'money', 'debate', 'mail'];
+const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', review: 'Review', money: 'Money', debate: 'Debate', mail: 'Mail' };
+const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', review: 'review', money: 'money', debate: 'debate', mail: 'mail' };
 
 let tabs = []; // [{ id, pinned, pin: { emoji, color }, places: [place], at, scroll }]
 let activeTabId = null;
@@ -598,7 +592,6 @@ function goToPlace(place) {
   if (place.kind === 'tasks') return showTasks();
   if (place.kind === 'logbook') return openFolder(''); // the Logbook is on the home page now
   if (place.kind === 'settings') return showSettings();
-  if (place.kind === 'inbox') return showInbox();
   if (place.kind === 'review') return showReview();
   if (place.kind === 'mail') return showMail();
   if (place.kind === 'money') {
@@ -864,7 +857,7 @@ async function restoreTabs() {
         ? { kind: 'money', sub: { month: /^\d{4}-\d{2}$/.test(sub.month || '') ? sub.month : null, tab: typeof sub.tab === 'string' ? sub.tab : 'overview' } }
         : { kind: 'debate', sub: debatePlace(sub) };
     }
-    if (PLACE_KINDS.includes(place.kind) && (place.kind !== 'inbox' || INBOX_ENABLED)) return { kind: place.kind };
+    if (PLACE_KINDS.includes(place.kind)) return { kind: place.kind };
     return null;
   };
   for (const t of Array.isArray(saved.tabs) ? saved.tabs.slice(0, 50) : []) {
@@ -1665,6 +1658,9 @@ async function showNote(filePath) {
 
   let changeTimer = null;
   let keptOriginal = false;
+  // The text this editor last loaded or saved: sent with each save so main can
+  // tell if another app changed the note in the meantime (see conflict.js).
+  const sync = { base: content };
   let lastWords = countWords(content); // for words written today (the Logbook)
   const editor = new EditorType({
     parent: noteView.editorHost,
@@ -1676,7 +1672,15 @@ async function showNote(filePath) {
         keptOriginal = true;
         await window.opal.saveSnapshot(filePath, content, 'auto').catch(() => {});
       }
-      await window.opal.writeFile(filePath, text);
+      const startedFrom = sync.base;
+      const result = await window.opal.writeFile(filePath, text, startedFrom);
+      sync.base = text;
+      if (result && result.conflict) {
+        showConflict({
+          filePath, name: noteName(filePath), editor, mine: text, theirs: result.conflict.outside, base: startedFrom,
+          saveSnapshot: (path, body, reason) => window.opal.saveSnapshot(path, body, reason),
+        });
+      }
       if (current && current.editor === editor) current.edited = true;
       // Words written: what was added since the last save (never less than 0).
       const words = countWords(text);
@@ -1685,7 +1689,10 @@ async function showNote(filePath) {
       noteSaved(filePath);
       window.opal.saveSnapshot(filePath, text, 'auto').catch(() => {});
     },
-    onStatus: (status) => chrome.setStatus(status),
+    onStatus: (status, err) => {
+      chrome.setStatus(status);
+      if (status === 'Save failed') showToast(`Couldn't save “${noteName(filePath)}”.`, { detail: `${err ? `${err.message} ` : ''}Your typing is still here; Opal keeps trying.` });
+    },
     onOpenLink: (target) => openLink(target),
     onOpenHref: (href) => openHref(href, filePath),
     linkTargets: () => linkTargets(),
@@ -1714,7 +1721,7 @@ async function showNote(filePath) {
   });
   stickies.refresh();
   noteView.connectEditor(editor.view);
-  current = { filePath, editor, noteView, stickies };
+  current = { filePath, editor, noteView, stickies, sync };
   addButton.refresh();
   noteView.setBookmarked(isBookmarked(bookmarksData, { type: 'file', path: filePath }));
   loadBacklinks();
@@ -2085,7 +2092,7 @@ function showTasks() {
   });
 }
 
-// ---------- Inbox ----------
+// ---------- Reading notes for the home page and calendar ----------
 
 async function readNoteOrNull(path) {
   if (!findFile(tree, path)) return null;
@@ -2094,14 +2101,6 @@ async function readNoteOrNull(path) {
   } catch {
     return null;
   }
-}
-
-async function writeInbox(text) {
-  const known = Boolean(findFile(tree, INBOX_PATH));
-  const path = await window.opal.createNote('Inbox', '');
-  await window.opal.writeFile(path, text);
-  if (!known) await reloadTree();
-  else updateInboxCount();
 }
 
 // Every task in every list (open and done).
@@ -2117,84 +2116,6 @@ async function loadAllTasks() {
 async function loadDayEvents(key) {
   const [dayText, repeats] = await Promise.all([readNoteOrNull(dayPath(key)), readNoteOrNull(REPEATS_PATH)]);
   return [...parseEvents(dayText || '', key), ...occurrences(parseSeries(repeats || ''), key)];
-}
-
-// The number on the Inbox button: captured items + overdue + due today.
-let inboxCountTimer = null;
-function updateInboxCount() {
-  if (!INBOX_ENABLED) return;
-  clearTimeout(inboxCountTimer);
-  inboxCountTimer = setTimeout(async () => {
-    if (!vault) {
-      chrome.setInboxCount(0);
-      return;
-    }
-    try {
-      const today = todayKey();
-      const [inbox, tasks] = await Promise.all([readNoteOrNull(INBOX_PATH), loadAllTasks()]);
-      const captured = parseTasks(inbox || '', 'Inbox').filter((t) => !t.done).length;
-      const due = tasks.filter((t) => !t.done && t.due && t.due <= today).length;
-      chrome.setInboxCount(captured + due);
-    } catch {
-      // Try again on the next change.
-    }
-  }, 300);
-}
-
-function showInbox() {
-  if (!vault || !INBOX_ENABLED) return Promise.resolve();
-  return navigate(async () => {
-    homeStickies = null;
-    leaveCalendar();
-    screen = { kind: 'inbox' };
-    setTitle('Inbox');
-    sidebar.setActive(null, null);
-    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Inbox' }]);
-    viewEl.scrollTop = 0;
-    inboxView = new InboxView(viewEl, {
-      cardsDue: async () => countDue(await window.opal.listCards()),
-      openReview: () => showReview(),
-      readInbox: () => readNoteOrNull(INBOX_PATH),
-      writeInbox,
-      loadTasks: loadAllTasks,
-      listNames: () => {
-        const names = taskListNodes().map((n) => n.name.slice(0, -3));
-        return names.sort((a, b) => (b === DEFAULT_LIST) - (a === DEFAULT_LIST) || a.localeCompare(b));
-      },
-      toggleTask: toggleTaskDone,
-      addToList: async (list, task) => {
-        const text = (await readTaskList(list)) || '';
-        await writeTaskList(list, addTask(text, task, list));
-      },
-      openTasks: () => showTasks(),
-      loadEvents: loadDayEvents,
-      openCalendarDay: (key) => {
-        calendarState = { ...calendarState, mode: 'day' };
-        showCalendar(keyToDate(key));
-      },
-      loadChecklists: () => window.opal.openCheckboxes(),
-      tickChecklist: async (item) => {
-        const text = await window.opal.readFile(item.path);
-        const lines = text.split(/\r?\n/);
-        const nl = /\r\n/.test(text) ? '\r\n' : '\n';
-        let index = lines[item.line - 1] === item.raw ? item.line - 1 : lines.indexOf(item.raw);
-        if (index === -1) throw new Error('That item was changed somewhere else. The Inbox has been refreshed — try again.');
-        lines[index] = lines[index].replace('[ ]', '[x]');
-        await window.opal.writeFile(item.path, lines.join(nl));
-      },
-      openAt: async (path, line) => {
-        await openFile(path);
-        if (current && current.filePath === path && current.editor.goToLine) current.editor.goToLine(line);
-      },
-      makeNote: async (name, body) => {
-        const path = await window.opal.createNote(name, '');
-        const existing = (await window.opal.readFile(path)) || '';
-        await window.opal.writeFile(path, existing.trim() ? `${existing.replace(/\s+$/, '')}\n\n${body}\n` : `# ${name}\n\n${body}\n`);
-        await reloadTree();
-        await openFile(path);
-      },
-    });
-  });
 }
 
 // ---------- Debate ----------
@@ -2444,7 +2365,7 @@ function showReview() {
   });
 }
 
-// How many cards are due today: on Review, the calendar's today and the Inbox.
+// How many cards are due today: on Review and the calendar's today.
 let cardsDueTimer = null;
 let cardsDueCount = 0;
 function updateCardsDue() {
@@ -2784,7 +2705,7 @@ async function rearrange(item, target, zone) {
     await reloadTree();
     refreshFiles();
   } catch (err) {
-    alert(`Couldn't move “${item.name.replace(/\.md$/i, '')}”.\n\n${err.message}`);
+    showToast(`Couldn't move “${item.name.replace(/\.md$/i, '')}”.`, { detail: err.message });
     refreshFiles();
   }
 }
@@ -2826,7 +2747,7 @@ async function renameItemTo(node, kind, next) {
     }
     return newPath;
   } catch (err) {
-    alert(`Couldn't rename “${oldName}”.\n\n${err.message}`);
+    showToast(`Couldn't rename “${oldName}”.`, { detail: err.message });
     throw err;
   }
 }
@@ -3051,8 +2972,6 @@ function refreshFiles() {
       moneyView.reload();
     } else if (screen.kind === 'debate' && debateView) {
       debateView.reload();
-    } else if (screen.kind === 'inbox' && inboxView) {
-      inboxView.reload();
     } else if (screen.kind === 'home' && corkboard) {
       corkboard.refresh();
     } else if (screen.kind === 'home') {
@@ -3106,6 +3025,7 @@ async function pickUpOutsideEdits() {
     return;
   }
   if (current && current.editor === editor && editor.reloadFromDisk(diskText, token)) {
+    if (current.sync) current.sync.base = diskText;
     chrome.setStatus('Reloaded');
   }
 }
@@ -3234,11 +3154,15 @@ window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggl
 window.opal.onShowCalendar(() => showCalendar());
 window.opal.onShowLogbook(() => vault && openFolder('')); // the Logbook is on the home page now
 window.opal.onShowTasks(() => showTasks());
-window.opal.onShowInbox(() => showInbox());
 window.opal.onShowMoney(() => showMoney());
 window.opal.onShowDebate(() => showDebate());
 window.opal.onShowMail(() => showMail());
 window.opal.onOpenReminder(openReminder);
+// Errors main wants you to see (a link update or history move that failed…).
+window.opal.onAppError(({ text, detail }) => showToast(text, { detail }));
+// The window's own unexpected errors go to the log file (opal.log).
+window.addEventListener('error', (e) => window.opal.logError('error', e.error && e.error.stack ? e.error.stack : e.message).catch(() => {}));
+window.addEventListener('unhandledrejection', (e) => window.opal.logError('promise', e.reason && e.reason.stack ? e.reason.stack : String(e.reason)).catch(() => {}));
 window.opal.onSearch(startSearch);
 window.opal.onVaultChanged(loadVault);
 window.opal.onFilesChanged(refreshFiles);

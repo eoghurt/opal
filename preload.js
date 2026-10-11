@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld('opal', {
   chooseVault: () => call('vault:choose'),
   listFiles: () => call('vault:list'),
   readFile: (relPath) => call('file:read', relPath),
-  writeFile: (relPath, content) => call('file:write', relPath, content),
+  // base: the text the editor last loaded or saved (to catch another app's changes).
+  writeFile: (relPath, content, base) => call('file:write', relPath, content, base),
   resolveLink: (target) => call('link:resolve', target),
   createNote: (name, folder, template) => call('note:create', name, folder, template),
   templateInfo: (folder) => call('templates:info', folder),
@@ -79,7 +80,6 @@ contextBridge.exposeInMainWorld('opal', {
   readSnapshot: (relPath, id) => call('history:read', relPath, id),
   saveAttachment: (notePath, ext, bytes) => call('attachment:save', notePath, ext, bytes),
   linkMention: (notePath, line, column, target) => call('links:link-mention', notePath, line, column, target),
-  openCheckboxes: () => call('vault:checkboxes'),
   mail: {
     status: () => call('mail:status'),
     addAccount: (kind) => call('mail:add-account', kind),
@@ -125,12 +125,14 @@ contextBridge.exposeInMainWorld('opal', {
   onShowMoney: (callback) => ipcRenderer.on('ui:show-money', () => callback()),
   onShowDebate: (callback) => ipcRenderer.on('ui:show-debate', () => callback()),
   onShowMail: (callback) => ipcRenderer.on('ui:show-mail', () => callback()),
-  onShowInbox: (callback) => ipcRenderer.on('ui:show-inbox', () => callback()),
   onSearch: (callback) => ipcRenderer.on('ui:search', (_event, mode) => callback(mode)),
   onOpenReminder: (callback) => ipcRenderer.on('ui:open-reminder', (_event, open) => callback(open)),
 
   // Main asks the window to save before quitting or switching vaults.
   // `callback` returns a promise; main is told whether saving succeeded.
+  onAppError: (callback) => ipcRenderer.on('app:error', (_event, error) => callback(error)),
+  logError: (where, message) => call('app:log', where, message),
+
   onFlushRequest: (callback) => ipcRenderer.on('app:flush', async (_event, { id, closeEditor }) => {
     try {
       await callback({ closeEditor });

@@ -370,7 +370,7 @@ export class MarkdownEditor {
       if (!this.dirty) this.onStatus('Saved');
     } catch (err) {
       this.dirty = true;
-      this.onStatus('Save failed');
+      this.onStatus('Save failed', err);
       throw err;
     } finally {
       this.saving = false;

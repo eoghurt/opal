@@ -60,15 +60,6 @@ export const FIDGETS = [
     files: ['fidgets/tasks/tasks-view.js', 'fidgets/tasks/tasks.js'],
   },
   {
-    id: 'inbox',
-    name: 'Inbox',
-    icon: 'inbox',
-    what: 'Everything waiting on you: quick jots, overdue and upcoming tasks, loose checklist items.',
-    where: 'Switched off for now. Jots are kept in Inbox.md.',
-    off: true,
-    files: ['fidgets/inbox/inbox-view.js'],
-  },
-  {
     id: 'flashcards',
     page: true, // a page of its own: a tile on the home page
     short: 'Cards to review',

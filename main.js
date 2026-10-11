@@ -13,6 +13,7 @@ const { countWords } = require('./shared/words.js');
 const { readProperties, writeProperty } = require('./shared/properties.js');
 const tracker = require('./shared/tracker.js');
 const { setupMail } = require('./mail/index.js');
+const { setupErrors } = require('./errors.js');
 const { stripFrontmatter } = frontmatter;
 
 app.setName('Opal');
@@ -21,6 +22,11 @@ if (process.env.OPAL_USER_DATA) app.setPath('userData', process.env.OPAL_USER_DA
 
 let win = null;
 let vaultPath = null;
+
+// Errors: written to <userData>/opal.log, and the ones you should know about
+// shown in the window (see errors.js). Also catches uncaught exceptions and
+// unhandled promise rejections here in the main process.
+const errors = setupErrors({ app, getWindow: () => win });
 
 // ---------- Settings (only remembers which folder is the vault) ----------
 
@@ -59,7 +65,7 @@ function setVault(folder) {
   vaultPath = path.resolve(folder);
   saveSettings({ ...loadSettings(), vaultPath: folder });
   watchVault();
-  migrateVault().catch((err) => console.error('Settings move failed:', err));
+  migrateVault().catch((err) => errors.log('settings move', err));
   if (win) win.webContents.send('vault:changed', vaultInfo());
 }
 
@@ -295,7 +301,7 @@ async function migrateVault() {
     try {
       if (await migrateFolderNote(folder)) moved++;
     } catch (err) {
-      console.error(`Could not move the settings for ${folder || 'the vault'}:`, err);
+      errors.log(`settings move: ${folder || 'the vault'}`, err);
     }
   }
   if (moved) scheduleRefresh();
@@ -440,11 +446,11 @@ function watchVault() {
     });
     watcher.on('error', (err) => {
       // Usually means the vault folder itself was moved or deleted: let the window find out.
-      console.error('Vault watcher error:', err);
+      errors.log('vault watcher', err);
       if (win) win.webContents.send('vault:files-changed');
     });
   } catch (err) {
-    console.error('Could not watch vault:', err);
+    errors.report('vault watcher', err, 'Opal can’t watch the vault folder, so changes made in other apps may not show until you reopen it.');
   }
 }
 
@@ -595,17 +601,18 @@ async function withRelink(relPath, kind, change) {
   try {
     await relinkVault(before, moves);
   } catch (err) {
-    console.error('Could not update links:', err); // the rename itself still worked
+    // The rename itself worked.
+    errors.report('link update', err, `“${path.posix.basename(newRel)}” was renamed, but links to it couldn’t all be updated.`);
   }
   try {
     if (kind === 'folder' || isNoteFile(relPath)) await moveHistory(relPath, newRel);
   } catch (err) {
-    console.error('Could not move the version history:', err);
+    errors.report('history move', err, `“${path.posix.basename(newRel)}” was renamed, but its version history stayed under the old name.`);
   }
   try {
     await moveBookmarks(relPath, newRel, kind === 'folder');
   } catch (err) {
-    console.error('Could not update bookmarks:', err);
+    errors.report('bookmarks', err, `“${path.posix.basename(newRel)}” was renamed, but its bookmark couldn’t be updated.`);
   }
   return newRel;
 }
@@ -614,6 +621,7 @@ async function relinkVault(before, moves) {
   const moved = new Map(moves.map((m) => [m.from, m.to]));
   const after = before.map((p) => moved.get(p) || p);
   let count = 0;
+  const failed = [];
   for (let i = 0; i < before.length; i++) {
     if (!isNoteFile(after[i])) continue;
     const full = path.join(vaultPath, after[i]);
@@ -630,10 +638,15 @@ async function relinkVault(before, moves) {
       await fs.promises.rename(temp, full);
       count++;
     } catch (err) {
-      console.error(`Could not update links in ${after[i]}:`, err);
+      failed.push(after[i]);
+      errors.log(`link update: ${after[i]}`, err);
     }
   }
   if (count) scheduleRefresh();
+  if (failed.length) {
+    const names = failed.slice(0, 3).map((p) => `“${path.posix.basename(p, '.md')}”`).join(', ');
+    errors.report('link update', new Error(`${failed.length} note(s) not updated`), `Links in ${names}${failed.length > 3 ? ` and ${failed.length - 3} more` : ''} couldn’t be updated after the rename.`);
+  }
   return count;
 }
 
@@ -713,6 +726,36 @@ async function writeNote(relPath, content) {
   } else {
     ownWrites.delete(full);
   }
+}
+
+// A save from the window. `base` (optional) is the text the editor last loaded
+// or saved: if the file on disk is no longer that — another app changed it
+// while there was unsaved typing here — the other app's version goes into the
+// note's version history before Opal's save replaces it, and the window is
+// told, so it can offer to compare, keep either one, or merge them.
+// → null, or { conflict: { outside, snapshot } }
+async function writeNoteFromWindow(relPath, content, base) {
+  let outside = null;
+  if (typeof base === 'string') {
+    try {
+      const disk = await fs.promises.readFile(resolveNotePath(relPath), 'utf8');
+      if (disk !== base && disk !== content) outside = disk;
+    } catch {
+      // Not there (deleted, or new): nothing to keep.
+    }
+  }
+  let snapshot = null;
+  if (outside !== null) {
+    try {
+      snapshot = await saveSnapshot(relPath, outside, 'outside');
+    } catch (err) {
+      // Without that copy, overwriting would lose the other version: don't.
+      errors.log('outside edit: history', err);
+      throw new Error('Another app changed this note, and Opal couldn’t keep a copy of that version, so it hasn’t saved over it.');
+    }
+  }
+  await writeNote(relPath, content);
+  return outside !== null ? { conflict: { outside, snapshot } } : null;
 }
 
 // Notes Opal itself just saved, with the exact modified time and size they
@@ -1112,7 +1155,8 @@ async function saveSnapshot(relPath, text, reason = 'auto') {
   if (ids.length) {
     if (reason === 'auto' && Date.now() - idTime(ids[0]) < HISTORY_GAP_MS) return false;
     try {
-      if ((await fs.promises.readFile(path.join(dir, `${ids[0]}.md`), 'utf8')) === text) return false;
+      // Already the latest snapshot: nothing new to keep (its id still names it).
+      if ((await fs.promises.readFile(path.join(dir, `${ids[0]}.md`), 'utf8')) === text) return reason === 'outside' ? ids[0] : false;
     } catch {
       // Unreadable: just save a new one.
     }
@@ -1122,7 +1166,7 @@ async function saveSnapshot(relPath, text, reason = 'auto') {
   for (let n = 2; fs.existsSync(path.join(dir, `${id}.md`)); n++) id = `${snapshotId(new Date())} ${n}`;
   await fs.promises.writeFile(path.join(dir, `${id}.md`), text, 'utf8');
   await pruneSnapshots(relPath);
-  return true;
+  return id;
 }
 
 async function pruneSnapshots(relPath) {
@@ -1883,28 +1927,6 @@ async function linkMention(notePath, line, column, targetPath) {
   return true;
 }
 
-// Unticked checklist items ("- [ ] …") in notes outside Tasks/ and the Inbox,
-// for the Inbox screen. → [{ path, line (1-based), raw, text }]
-async function openCheckboxes() {
-  if (!vaultPath) return [];
-  const found = [];
-  for (const relPath of await listNotes()) {
-    if (/^tasks\//i.test(relPath) || /^inbox\.md$/i.test(relPath)) continue;
-    let text;
-    try {
-      text = await noteText(relPath);
-    } catch {
-      continue;
-    }
-    if (!text.includes('[ ]')) continue;
-    text.split(/\r?\n/).forEach((raw, index) => {
-      const match = /^\s*[-*+]\s\[ \]\s+(\S.*)$/.exec(raw);
-      if (match && found.length < 300) found.push({ path: relPath, line: index + 1, raw, text: match[1].trim() });
-    });
-  }
-  return found;
-}
-
 // ---------- Reminders ----------
 // The window works out when reminders are due; this just shows them as Mac
 // notifications. Clicking one brings Opal forward on that day or on Tasks.
@@ -1932,7 +1954,6 @@ function showNotification(payload) {
   return true;
 }
 
-ipcMain.handle('vault:checkboxes', () => openCheckboxes());
 ipcMain.handle('cards:list', () => listCards());
 ipcMain.handle('cards:review', (_event, notePath, line, raw, schedule) => reviewCard(notePath, line, raw, schedule));
 ipcMain.handle('manuscript:read', (_event, folder) => readManuscript(folder));
@@ -1972,11 +1993,13 @@ ipcMain.handle('links:backlinks', (_event, relPath) => findBacklinks(relPath));
 ipcMain.handle('links:link-mention', (_event, notePath, line, column, target) => linkMention(notePath, line, column, target));
 ipcMain.handle('vault:search', (_event, query) => searchVault(query));
 ipcMain.handle('notify:show', (_event, payload) => showNotification(payload));
+// The window's own errors, for the log (no note text: just the message and where).
+ipcMain.handle('app:log', (_event, where, message) => errors.log(`window: ${String(where).slice(0, 80)}`, String(message).slice(0, 4000)));
 ipcMain.handle('vault:get', () => vaultInfo());
 ipcMain.handle('vault:choose', () => switchVault());
 ipcMain.handle('vault:list', () => (vaultPath ? scanFolder('') : []));
 ipcMain.handle('file:read', (_event, relPath) => readNote(relPath));
-ipcMain.handle('file:write', (_event, relPath, content) => writeNote(relPath, content));
+ipcMain.handle('file:write', (_event, relPath, content, base) => writeNoteFromWindow(relPath, content, base));
 ipcMain.handle('link:resolve', (_event, target) => resolveLink(target));
 ipcMain.handle('link:find', (_event, target) => resolveLink(target, false));
 ipcMain.handle('link:web', (_event, url) => openWebLink(url));
@@ -2065,7 +2088,6 @@ function buildMenu() {
         { label: 'Vault Home', accelerator: 'CmdOrCtrl+Shift+H', click: () => { if (win) win.webContents.send('ui:go-home'); } },
         { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+\\', click: () => { if (win) win.webContents.send('ui:toggle-sidebar'); } },
         { label: 'Calendar', accelerator: 'CmdOrCtrl+Shift+D', click: () => { if (win) win.webContents.send('ui:show-calendar'); } },
-        // Inbox is switched off for now: { label: 'Inbox', accelerator: 'CmdOrCtrl+Shift+I', … 'ui:show-inbox' }
         { label: 'Tasks', accelerator: 'CmdOrCtrl+Shift+T', click: () => { if (win) win.webContents.send('ui:show-tasks'); } },
         { label: 'Money', accelerator: 'CmdOrCtrl+Shift+M', click: () => { if (win) win.webContents.send('ui:show-money'); } },
         { label: 'Debate', accelerator: 'CmdOrCtrl+Shift+B', click: () => { if (win) win.webContents.send('ui:show-debate'); } },
@@ -2162,7 +2184,7 @@ if (!app.requestSingleInstanceLock()) {
     const saved = loadSettings().vaultPath;
     if (saved && isFolder(saved)) vaultPath = path.resolve(saved);
     watchVault();
-    migrateVault().catch((err) => console.error('Settings move failed:', err));
+    migrateVault().catch((err) => errors.log('settings move', err));
     buildMenu();
     createWindow();
   });

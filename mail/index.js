@@ -589,7 +589,7 @@ function setupMail({ app, ipcMain, safeStorage, shell, dialog, powerMonitor, get
     return true;
   }
 
-  // Replying comes in 0.13; until then this opens the thread in Gmail.
+  // Opens the thread in Gmail (used before replying was built; kept for later use).
   async function openInGmail(id) {
     const { account, uid } = splitId(id);
     if (fixtureDir) return false;

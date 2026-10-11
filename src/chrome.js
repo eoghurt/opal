@@ -31,7 +31,7 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(rail, topbar, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onInbox, onReview, onBookmarks, onMoney, onDebate, fidgets, railPlace, onToggleSidebar, sidebarClosed }) {
+  constructor(rail, topbar, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onReview, onBookmarks, onMoney, onDebate, fidgets, railPlace, onToggleSidebar, sidebarClosed }) {
     this.rail = rail;
     this.topbar = topbar;
     this.footer = h('div', { class: 'sheet-status' });
@@ -56,8 +56,6 @@ export class Chrome {
     this.tabSlot = null; // the tab strip (see tabs.js)
     this.onTasks = onTasks;
     this.onSearch = onSearch;
-    this.onInbox = onInbox;
-    this.inboxCount = 0;
     this.crumbs = [];
     this.status = 'Saved';
     this.words = null; // { words, selected, target } for the open note
@@ -74,13 +72,6 @@ export class Chrome {
   setCardsDue(count) {
     if (count === this.cardsDue) return;
     this.cardsDue = count;
-    this.renderTop();
-  }
-
-  // The number on the Inbox button (things waiting).
-  setInboxCount(count) {
-    if (count === this.inboxCount) return;
-    this.inboxCount = count;
     this.renderTop();
   }
 
@@ -136,7 +127,6 @@ export class Chrome {
     this.rail.replaceChildren(...[
       h('button', { class: 'rail-mark wordmark', onclick: this.onHome, title: 'Vault home (⌘⇧H)', 'aria-label': 'Vault home' }, opalMark()),
       link('search', 'search', 'Search', () => this.onSearch(), { class: 'bar-search', title: 'Search (⌘O names · ⌘⇧F text)' }),
-      this.onInbox ? link('inbox', 'inbox', 'Inbox', () => this.onInbox(), { badge: this.inboxCount ? h('span', { class: 'rail-badge' }, String(this.inboxCount)) : null }) : null,
       fidgets.length ? h('span', { class: 'rail-rule', 'aria-hidden': 'true' }) : null,
       ...fidgets,
       h('span', { class: 'rail-fill' }),

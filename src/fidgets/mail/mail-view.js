@@ -2,7 +2,7 @@
 // between accounts, the message list on the left and the open email on the
 // right, with Save to vault. Right-click or double-click a message for its menu.
 //
-// 0.13: + Write, Reply, Reply all and Forward open the writing card in the
+// Since v0.14: + Write, Reply, Reply all and Forward open the writing card in the
 // reader's place (compose-view.js); Sent lists what Gmail filed; "To reply"
 // makes a task with an envelope; new mail arrives by itself (see mail/index.js).
 //
