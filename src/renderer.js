@@ -51,7 +51,7 @@ import { CalendarView } from './fidgets/calendar/calendar-view.js';
 import { HomeWidgets, WIDGETS, parseLayout, formatLayout } from './widgets/home/home-widgets.js';
 import { readProperties, writeProperty } from '../shared/properties.js';
 import { TasksView } from './fidgets/tasks/tasks-view.js';
-import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, formatTask, todayKey, mailLink } from './fidgets/tasks/tasks.js';
+import { TASKS_FOLDER, DEFAULT_LIST, parseTasks, toggleTask, replaceTask, addTask, formatTask, todayKey } from './fidgets/tasks/tasks.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, dayPath, keyToDate, parseEvents, parseSeries, occurrences, colorHex } from './fidgets/calendar/events.js';
 import { parseStickies, writeStickies } from '../shared/stickies.js';
 import { renderSettings, withDefaults } from './views/settings-view.js';
@@ -67,7 +67,6 @@ import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
-import { MailView } from './fidgets/mail/mail-view.js';
 import { DebateView } from './fidgets/debate/debate-view.js';
 import { Corkboard, DEFAULT_QUOTES } from './home/corkboard.js';
 import { ExamTracker, ExamPaper } from './fidgets/exams/exam-tracker-view.js';
@@ -92,13 +91,13 @@ import { ITEM_COLORS } from './item-colors.js';
 import { showToast } from './toast.js';
 import { showConflict } from './conflict.js';
 import {
-  vault, tree, paletteName, screen, current, queue, homeStickies, calendar, calendarState, homeWidgets, homeEditing, tasksView, reviewView, moneyView, mailView, mailState, debateView, debateState, moneyState, corkboard, examPaper, schoolView, describeAfterOpen, wordTimer, backlinkTimer, tabs, activeTabId, nextTabId, movingTo, newTabAt, workspaceTimer, bookmarksData, homeLayoutForSettings, vaultSettings, settingsSection, appInfo, cardsDueTimer, cardsDueCount, setVault, setTree, setPaletteName, setScreen, setCurrent, setQueue, setHomeStickies, setCalendar, setCalendarState, setHomeWidgets, setHomeEditing, setTasksView, setReviewView, setMoneyView, setMailView, setMailState, setDebateView, setDebateState, setMoneyState, setCorkboard, setExamPaper, setSchoolView, setDescribeAfterOpen, setWordTimer, setBacklinkTimer, setTabs, setActiveTabId, setNextTabId, setMovingTo, setNewTabAt, setWorkspaceTimer, setBookmarksData, setHomeLayoutForSettings, setVaultSettings, setSettingsSection, setAppInfo, setCardsDueTimer, setCardsDueCount,
+  vault, tree, paletteName, screen, current, queue, homeStickies, calendar, calendarState, homeWidgets, homeEditing, tasksView, reviewView, moneyView, debateView, debateState, moneyState, corkboard, examPaper, schoolView, describeAfterOpen, wordTimer, backlinkTimer, tabs, activeTabId, nextTabId, movingTo, newTabAt, workspaceTimer, bookmarksData, homeLayoutForSettings, vaultSettings, settingsSection, appInfo, cardsDueTimer, cardsDueCount, setVault, setTree, setPaletteName, setScreen, setCurrent, setQueue, setHomeStickies, setCalendar, setCalendarState, setHomeWidgets, setHomeEditing, setTasksView, setReviewView, setMoneyView, setDebateView, setDebateState, setMoneyState, setCorkboard, setExamPaper, setSchoolView, setDescribeAfterOpen, setWordTimer, setBacklinkTimer, setTabs, setActiveTabId, setNextTabId, setMovingTo, setNewTabAt, setWorkspaceTimer, setBookmarksData, setHomeLayoutForSettings, setVaultSettings, setSettingsSection, setAppInfo, setCardsDueTimer, setCardsDueCount,
 } from './app/state.js';
 import {
   activateTab, activeTab, closeCurrent, closeTab, crumbsFor, currentPlace, drawTabs, enqueue, flushHomeStickies, folderHomeOptions, goHistory, inNewTab, leaveCalendar, moveTab, navigate, newTab, openFile, openFolder, openFromTab, reloadTree, remember, renamePlaces, restoreTabs, rememberTabScroll, samePlace, schoolTabs, setTitle, showCrumbs, showHome, showPlace, showWelcome, stepTab, tabFileMenu, tabMenu, tabPlace, togglePin,
 } from './app/navigation.js';
 import {
-  addExamTracker, homeFidgets, loadVaultSettings, readTaskList, listenForOpenerMenu, listenForNewMail, showCalendar, showDebate, showMail, showMoney, showNote, showReview, showSettings, showTasks, taskListNodes,
+  addExamTracker, homeFidgets, loadVaultSettings, readTaskList, listenForOpenerMenu, showCalendar, showDebate, showMoney, showNote, showReview, showSettings, showTasks, taskListNodes,
 } from './app/screens.js';
 import {
   installShortcuts,
@@ -147,7 +146,7 @@ const chrome = new Chrome(document.getElementById('rail'), document.getElementBy
   onToggleSidebar: () => document.getElementById('sidebar').panel.toggle(),
   sidebarClosed: () => document.getElementById('sidebar').panel.isClosed(),
   fidgets: () => (vault ? homeFidgets() : []),
-  railPlace: () => ({ mail: 'mail', money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', settings: 'settings' })[screen.kind] || null,
+  railPlace: () => ({ money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', settings: 'settings' })[screen.kind] || null,
 });
 
 // The tabs sit in the sidebar, one under another (Sidebar places this element).
@@ -291,8 +290,6 @@ function openReminder(open) {
   } else if (open.kind === 'calendar') {
     setCalendarState({ ...calendarState, mode: 'day' });
     showCalendar(keyToDate(open.day));
-  } else if (open.kind === 'mail') {
-    showMail((view) => view.openMessage(open.id));
   }
 }
 
@@ -520,12 +517,6 @@ async function loadDayEvents(key) {
 
 
 // ---------- Money ----------
-
-
-// ---------- Mail ----------
-
-
-listenForNewMail();
 
 
 // ---------- Flashcards ----------

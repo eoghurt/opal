@@ -46,12 +46,12 @@ export class CalendarView {
   // noteDays() → Set of day keys that have a note. openDayNote(key), openLink(target).
   // readRepeats() → text of Calendar/Repeating.md ('' if none). writeRepeats(text).
   // updateTask(task, patch) changes a task's date/time (dragging it in the grid).
-  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, deleteTask, openTasks, openReview, recordStep, undo, openMailReply }) {
+  constructor(container, { date, mode, readDay, writeDay, readRepeats, writeRepeats, noteDays, openDayNote, openLink, onChange, loadTasks, toggleTask, updateTask, addTask, deleteTask, openTasks, openReview, recordStep, undo }) {
     this.container = container;
     this.date = date || new Date();
     this.mode = mode || 'day';
     this.io = {
-      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, updateTask, addTask, deleteTask, openTasks, openMailReply,
+      readDay, writeDay, noteDays, openDayNote, openLink, toggleTask, updateTask, addTask, deleteTask, openTasks,
       readRepeats: readRepeats || (async () => ''),
       writeRepeats,
       onChange: onChange || (() => {}),
@@ -802,20 +802,6 @@ export class CalendarView {
 
   // The tick box on a task (ticks it off in its list).
   tickBox(task) {
-    // A "to reply" task from Mail: an envelope that opens the reply instead.
-    if (task.mail && !task.done && this.io.openMailReply) {
-      return h('button', {
-        type: 'button',
-        class: 'cal-task-box cal-task-mail',
-        'aria-label': `Write the reply: ${task.title}`,
-        title: 'Write the reply',
-        onpointerdown: (e) => e.stopPropagation(),
-        onclick: (e) => {
-          e.stopPropagation();
-          this.io.openMailReply(task.mail);
-        },
-      }, icon('mail', 11));
-    }
     return h('button', {
       type: 'button',
       class: `cal-task-box${task.done ? ' is-done' : ''}`,

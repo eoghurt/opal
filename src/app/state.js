@@ -38,10 +38,6 @@ export let reviewView = null;
 
 export let moneyView = null;
 
-export let mailView = null;
-
-export let mailState = { box: 'people', account: 'all' };
-
 export let debateView = null;
 
 export let debateState = null;
@@ -149,14 +145,6 @@ export function setReviewView(value) {
 }
 export function setMoneyView(value) {
   moneyView = value;
-  return value;
-}
-export function setMailView(value) {
-  mailView = value;
-  return value;
-}
-export function setMailState(value) {
-  mailState = value;
   return value;
 }
 export function setDebateView(value) {

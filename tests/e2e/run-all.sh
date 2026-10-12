@@ -12,7 +12,7 @@ for f in $E/checks/*.sh(on); do
   $E/fresh.sh >/dev/null 2>&1
   ( source $E/lib.sh; source $f ) 2>&1 | grep -E "^(PASS|FAIL|SKIP)|EXCEPTION" | sed "s/^/$name  /" | tee -a $out
 done
-$E/stop.sh 2>/dev/null; pkill -f fake-graph.mjs 2>/dev/null
+$E/stop.sh 2>/dev/null
 pass=$(grep -c "  PASS" $out); fail=$(grep -cE "  FAIL|EXCEPTION" $out); skip=$(grep -c "  SKIP" $out)
 echo; echo "e2e: $pass passed, $fail failed, $skip skipped"
 [[ $fail -eq 0 ]]

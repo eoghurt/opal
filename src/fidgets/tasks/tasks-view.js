@@ -35,7 +35,7 @@ const blankTask = (title) => ({ title, done: false, due: null, time: null, starr
 
 export class TasksView {
   // io: listNames(), readList(name) → text|null, writeList(name, text),
-  //     renameList(name, newName), deleteList(name), openMailReply(messageId)
+  //     renameList(name, newName), deleteList(name)
   constructor(container, io) {
     this.io = io;
     const prefs = loadPrefs();
@@ -260,21 +260,13 @@ export class TasksView {
     const movable = Boolean(neighbours) && !showList && this.sort === 'mine';
     const subDone = task.subtasks.filter((s) => s.done).length;
     const row = h('div', { class: `task${task.done ? ' is-done' : ''}${editing ? ' is-editing' : ''}` },
-      task.mail && !task.done && this.io.openMailReply
-        // A "to reply" task: the envelope opens the reply (sending it ticks the task).
-        ? h('button', {
-          class: 'task-check task-mail',
-          'aria-label': `Write the reply: ${task.title}`,
-          title: 'Write the reply',
-          onclick: () => this.io.openMailReply(task.mail),
-        }, icon('mail', 14))
-        : h('button', {
-          class: `task-check${task.done ? ' is-done' : ''}`,
-          role: 'checkbox',
-          'aria-checked': String(task.done),
-          'aria-label': task.done ? `Mark “${task.title}” not done` : `Mark “${task.title}” done`,
-          onclick: () => this.toggle(task),
-        }, task.done ? '✓' : ''),
+      h('button', {
+        class: `task-check${task.done ? ' is-done' : ''}`,
+        role: 'checkbox',
+        'aria-checked': String(task.done),
+        'aria-label': task.done ? `Mark “${task.title}” not done` : `Mark “${task.title}” done`,
+        onclick: () => this.toggle(task),
+      }, task.done ? '✓' : ''),
       h('button', {
         class: 'task-main',
         title: movable ? 'Click to edit · drag to move (or Option+↑/↓)' : null,

@@ -160,7 +160,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   Bookmarks and Folders, and the page on a rounded sheet whose top row holds
   back/forward, the path, word count, save status and the timer.
 - **Settings** — Appearance (light/dark, palette, home page), Tabs, Vault,
-  Shortcuts, About, and Widgets & Fidgets (Mail, Timer) (⌘,). Vault settings
+  Shortcuts, About, and Widgets & Fidgets (Timer) (⌘,). Vault settings
   live in .opal/settings.json.
 - **Pomodoro** — focus / short break / long break, lengths in Settings; focus
   parts are saved with the timer sessions.
@@ -190,7 +190,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   - **Widgets** (`src/widgets/`) are small things inside a page that do one
     job: heatmaps, tables, the home page widgets, sticky notes, the timer.
   - **Fidgets** (`src/fidgets/`) are heavier and take a whole page: calendar,
-    tasks, mail, money, debate, flashcard review, flow sheets, folder
+    tasks, money, debate, flashcard review, flow sheets, folder
     databases, manuscripts, the exam tracker.
   - Each folder has an `index.js` listing what's in it. Settings has a
     Widgets & Fidgets group: an overview of every one, then their settings
@@ -243,7 +243,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   Practise anyway runs a deck without changing dates. Bookmarks are back, in the
   sidebar.
 
-## v0.13 — Mail, reading (done)
+## v0.13 — Mail, reading (done; taken out in v0.17)
 - **Mail** fidget (design A, mockups: https://claude.ai/artifact/2x3wcG523GX9Z4pec2CkGw):
   Gmail accounts over IMAP (ImapFlow, XOAUTH2), parsed with mailparser, all in
   the main process (`mail/`, `mail:*` channels). Rail: People (Gmail's Primary),
@@ -263,7 +263,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Safe reading** — email HTML goes through viewers/sanitize.js; cid: pictures
   become data: URLs, pictures from the web stay blocked, links open in the browser.
 
-## v0.14 — Mail, writing (done)
+## v0.14 — Mail, writing (done; taken out in v0.17)
 - **Writing** (design A, same mockups as 0.13): + Write, Reply, Reply all and
   Forward open a writing card in the reader's place — To / Cc / Bcc as address
   bubbles, Subject, the body in Opal's markdown editor (sent as plain text and
@@ -289,7 +289,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   Settings › Widgets & Fidgets › Mail turns the notifications off.
 - Tests send only to Nodemailer's stream transport (OPAL_MAIL_FIXTURE), check v51.
 
-## v0.15 — Mail, Outlook accounts (done)
+## v0.15 — Mail, Outlook accounts (done; taken out in v0.17)
 - **Outlook.com, Hotmail and Live** accounts beside Gmail (personal Microsoft
   accounts only; school and work Microsoft accounts are left out), through
   Microsoft Graph (mail/microsoft.js): sign-in with PKCE in the browser to a
@@ -337,6 +337,20 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Search timed on 5,000 notes (38 MB)** — the sidebar's scan 136 ms (84 ms
   after), ⌘⇧F 141–268 ms depending on matches, and no pause over 50 ms in the
   window when the sidebar redraws; all under half a second, so no search index.
+
+## v0.17 — Mail archived (done)
+- **Mail taken out of the app**, unused. It's kept whole at the git tag
+  `mail-archive` (v0.16.0, the last version with it): `mail/`,
+  `src/fidgets/mail/`, `shared/md-html.js`, its styles, Settings section, ⌘⇧E,
+  checks v50–v52, tests/e2e/fake-graph.mjs and the sample emails. Its four
+  libraries (ImapFlow, mailparser, Nodemailer, html-to-text) are uninstalled.
+- To bring it back: restore those files from the tag (`git checkout mail-archive
+  -- mail src/fidgets/mail …`), reinstall the libraries, and put back the lines
+  that hook it up in main.js, preload.js, src/app/ and Settings (`git diff
+  mail-archive v0.17.0` shows every one).
+- "To reply" tasks keep their [📧](link) when Opal edits them, but have an
+  ordinary tick box now. Accounts, cache and drafts in Opal's settings folder are
+  left as they were (nothing reads them).
 
 ## Fidget ideas
 Ethan's:

@@ -8,10 +8,9 @@
 //
 // 📅 due date, ⏰ time, ⭐ starred, ➕ date it was added, ✅ date it was done, 🔁 repeat (e.g.
 // "🔁 every week" — ticking it off adds the next one, as Obsidian Tasks does).
-// A "to reply" task from Mail ends with [📧](https://mail.google.com/…#search/rfc822msgid%3A…)
-// (or https://outlook.live.com/mail/…#rfc822msgid%3A… for Outlook): a link that opens
-// the email's mailbox from Obsidian; in Opal it shows an envelope instead of a
-// tick box, which opens the reply.
+// A "to reply" task from Mail (taken out in v0.17; see the mail-archive tag) ends
+// with [📧](https://mail.google.com/…#search/rfc822msgid%3A…) or an outlook.live.com
+// link: kept as it is whenever Opal rewrites the task.
 // Anything else in the note (headings, text) is left alone.
 
 import { RULE_TEXT, normaliseRule, nextDate } from '../calendar/repeat.js';

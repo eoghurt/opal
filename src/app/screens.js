@@ -1,13 +1,13 @@
 // The whole-page screens: School, the exam tracker, the corkboard and
 // classic home pages, Settings, and the fidgets (Calendar, Tasks, Debate,
-// Money, Mail, Review). Moved out of renderer.js unchanged.
+// Money, Review). Moved out of renderer.js unchanged.
 
 import { TRACKER_NAME, findPapers, formatTracker, guessCourse, parseTracker } from '../fidgets/exams/exams.js';
 import { SchoolView, readPredicted } from '../fidgets/exams/school-view.js';
 import { pdfLines } from '../fidgets/exams/pdf-lines.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, colorHex, dayKey, dayPath, keyToDate } from '../fidgets/calendar/events.js';
 import { countNotes, findFile, findFolder, flattenFiles } from '../tree.js';
-import { appInfo, bookmarksData, calendar, calendarState, cardsDueCount, cardsDueTimer, corkboard, current, debateState, homeEditing, homeLayoutForSettings, homeWidgets, mailState, mailView, moneyState, paletteName, screen, setAppInfo, setCalendar, setCalendarState, setCardsDueCount, setCardsDueTimer, setCorkboard, setCurrent, setDebateState, setDebateView, setExamPaper, setHomeEditing, setHomeLayoutForSettings, setHomeStickies, setHomeWidgets, setMailState, setMailView, setMoneyState, setMoneyView, setPaletteName, setReviewView, setSchoolView, setScreen, setSettingsSection, setTasksView, setVaultSettings, settingsSection, tree, vault, vaultSettings } from './state.js';
+import { appInfo, bookmarksData, calendar, calendarState, cardsDueCount, cardsDueTimer, corkboard, current, debateState, homeEditing, homeLayoutForSettings, homeWidgets, moneyState, paletteName, screen, setAppInfo, setCalendar, setCalendarState, setCardsDueCount, setCardsDueTimer, setCorkboard, setCurrent, setDebateState, setDebateView, setExamPaper, setHomeEditing, setHomeLayoutForSettings, setHomeStickies, setHomeWidgets, setMoneyState, setMoneyView, setPaletteName, setReviewView, setSchoolView, setScreen, setSettingsSection, setTasksView, setVaultSettings, settingsSection, tree, vault, vaultSettings } from './state.js';
 import { addButton, bookmarkIo, bookmarkTarget, changeOpenNote, chooseTemplateFor, chrome, colorMenu, describeOpenNote, exportFlow, exportMenu, linkTargets, loadAllTasks, loadBacklinks, loadDayEvents, newFolder, newNote, noteSaved, openHref, openLink, prepTimer, readNoteOrNull, reminders, renameOpenNote, setItemColor, showHistory, showWordCount, sidebar, toggleBookmarkOf, viewEl } from '../renderer.js';
 import { activeTab, crumbsFor, folderHomeOptions, goHistory, inNewTab, leaveCalendar, navigate, newTab, openFile, openFolder, reloadTree, remember, samePlace, schoolTabs, setTitle, showCrumbs, showHome } from './navigation.js';
 import { colorOf } from '../item-colors.js';
@@ -16,7 +16,7 @@ import { fileUrl, kindLabel, kindOf } from '../file-types.js';
 import { renderFolderHome } from '../views/folder-home.js';
 import { ExamPaper, ExamTracker } from '../fidgets/exams/exam-tracker-view.js';
 import { Corkboard, DEFAULT_QUOTES } from '../home/corkboard.js';
-import { DEFAULT_LIST, TASKS_FOLDER, addTask, formatTask, mailLink, parseTasks, replaceTask, todayKey, toggleTask } from '../fidgets/tasks/tasks.js';
+import { DEFAULT_LIST, TASKS_FOLDER, addTask, formatTask, parseTasks, replaceTask, todayKey, toggleTask } from '../fidgets/tasks/tasks.js';
 import { showMenu } from '../context-menu.js';
 import { FIDGETS } from '../fidgets/index.js';
 import { askName, h } from '../ui.js';
@@ -40,7 +40,6 @@ import { CalendarView } from '../fidgets/calendar/calendar-view.js';
 import { TasksView } from '../fidgets/tasks/tasks-view.js';
 import { DebateView } from '../fidgets/debate/debate-view.js';
 import { MoneyView } from '../fidgets/money/money-view.js';
-import { MailView } from '../fidgets/mail/mail-view.js';
 import { ReviewView } from '../fidgets/flashcards/review-view.js';
 import { countDue } from '../fidgets/flashcards/schedule.js';
 
@@ -857,7 +856,6 @@ export function showCalendar(date) {
     showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Calendar' }]);
     viewEl.scrollTop = 0;
     setCalendar(new CalendarView(viewEl, {
-      openMailReply,
       date: calendarState.date,
       mode: calendarState.mode,
       openReview: () => showReview(),
@@ -996,7 +994,6 @@ export function showTasks() {
         await window.opal.trashNote(taskListPath(name));
         await reloadTree();
       },
-      openMailReply,
     }));
   });
 }
@@ -1091,7 +1088,7 @@ export function showDebate() {
 // ---------- Money ----------
 
 // The fidget tiles at the top of the vault's home page.
-export const FIDGET_PAGES = { mail: () => showMail(), money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), debate: () => showDebate(), flashcards: () => showReview() };
+export const FIDGET_PAGES = { money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), debate: () => showDebate(), flashcards: () => showReview() };
 export function homeFidgets() {
   const order = Object.keys(FIDGET_PAGES);
   return FIDGETS.filter((f) => f.page && !f.off && FIDGET_PAGES[f.id]).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)).map((f, i) => ({
@@ -1136,90 +1133,6 @@ export function showMoney() {
       },
     }));
   });
-}
-
-// ---------- Mail ----------
-
-export function showMail(then) {
-  if (!vault) return Promise.resolve();
-  if (screen && screen.kind === 'mail' && mailView) {
-    if (then) mailView.whenReady(() => then(mailView));
-    return Promise.resolve();
-  }
-  return navigate(async () => {
-    setHomeStickies(null);
-    leaveCalendar();
-    setScreen({ kind: 'mail' });
-    setTitle('Mail');
-    sidebar.setActive(null, null);
-    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Mail' }]);
-    viewEl.scrollTop = 0;
-    setMailView(new MailView(viewEl, {
-      box: mailState.box,
-      account: mailState.account,
-      io: {
-        ...window.opal.mail,
-        openNote: async (path) => {
-          await reloadTree();
-          openFile(path);
-        },
-        openWeb: (url) => window.opal.openWebLink(url).catch(() => {}),
-        onChange: (state) => { setMailState(state); },
-        vaultFiles: () => flattenFiles(tree).map((f) => ({ path: f.path, name: f.name })),
-        addReplyTask: (message, day) => addReplyTask(message, day),
-        onSent: (result) => { if (result && result.inReplyTo) tickReplyTasks(result.inReplyTo).catch(() => {}); },
-      },
-    }));
-    if (then) mailView.whenReady(() => then(mailView));
-  });
-}
-// "To reply" (Mail's menu): a task in My Tasks on that day, titled
-// "Reply to <subject> / <sender>", carrying a link to the email (see tasks.js).
-export async function addReplyTask(message, day) {
-  const status = await window.opal.mail.status();
-  const account = status.accounts.find((a) => a.id === message.account);
-  const sender = (message.from && (message.from.name || message.from.address)) || 'someone';
-  const task = {
-    title: `Reply to ${String(message.subject || '(no subject)').replace(/\s+/g, ' ')} / ${sender}`.replace(/[\[\]]/g, ''),
-    done: false, due: day, time: null, endTime: null, startDate: null, repeat: null, starred: false,
-    primary: null, secondary: null, created: todayKey(), doneOn: null,
-    mailLink: mailLink(message.messageId, account ? account.email : '', account ? account.provider : 'google'),
-    details: [], subtasks: [],
-  };
-  const text = (await readTaskList(DEFAULT_LIST)) || '';
-  await writeTaskList(DEFAULT_LIST, addTask(text, task, DEFAULT_LIST));
-}
-// Sending a reply ticks off its "to reply" task(s).
-export async function tickReplyTasks(inReplyTo) {
-  const wanted = String(inReplyTo).replace(/^<|>$/g, '');
-  for (const node of taskListNodes()) {
-    const name = node.name.slice(0, -3);
-    for (;;) {
-      const text = (await readTaskList(name)) || '';
-      const task = parseTasks(text, name).find((t) => t.mail === wanted && !t.done);
-      if (!task) break;
-      await writeTaskList(name, toggleTask(text, task));
-    }
-  }
-}
-// The envelope on a "to reply" task: Mail, writing the reply.
-export function openMailReply(messageId) {
-  return showMail((view) => view.replyToMessageId(messageId));
-}
-
-// Called once from renderer.js, at the point where this used to run.
-export function listenForNewMail() {
-  // New mail (main's IDLE connection): the list updates, and a Mac notification
-  // per email — sender and subject only — unless switched off in Settings › Mail.
-  window.opal.mail.onArrived((data) => {
-    if (mailView) mailView.arrived(data);
-    if (vaultSettings.mail && vaultSettings.mail.notify === false) return;
-    for (const m of (data.fresh || []).slice(0, 5)) {
-      window.opal.notify({ title: (m.from && (m.from.name || m.from.address)) || 'New email', body: m.subject || '(no subject)', mail: m.id }).catch(() => {});
-    }
-  });
-
-  window.opal.mail.onChanged(() => { if (mailView) mailView.refreshList().catch(() => {}); });
 }
 
 // ---------- Flashcards ----------

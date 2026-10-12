@@ -12,7 +12,7 @@
 // Uncaught exceptions and unhandled promise rejections in the main process are
 // caught here too (logged and shown) instead of crashing Opal or vanishing.
 // Nothing private goes in the log on purpose: errors carry file paths, never
-// note text, and the mail code never logs (it holds addresses and tokens).
+// note text.
 
 const fs = require('fs');
 const path = require('path');

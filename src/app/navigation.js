@@ -3,10 +3,10 @@
 // and restoring them from .opal/workspace.json. Moved out of renderer.js
 // unchanged.
 
-import { activeTabId, bookmarksData, calendar, corkboard, current, debateState, debateView, describeAfterOpen, examPaper, homeStickies, homeWidgets, mailView, moneyState, moneyView, movingTo, newTabAt, nextTabId, queue, reviewView, schoolView, screen, setActiveTabId, setCalendar, setCorkboard, setCurrent, setDebateState, setDebateView, setDescribeAfterOpen, setExamPaper, setHomeStickies, setHomeWidgets, setMailView, setMoneyState, setMoneyView, setMovingTo, setNewTabAt, setNextTabId, setQueue, setReviewView, setSchoolView, setScreen, setTabs, setTasksView, setTree, setWorkspaceTimer, tabs, tasksView, tree, vault, vaultSettings, workspaceTimer } from './state.js';
+import { activeTabId, bookmarksData, calendar, corkboard, current, debateState, debateView, describeAfterOpen, examPaper, homeStickies, homeWidgets, moneyState, moneyView, movingTo, newTabAt, nextTabId, queue, reviewView, schoolView, screen, setActiveTabId, setCalendar, setCorkboard, setCurrent, setDebateState, setDebateView, setDescribeAfterOpen, setExamPaper, setHomeStickies, setHomeWidgets, setMoneyState, setMoneyView, setMovingTo, setNewTabAt, setNextTabId, setQueue, setReviewView, setSchoolView, setScreen, setTabs, setTasksView, setTree, setWorkspaceTimer, tabs, tasksView, tree, vault, vaultSettings, workspaceTimer } from './state.js';
 import { noteName, parentOf, relativeDay } from '../format.js';
 import { addButton, bookmarkTarget, chrome, colorMenu, colourSwatches, compileManuscript, describeFolder, folderLabel, itemMenuItems, newFolder, newNote, openLink, rearrange, reminders, renameFolderFromHome, showAsDatabase, showWordCount, sidebar, tabBar, toggleBookmarkOf, viewEl } from '../renderer.js';
-import { examTrackerFor, folderHomeStickies, homeFidgets, mountHomeWidgets, schoolSubjects, showCalendar, showCorkboard, showDebate, showExamPaper, showMail, showMoney, showNote, showReview, showSchool, showSettings, showTasks, updateCardsDue } from './screens.js';
+import { examTrackerFor, folderHomeStickies, homeFidgets, mountHomeWidgets, schoolSubjects, showCalendar, showCorkboard, showDebate, showExamPaper, showMoney, showNote, showReview, showSchool, showSettings, showTasks, updateCardsDue } from './screens.js';
 import { findFile, findFolder } from '../tree.js';
 import { openPinPicker } from '../tabs.js';
 import { showMenu } from '../context-menu.js';
@@ -45,8 +45,6 @@ export function leaveCalendar() {
   setDebateView(null);
   if (moneyView) moneyView.destroy();
   setMoneyView(null);
-  if (mailView) mailView.destroy();
-  setMailView(null);
   if (reviewView) reviewView.destroy();
   setReviewView(null);
   if (tasksView && tasksView.destroy) tasksView.destroy();
@@ -101,9 +99,9 @@ export function showCrumbs(crumbs) {
 
 // ---------- Tabs, and back and forward ----------
 
-export const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'review', 'money', 'debate', 'mail'];
-export const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', review: 'Review', money: 'Money', debate: 'Debate', mail: 'Mail' };
-export const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', review: 'review', money: 'money', debate: 'debate', mail: 'mail' };
+export const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'review', 'money', 'debate'];
+export const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', review: 'Review', money: 'Money', debate: 'Debate' };
+export const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', review: 'review', money: 'money', debate: 'debate' };
 export function currentPlace() {
   if (!screen) return null;
   if (screen.kind === 'home') return { kind: 'home', folderPath: screen.folderPath };
@@ -217,7 +215,6 @@ export function goToPlace(place) {
   if (place.kind === 'logbook') return openFolder(''); // the Logbook is on the home page now
   if (place.kind === 'settings') return showSettings();
   if (place.kind === 'review') return showReview();
-  if (place.kind === 'mail') return showMail();
   if (place.kind === 'money') {
     if (place.sub) setMoneyState({ month: place.sub.month || null, tab: place.sub.tab || 'overview' });
     return showMoney();

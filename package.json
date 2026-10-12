@@ -1,7 +1,7 @@
 {
   "name": "opal",
   "productName": "Opal",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "description": "Local-first notes app. Markdown files on disk are the source of truth.",
   "main": "main.js",
@@ -60,8 +60,6 @@
       "errors.js",
       "preload.js",
       "file-types.json",
-      "mail/**",
-      "mail-client.json",
       "shared/**",
       "src/index.html",
       "src/styles.css",
@@ -83,11 +81,5 @@
         "NSHumanReadableCopyright": "Your notes are plain markdown files on disk."
       }
     }
-  },
-  "dependencies": {
-    "html-to-text": "^10.0.1",
-    "imapflow": "^2.4.0",
-    "mailparser": "^3.9.38",
-    "nodemailer": "^10.1.0"
   }
 }
