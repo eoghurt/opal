@@ -20,8 +20,6 @@ Two things do not carry over. Canvas files (.canvas) do not open in Opal, and Ob
 
 **Flashcards.** Write a card as `Question::Answer` in any note and review it on a spaced-repetition schedule. Quote cards turn every quotation in a quotes note into practice, with modes for first letters, filling the gaps, typing it out and guessing who said it.
 
-**Mail.** Gmail and Outlook.com accounts, with reading, writing, replying and new-mail notifications. Your mailbox stays with Google or Microsoft, and an email enters your notes only when you save it, which turns it into a markdown note with its attachments beside it. Right-click an email to add a "reply to" task to your calendar, and the task ticks itself off when you send the reply.
-
 **Money.** A monthly budget, saving goals, income and spending history, kept in the Ledger plugin's files.
 
 **Folders.** Any folder can become a database with table and card views, a manuscript that compiles its chapters into one Word file, or a home page with its own description and sticky notes.
@@ -46,14 +44,6 @@ npm start
 `npm start` builds Opal and opens it, and the first launch opens a welcome screen where you choose a folder as your vault, which can be an existing Obsidian vault. To build an app you can keep in Applications, run `npm run dist`, and the app appears in the `release` folder. The app is not signed, so the first time you open it, right-click it and choose Open.
 
 `npm test` runs the unit tests and then every end-to-end check against a demo vault.
-
-### Setting up Mail
-
-Mail needs your own sign-in details, because Google and Microsoft only let an app read your email when it is registered with them. The Mail page walks you through it.
-
-For **Gmail**, create a desktop app OAuth client in [Google Cloud Console](https://console.cloud.google.com), add yourself as a test user, and save the client file as `mail-client.json` in `~/Library/Application Support/Opal`. This file is never uploaded to git.
-
-For **Outlook.com, Hotmail and Live** accounts, register an app in the [Microsoft Entra admin centre](https://entra.microsoft.com) and paste its Application (client) ID into the setup card. School and work Microsoft accounts are not supported.
 
 ## Bugs and ideas
 
