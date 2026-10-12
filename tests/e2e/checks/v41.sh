@@ -8,21 +8,23 @@ fidget Calendar; C "document.querySelector('.cal-today')?.click(); 1" >/dev/null
 # A helper in the window: swipe sideways (or up/down) by a number of days (weeks in Month), then wait for it to settle.
 C "window.__swipe=async(units,axis='x')=>{const win=document.querySelector('.cal-mscroll')||document.querySelector('.cal-daytrack').parentElement; const unit=axis==='x'?win.clientWidth/7:win.clientHeight/6; const main=document.querySelector('.cal-main'); const steps=12; let mid=null; for(let i=0;i<steps;i++){ main.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaX:axis==='x'?units*unit/steps:0,deltaY:axis==='y'?units*unit/steps:0})); await new Promise(r=>setTimeout(r,16)); if(i===6) mid=(document.querySelector('.cal-track')||{}).style?.transform; } await new Promise(r=>setTimeout(r,700)); return mid; }; 1" >/dev/null
 first() { C "document.querySelector('.cal-h1').textContent" | tr -d '"'; }
+# The week title for the 7 days starting <n> days after this week's Monday ("5 Oct – 11 Oct 2026").
+wk() { node -e "const M='Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' '); const d=new Date(); d.setHours(12); d.setDate(d.getDate()-(d.getDay()+6)%7+$1); const e=new Date(d); e.setDate(d.getDate()+6); console.log(d.getDate()+' '+M[d.getMonth()]+' – '+e.getDate()+' '+M[e.getMonth()]+' '+e.getFullYear())"; }
 W0=$(first)
-ok "week view starts on this Monday" '[[ "$W0" == "5 Oct – 11 Oct 2026" ]]'
+ok "week view starts on this Monday" '[[ "$W0" == "$(wk 0)" ]]'
 MID=$(C "window.__swipe(3)" | tr -d '"')
 ok "swiping slides the days along smoothly (part-way positions in between)" '[[ "$MID" == translateX* && "$MID" != *"-33.3333%"* ]]'
-ok "…and settles on the nearest day: Thursday first" '[[ "$(first)" == "8 Oct – 14 Oct 2026" ]]'
+ok "…and settles on the nearest day: Thursday first" '[[ "$(first)" == "$(wk 3)" ]]'
 C "window.__swipe(0.6)" >/dev/null
-ok "a small push from a Thursday moves on a day" '[[ "$(first)" == "9 Oct – 15 Oct 2026" ]]'
+ok "a small push from a Thursday moves on a day" '[[ "$(first)" == "$(wk 4)" ]]'
 C "window.__swipe(2.45)" >/dev/null
-ok "landing just short of a Monday sticks to the Monday" '[[ "$(first)" == "12 Oct – 18 Oct 2026" ]]'
+ok "landing just short of a Monday sticks to the Monday" '[[ "$(first)" == "$(wk 7)" ]]'
 C "window.__swipe(0.6)" >/dev/null
-ok "the same small push from a Monday doesn't move it (harder to leave)" '[[ "$(first)" == "12 Oct – 18 Oct 2026" ]]'
+ok "the same small push from a Monday doesn't move it (harder to leave)" '[[ "$(first)" == "$(wk 7)" ]]'
 C "window.__swipe(-0.6)" >/dev/null
-ok "…nor backwards" '[[ "$(first)" == "12 Oct – 18 Oct 2026" ]]'
+ok "…nor backwards" '[[ "$(first)" == "$(wk 7)" ]]'
 C "document.querySelector('.cal-nav .cal-navbtn[aria-label=Previous]').click(); 1" >/dev/null; sleep 0.8
-ok "the ‹ button slides back a week" '[[ "$(first)" == "5 Oct – 11 Oct 2026" ]]'
+ok "the ‹ button slides back a week" '[[ "$(first)" == "$(wk 0)" ]]'
 ok "only the days on screen are visible (seven columns in view)" '[[ $(C "(()=>{const w=document.querySelector(\".cal-daytrack\").parentElement.getBoundingClientRect(); return [...document.querySelectorAll(\".cal-day\")].filter(d=>{const r=d.getBoundingClientRect(); return r.left>=w.left-1&&r.right<=w.right+1}).length})()") == 7 ]]'
 # Month: up/down slides by weeks
 clickText .cal-seg Month
@@ -32,7 +34,7 @@ ok "…and settles a week on (whole weeks, not months)" '[[ $(C "(()=>{const w=d
 C "window.__swipe(3,'y')" >/dev/null
 ok "the title follows the month that fills the screen" '[[ "$(first)" == "November 2026" ]]'
 C "document.querySelector('.cal-today').click(); 1" >/dev/null; sleep 0.8; clickText .cal-seg Week
-ok "Today, then Week, goes back to this week" '[[ "$(first)" == "5 Oct – 11 Oct 2026" ]]'
+ok "Today, then Week, goes back to this week" '[[ "$(first)" == "$(wk 0)" ]]'
 # Select and delete; undo; redo
 ev() { echo "[...document.querySelectorAll('.cal-day[data-key=\"$T\"] .cal-event')].find(x=>x.textContent.includes('$1'))"; }
 P=$(xy "$(ev 'Lab report')"); C --drag "$P,$P" >/dev/null; sleep 0.6
