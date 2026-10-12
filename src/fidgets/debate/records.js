@@ -3,6 +3,7 @@
 //
 //   <Debate>/Competitions/<Name> <Year>.md   one note per competition
 //   <Debate>/Rounds/<Round ID>.md             one note per round (Form 1 + Form 2)
+//   <Debate>/Rounds/Audio/<Round ID>.m4a      a practice speech's recording
 //
 // The Schools Record and Adjudication Record tables are read once, to make
 // the competition notes (they're left as they are).
@@ -285,6 +286,17 @@ export function roundId(short, round) {
   return `${short}-${code}`;
 }
 
+// A practice speech's Round ID: PRAC-<date>-P, then -P2, -P3 … for a second
+// or later speech the same day. `taken` holds the Round IDs already used.
+export function practiceId(date, taken = []) {
+  const base = roundId(`PRAC-${date}`, 'Practice');
+  const used = new Set([...taken].map((id) => String(id).toUpperCase()));
+  if (!used.has(base.toUpperCase())) return base;
+  let n = 2;
+  while (used.has(`${base}${n}`.toUpperCase())) n++;
+  return `${base}${n}`;
+}
+
 // The 15 dimensions of the Weakness Diagnostic, by cluster (Form 2 scores them).
 export const DIMENSIONS = [
   ['Analysis', ['Mechanism depth', 'Characterisation', 'Principled reasoning', 'Matter']],
@@ -297,7 +309,11 @@ export const scoreKey = (dimension) => `score_${dimension.toLowerCase().replace(
 export const CAUSES = ['Throughput', 'Page architecture', 'Structural listening', 'Round vision', 'Collapse under time', 'Knowledge gap', 'Execution under pressure'];
 
 // Long answers kept as sections in the round's note (title → field).
+// A practice speech uses Transcript, Judging, Symptom, Cause, Mini fix and
+// Model rewrite (Claude's debate-judging skill fills them in).
 export const ROUND_SECTIONS = [
+  ['Transcript', 'transcript'],
+  ['Judging', 'judging'],
   ['Judge feedback', 'feedback'],
   ['At what point did they decide', 'decided'],
   ['What I was trying to do', 'trying'],
@@ -308,8 +324,21 @@ export const ROUND_SECTIONS = [
   ['Cause', 'cause'],
   ['For the judge to be right', 'believe'],
   ['Mini fix', 'mini'],
+  ['Model rewrite', 'rewrite'],
   ['Anything else', 'other'],
 ];
+const SPEECH_SECTIONS = ['Transcript', 'Judging', 'Symptom', 'Cause', 'Mini fix', 'Model rewrite'];
+const NEW_SECTIONS = new Set(['transcript', 'judging', 'rewrite']);
+
+// A practice speech's properties, after motion (numbers may be half marks).
+const SPEECH_PROPS = ['prep', 'prep_minutes', 'recording', 'judge', 'wsdc_style', 'wsdc_content', 'wsdc_strategy', 'wsdc_total', 'wudc', 'duration', 'wpm', 'fillers'];
+const NUMBER_PROPS = new Set(['prep_minutes', 'wsdc_style', 'wsdc_content', 'wsdc_strategy', 'wsdc_total', 'wudc', 'wpm', 'fillers']);
+const unlink = (v) => String(v || '').replace(/^\[\[|\]\]$/g, '');
+
+// A practice speech: round Practice with a recording, prep or transcript.
+export const isSpeech = (round) => round.round === 'Practice' && Boolean(round.recording || round.prep || round.transcript || round.judge);
+// Judged by a panel (competition evidence), not by Claude.
+export const panelJudged = (round) => String(round.judge || '').trim().toLowerCase() !== 'claude';
 
 // A round note → its fields.
 export function readRound(text, path) {
@@ -320,7 +349,20 @@ export function readRound(text, path) {
     const v = Number(props[scoreKey(d)]);
     if (v >= 1 && v <= 5) round.scores[d] = v;
   }
-  for (const [title, key] of ROUND_SECTIONS) round[key] = section(body, title);
+  for (const [title, key] of ROUND_SECTIONS) {
+    const text = section(body, title);
+    // The newer sections are only there when the note has them, so an older
+    // round reads exactly as it always did.
+    if (text || !NEW_SECTIONS.has(key)) round[key] = text;
+  }
+  for (const key of SPEECH_PROPS) {
+    if (!(key in props) || props[key] === '') continue;
+    if (NUMBER_PROPS.has(key)) round[key] = Number.isFinite(Number(props[key])) ? Number(props[key]) : null;
+  }
+  if (props.prep) round.prepName = unlink(props.prep);
+  if (props.recording) round.recordingName = unlink(props.recording);
+  // A practice speech's date is in its Round ID when there's no date: property.
+  if (!props.date && /^PRAC-\d{4}-\d{2}-\d{2}/.test(props.round_id || '')) round.date = props.round_id.slice(5, 15);
   round.form1 = true;
   round.form2 = String(props.form2) === 'true';
   round.competitionName = String(props.competition || '').replace(/^\[\[|\]\]$/g, '');
@@ -338,6 +380,17 @@ export function writeRound(round) {
     format: round.format || '',
     position: round.position || '',
     motion: round.motion || '',
+  };
+  // A practice speech's properties: written only when there's a value, so
+  // competition rounds are written exactly as before.
+  for (const key of SPEECH_PROPS) {
+    let v = round[key];
+    if (key === 'prep' && round.prepName) v = `[[${round.prepName}]]`;
+    if (key === 'recording' && round.recordingName) v = `[[${round.recordingName}]]`;
+    if (v === undefined || v === null || v === '' || (NUMBER_PROPS.has(key) && !Number.isFinite(Number(v)))) continue;
+    props[key] = NUMBER_PROPS.has(key) ? Number(v) : String(v);
+  }
+  Object.assign(props, {
     result: round.result || '',
     speaks: round.speaks || '',
     judges: round.judges || '',
@@ -348,7 +401,7 @@ export function writeRound(round) {
     eaten: round.eaten || '',
     unusual: round.unusual || [],
     form2: Boolean(round.form2),
-  };
+  });
   for (const [, dims] of DIMENSIONS) for (const d of dims) if (round.scores && round.scores[d]) props[scoreKey(d)] = round.scores[d];
   Object.assign(props, {
     candidates: round.candidates || [],
@@ -356,7 +409,10 @@ export function writeRound(round) {
     seen_before: round.seen_before || '',
     priority: round.priority || '',
   });
-  const body = ROUND_SECTIONS.filter(([, key]) => round[key]).map(([title, key]) => `## ${title}\n\n${round[key].trim()}\n`).join('\n');
+  // A practice speech keeps its six headings even while they're empty.
+  const speech = isSpeech(round);
+  const body = ROUND_SECTIONS.filter(([title, key]) => round[key] || (speech && SPEECH_SECTIONS.includes(title)))
+    .map(([title, key]) => (round[key] ? `## ${title}\n\n${round[key].trim()}\n` : `## ${title}\n`)).join('\n');
   return writeProps(props, `\n${body}`);
 }
 
@@ -371,4 +427,70 @@ export function median(values) {
   if (!v.length) return null;
   const mid = Math.floor(v.length / 2);
   return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
+// ---------- Practice speeches: transcript numbers ----------
+
+// The fillers counted in a transcript (as they're written in the Fillers line).
+export const FILLERS = ['right?', 'like', 'kind of', 'you know', 'um', 'uh', 'I think', 'basically'];
+const FILLER_RE = {
+  'right?': /\bright\s*\?/gi,
+  like: /\blike\b/gi,
+  'kind of': /\bkind of\b/gi,
+  'you know': /\byou know\b/gi,
+  um: /\bum+\b/gi,
+  uh: /\buh+\b/gi,
+  'I think': /\bI think\b/gi,
+  basically: /\bbasically\b/gi,
+};
+
+// → { total, counts: [[filler, n], …] } most first, fillers at 0 left out.
+export function countFillers(text) {
+  const t = String(text || '');
+  const counts = FILLERS.map((f) => [f, (t.match(FILLER_RE[f]) || []).length]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  return { total: counts.reduce((s, [, n]) => s + n, 0), counts };
+}
+
+export function wordCount(text) {
+  return (String(text || '').match(/[A-Za-z0-9’']+/g) || []).length;
+}
+
+// 419 → "6:59"; "6:59" → 419.
+export function formatDuration(seconds) {
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+export function parseDuration(text) {
+  const m = /^(\d+):([0-5]\d)$/.exec(String(text || '').trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+export function wordsPerMinute(text, seconds) {
+  return seconds > 0 ? Math.round(wordCount(text) / (seconds / 60)) : null;
+}
+
+// "Fillers: 63 (like 21, um 14, …) · 203 wpm · 6:59"
+export function fillersLine({ total, counts }, wpm, duration) {
+  return [`Fillers: ${total}${counts.length ? ` (${counts.map(([f, n]) => `${f} ${n}`).join(', ')})` : ''}`, wpm ? `${wpm} wpm` : null, duration || null].filter(Boolean).join(' · ');
+}
+
+// The Judging section with the Fillers line on top (replacing an old one).
+export function withFillersLine(judging, line) {
+  const rest = String(judging || '').replace(/^Fillers: .*(\r?\n)*/, '').trim();
+  return rest ? `${line}\n\n${rest}` : line;
+}
+
+// A transcript into a round: Transcript, wpm, fillers and the Fillers line.
+export function applyTranscript(round, text) {
+  const transcript = String(text || '').trim();
+  const seconds = parseDuration(round.duration);
+  const fillers = countFillers(transcript);
+  const wpm = wordsPerMinute(transcript, seconds);
+  return {
+    ...round,
+    transcript,
+    wpm: wpm ?? round.wpm ?? null,
+    fillers: fillers.total,
+    judging: withFillersLine(round.judging, fillersLine(fillers, wpm, round.duration)),
+  };
 }
