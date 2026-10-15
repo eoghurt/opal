@@ -80,6 +80,13 @@ contextBridge.exposeInMainWorld('opal', {
   readSnapshot: (relPath, id) => call('history:read', relPath, id),
   saveAttachment: (notePath, ext, bytes) => call('attachment:save', notePath, ext, bytes),
   linkMention: (notePath, line, column, target) => call('links:link-mention', notePath, line, column, target),
+  speech: {
+    askForMic: () => call('speech:mic'),
+    saveAudio: (relFolder, roundId, bytes, ext) => call('speech:save-audio', relFolder, roundId, bytes, ext),
+    status: () => call('speech:status'),
+    chooseModel: () => call('speech:choose-model'),
+    transcribe: (relAudio) => call('speech:transcribe', relAudio),
+  },
 
   onVaultChanged: (callback) => ipcRenderer.on('vault:changed', (_event, vault) => callback(vault)),
   onFilesChanged: (callback) => ipcRenderer.on('vault:files-changed', () => callback()),

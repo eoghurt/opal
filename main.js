@@ -1,7 +1,7 @@
 // Main process: the only part of Opal that touches the disk.
 // The window (renderer) asks for things through IPC; see preload.js.
 
-const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell, Notification, nativeTheme, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -13,6 +13,12 @@ const { countWords } = require('./shared/words.js');
 const { readProperties, writeProperty } = require('./shared/properties.js');
 const tracker = require('./shared/tracker.js');
 const { setupErrors } = require('./errors.js');
+const { setupSpeech } = require('./speech.js');
+// Tests only: a pretend microphone (a tone), so recording runs without asking macOS.
+if (process.env.OPAL_FAKE_MIC) {
+  app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+  app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+}
 const { stripFrontmatter } = frontmatter;
 
 app.setName('Opal');
@@ -2027,6 +2033,10 @@ ipcMain.handle('palette:get', () => getPalette());
 ipcMain.handle('palette:set', (_event, name) => setPalette(name));
 ipcMain.handle('look:get', () => getLook());
 ipcMain.handle('look:set', (_event, look) => setLook(look));
+
+// Practice speeches (speech:* channels): the microphone, recordings into the
+// vault, and transcribing with whisper-cpp. Lives in speech.js.
+setupSpeech({ ipcMain, dialog, systemPreferences, getWindow: () => win, resolveFolderPath, resolveVaultFile, readSettings: () => readOpalJson('settings.json'), scheduleRefresh, log: errors.log });
 
 // ---------- Window and menu ----------
 
