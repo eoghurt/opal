@@ -1,7 +1,6 @@
 // Writes Word (.docx) files from the shared note structure (note-structure.js).
 //
 //   docxFromChapters([{ title, blocks }])  → Uint8Array   (a page break between chapters)
-//   docxFromTable({ title, subtitle, headers, columns: [[runs…]…] }) → Uint8Array
 //
 // A .docx is a zip of a few XML files; this writes the smallest set Word,
 // Pages and Google Docs open: the document, its styles and the zip's index.
@@ -127,10 +126,8 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="60"/></w:pPr></w:style>
 </w:styles>`;
 
-function pack(bodyXml, { landscape = false } = {}) {
-  const page = landscape
-    ? '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="500" w:footer="500" w:gutter="0"/>'
-    : '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>';
+function pack(bodyXml) {
+  const page = '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>';
   const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${bodyXml}<w:sectPr>${page}</w:sectPr></w:body></w:document>`;
   return zipSync({
@@ -168,14 +165,3 @@ function runsPlain(runs) {
   return (runs || []).map((r) => (r.br ? ' ' : r.text || '')).join('');
 }
 
-// A table document (flow sheets): one column per heading, each cell a list of lines.
-export function docxFromTable({ title, subtitle, headers, columns }) {
-  const rows = [headers.map((text) => ({ runs: [{ text }], header: true, bg: '#EDEDED' }))];
-  rows.push(columns.map((lines) => ({ runs: [], paragraphs: lines.length ? lines : [[]] })));
-  const body = [
-    title ? paragraph([{ text: title }], { style: 'Title' }) : '',
-    subtitle ? paragraph([{ text: subtitle }], { style: 'Subtitle' }) : '',
-    tableXml(rows, { fixedCols: headers.length }),
-  ].join('');
-  return pack(body, { landscape: true });
-}

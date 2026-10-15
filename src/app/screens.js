@@ -1,14 +1,14 @@
 // The whole-page screens: School, the exam tracker, the corkboard and
-// classic home pages, Settings, and the fidgets (Calendar, Tasks, Debate,
-// Money, Review). Moved out of renderer.js unchanged.
+// classic home pages, Settings, and the fidgets (Calendar, Tasks, Money,
+// Review). Moved out of renderer.js unchanged.
 
 import { TRACKER_NAME, findPapers, formatTracker, guessCourse, parseTracker } from '../fidgets/exams/exams.js';
 import { SchoolView, readPredicted } from '../fidgets/exams/school-view.js';
 import { pdfLines } from '../fidgets/exams/pdf-lines.js';
 import { CALENDAR_FOLDER, REPEATS_NAME, REPEATS_PATH, colorHex, dayKey, dayPath, keyToDate } from '../fidgets/calendar/events.js';
 import { countNotes, findFile, findFolder, flattenFiles } from '../tree.js';
-import { appInfo, bookmarksData, calendar, calendarState, cardsDueCount, cardsDueTimer, corkboard, current, debateState, homeEditing, homeLayoutForSettings, homeWidgets, moneyState, paletteName, screen, setAppInfo, setCalendar, setCalendarState, setCardsDueCount, setCardsDueTimer, setCorkboard, setCurrent, setDebateState, setDebateView, setExamPaper, setHomeEditing, setHomeLayoutForSettings, setHomeStickies, setHomeWidgets, setMoneyState, setMoneyView, setPaletteName, setReviewView, setSchoolView, setScreen, setSettingsSection, setTasksView, setVaultSettings, settingsSection, tree, vault, vaultSettings } from './state.js';
-import { addButton, bookmarkIo, bookmarkTarget, changeOpenNote, chooseTemplateFor, chrome, colorMenu, describeOpenNote, exportFlow, exportMenu, linkTargets, loadAllTasks, loadBacklinks, loadDayEvents, newFolder, newNote, noteSaved, openHref, openLink, prepTimer, readNoteOrNull, reminders, renameOpenNote, setItemColor, showHistory, showWordCount, sidebar, toggleBookmarkOf, viewEl } from '../renderer.js';
+import { appInfo, bookmarksData, calendar, calendarState, cardsDueCount, cardsDueTimer, corkboard, current, homeEditing, homeLayoutForSettings, homeWidgets, moneyState, paletteName, screen, setAppInfo, setCalendar, setCalendarState, setCardsDueCount, setCardsDueTimer, setCorkboard, setCurrent, setExamPaper, setHomeEditing, setHomeLayoutForSettings, setHomeStickies, setHomeWidgets, setMoneyState, setMoneyView, setPaletteName, setReviewView, setSchoolView, setScreen, setSettingsSection, setTasksView, setVaultSettings, settingsSection, tree, vault, vaultSettings } from './state.js';
+import { addButton, bookmarkIo, bookmarkTarget, changeOpenNote, chooseTemplateFor, chrome, colorMenu, describeOpenNote, exportMenu, linkTargets, loadAllTasks, loadBacklinks, loadDayEvents, newFolder, newNote, noteSaved, openHref, openLink, prepTimer, readNoteOrNull, reminders, renameOpenNote, setItemColor, showHistory, showWordCount, sidebar, toggleBookmarkOf, viewEl } from '../renderer.js';
 import { activeTab, crumbsFor, folderHomeOptions, goHistory, inNewTab, leaveCalendar, navigate, newTab, openFile, openFolder, reloadTree, remember, samePlace, schoolTabs, setTitle, showCrumbs, showHome } from './navigation.js';
 import { colorOf } from '../item-colors.js';
 import { noteName, parentOf, shortDate } from '../format.js';
@@ -26,7 +26,6 @@ import { getProp, setProp } from '../../shared/frontmatter.js';
 import { parseStickies, writeStickies } from '../../shared/stickies.js';
 import { StickyLayer } from '../widgets/stickies/sticky-layer.js';
 import { editorForFile } from '../editor-registry.js';
-import { FlowEditor, fromFlowText, isFlowNote } from '../fidgets/flow/flow-editor.js';
 import { NoteView } from '../views/note-view.js';
 import { countWords } from '../../shared/words.js';
 import { showConflict } from '../conflict.js';
@@ -38,7 +37,6 @@ import { applyTheme, currentLook } from '../themes.js';
 import { applyPalette } from '../palettes.js';
 import { CalendarView } from '../fidgets/calendar/calendar-view.js';
 import { TasksView } from '../fidgets/tasks/tasks-view.js';
-import { DebateView } from '../fidgets/debate/debate-view.js';
 import { MoneyView } from '../fidgets/money/money-view.js';
 import { ReviewView } from '../fidgets/flashcards/review-view.js';
 import { countDue } from '../fidgets/flashcards/schedule.js';
@@ -559,8 +557,6 @@ export async function showNote(filePath) {
     return;
   }
   if (!findFile(tree, filePath)) await reloadTree();
-  // A flow sheet (opal-type: flow) opens as speaker columns.
-  if (isFlowNote(content)) EditorType = FlowEditor;
 
   setScreen({ kind: 'note', filePath });
   viewEl.scrollTop = 0;
@@ -644,8 +640,6 @@ export async function showNote(filePath) {
     findLink: (target) => window.opal.findLink(target),
     saveImage: (ext, bytes) => window.opal.saveAttachment(filePath, ext, bytes),
     heatmap: { load: (source) => window.opal.trackerData(source), openFile: (path) => openFile(path) },
-    onExport: (data) => exportFlow(noteName(filePath), data),
-    onLeaveFlow: () => changeOpenNote(filePath, fromFlowText),
     onCursor: () => {
       noteView.ribbon.refresh();
       showWordCount();
@@ -998,97 +992,10 @@ export function showTasks() {
   });
 }
 
-// ---------- Debate ----------
-
-// The debate folder: the vault's first folder called "Debate" (nearest the top).
-export function debateFolder() {
-  let level = findFolder(tree, '', vault.name).children;
-  while (level.length) {
-    const found = level.find((n) => n.type === 'folder' && n.name.toLowerCase() === 'debate');
-    if (found) return found;
-    level = level.filter((n) => n.type === 'folder').flatMap((n) => n.children);
-  }
-  return null;
-}
-export function showDebate() {
-  if (!vault) return Promise.resolve();
-  return navigate(async () => {
-    setHomeStickies(null);
-    leaveCalendar();
-    setScreen({ kind: 'debate' });
-    setTitle('Debate');
-    sidebar.setActive(null, null);
-    showCrumbs([{ label: vault.name, onClick: () => openFolder('') }, { label: 'Debate' }]);
-    viewEl.scrollTop = 0;
-    let folder = debateFolder();
-    if (!folder) {
-      await window.opal.createFolder('Debate', '');
-      await reloadTree();
-      folder = debateFolder();
-    }
-    const folderPath = folder.path;
-    // A name not taken yet in a folder ("Name", "Name 2", …).
-    const freeName = (dir, name) => {
-      const taken = new Set(flattenFiles(tree).map((f) => f.path.toLowerCase()));
-      let n = name;
-      for (let i = 2; taken.has(`${dir}/${n}.md`.toLowerCase()); i++) n = `${name} ${i}`;
-      return n;
-    };
-    const ensureFolder = async (dir) => {
-      const parts = dir.split('/');
-      for (let i = 1; i <= parts.length; i++) {
-        const sub = parts.slice(0, i).join('/');
-        if (!findFolder(tree, sub, vault.name)) await window.opal.createFolder(parts[i - 1], parts.slice(0, i - 1).join('/'));
-      }
-    };
-    setDebateView(new DebateView(viewEl, {
-      page: debateState,
-      io: {
-        folder: folderPath,
-        files: () => {
-          const node = findFolder(tree, folderPath, vault.name);
-          return node ? flattenFiles(node.children).map((f) => ({ path: f.path, name: f.name })) : [];
-        },
-        read: (path) => window.opal.readFile(path),
-        write: async (path, text) => {
-          await window.opal.writeFile(path, text);
-        },
-        create: async (dir, name, text) => {
-          await ensureFolder(dir);
-          await reloadTree();
-          const path = await window.opal.createNote(freeName(dir, name), dir);
-          await window.opal.writeFile(path, text);
-          await reloadTree();
-          return path;
-        },
-        move: async (path, dir) => {
-          await ensureFolder(dir);
-          const next = await window.opal.moveItem(path, 'file', dir);
-          await reloadTree();
-          return next;
-        },
-        open: (path) => openFile(path),
-        reveal: (path) => window.opal.revealInFinder(path),
-        copy: (text) => window.opal.copyText(text),
-        trash: async (path) => {
-          await (/\.md$/i.test(path) ? window.opal.trashNote(path) : window.opal.trashFile(path));
-          await reloadTree();
-        },
-        startPrep: (minutes) => prepTimer.start(minutes),
-        // The page reports { page: { page, path, … } }.
-        onChange: (state) => {
-          setDebateState(state && state.page && typeof state.page === 'object' ? state.page : state);
-          remember();
-        },
-      },
-    }));
-  });
-}
-
 // ---------- Money ----------
 
 // The fidget tiles at the top of the vault's home page.
-export const FIDGET_PAGES = { money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), debate: () => showDebate(), flashcards: () => showReview() };
+export const FIDGET_PAGES = { money: () => showMoney(), calendar: () => showCalendar(), tasks: () => showTasks(), flashcards: () => showReview() };
 export function homeFidgets() {
   const order = Object.keys(FIDGET_PAGES);
   return FIDGETS.filter((f) => f.page && !f.off && FIDGET_PAGES[f.id]).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)).map((f, i) => ({

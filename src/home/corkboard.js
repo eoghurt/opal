@@ -52,17 +52,15 @@ const PINS = ['#d6283a', '#2563eb', '#16a34a', '#f59e0b', '#e5e7eb'];
 const STAMPS = [
   ['calendar', 'Calendar', 235, 157, 266, 200, 0],
   ['money', 'Money', 724, 152, 320, 205, 0],
-  ['debate', 'Debate', 860, 410, 260, 188, 0],
   ['flashcards', 'Flashcards', 648, 478, 180, 262, 16],
   ['tasks', 'Tasks', 440, 455, 92, 316, 0],
   [null, 'Bookshelf · later', 95, 232, 148, 240, '50%'],
   [null, 'Collages · later', 666, 300, 194, 194, '50%'],
   [null, 'Cinema · later', 830, 600, 240, 140, 0],
 ];
-// The only text changed on the photo: four place names become fidget names.
+// The only text changed on the photo: three place names become fidget names.
 const PATCHES = [
   [305, 303, 186, 21, 0, '#4a4646', 15, 'CALENDAR · PERTH'],
-  [885, 436, 120, 18, 180, '#4a4646', 13, 'DEBATE · PERTH'],
   [675, 538, 19, 140, 90, '#4a4646', 13, 'FLASHCARDS · PERTH'],
   [475, 542, 18, 148, 90, '#3346a8', 14, 'TASKS · OPEN'],
 ];

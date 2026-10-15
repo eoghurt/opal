@@ -5,7 +5,7 @@
 import { newFolder, newNote, openReminder, startSearch } from '../renderer.js';
 import { activeTabId, setNewTabAt, tabs, vault } from './state.js';
 import { activateTab, closeTab, goHistory, newTab, openFolder, stepTab, togglePin } from './navigation.js';
-import { showCalendar, showDebate, showMoney, showSettings, showTasks } from './screens.js';
+import { showCalendar, showMoney, showSettings, showTasks } from './screens.js';
 export function installShortcuts() {
   window.opal.onNewNoteRequest(() => newNote());
 
@@ -73,7 +73,6 @@ export function installShortcuts() {
 
   window.opal.onShowMoney(() => showMoney());
 
-  window.opal.onShowDebate(() => showDebate());
 
 
   window.opal.onOpenReminder(openReminder);

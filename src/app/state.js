@@ -38,10 +38,6 @@ export let reviewView = null;
 
 export let moneyView = null;
 
-export let debateView = null;
-
-export let debateState = null;
-
 export let moneyState = { month: null, tab: 'overview' };
 
 export let corkboard = null;
@@ -145,14 +141,6 @@ export function setReviewView(value) {
 }
 export function setMoneyView(value) {
   moneyView = value;
-  return value;
-}
-export function setDebateView(value) {
-  debateView = value;
-  return value;
-}
-export function setDebateState(value) {
-  debateState = value;
   return value;
 }
 export function setMoneyState(value) {

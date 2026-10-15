@@ -67,7 +67,6 @@ import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
 import { ManuscriptView } from './fidgets/manuscript/manuscript-view.js';
 import { MoneyView } from './fidgets/money/money-view.js';
-import { DebateView } from './fidgets/debate/debate-view.js';
 import { Corkboard, DEFAULT_QUOTES } from './home/corkboard.js';
 import { ExamTracker, ExamPaper } from './fidgets/exams/exam-tracker-view.js';
 import { TRACKER_NAME, guessCourse, formatTracker, parseTracker, findPapers } from './fidgets/exams/exams.js';
@@ -76,11 +75,9 @@ import { kindOf, kindLabel } from './file-types.js';
 import { pdfLines } from './fidgets/exams/pdf-lines.js';
 import { FIDGETS } from './fidgets/index.js';
 import { noteStructure } from './export/note-structure.js';
-import { docxFromChapters, docxFromTable, docxFromNote } from './export/docx.js';
+import { docxFromChapters, docxFromNote } from './export/docx.js';
 import { htmlFromNote } from './export/html.js';
-import { FlowEditor, FLOW_FORMATS, isFlowNote, newFlowText, toFlowText, fromFlowText } from './fidgets/flow/flow-editor.js';
 import { mergeTemplate } from './templates.js';
-import { inlineRuns } from './export/note-structure.js';
 import { ReviewView } from './fidgets/flashcards/review-view.js';
 import { countDue } from './fidgets/flashcards/schedule.js';
 import { PrepTimer } from './widgets/timer/timer.js';
@@ -91,13 +88,13 @@ import { ITEM_COLORS } from './item-colors.js';
 import { showToast } from './toast.js';
 import { showConflict } from './conflict.js';
 import {
-  vault, tree, paletteName, screen, current, queue, homeStickies, calendar, calendarState, homeWidgets, homeEditing, tasksView, reviewView, moneyView, debateView, debateState, moneyState, corkboard, examPaper, schoolView, describeAfterOpen, wordTimer, backlinkTimer, tabs, activeTabId, nextTabId, movingTo, newTabAt, workspaceTimer, bookmarksData, homeLayoutForSettings, vaultSettings, settingsSection, appInfo, cardsDueTimer, cardsDueCount, setVault, setTree, setPaletteName, setScreen, setCurrent, setQueue, setHomeStickies, setCalendar, setCalendarState, setHomeWidgets, setHomeEditing, setTasksView, setReviewView, setMoneyView, setDebateView, setDebateState, setMoneyState, setCorkboard, setExamPaper, setSchoolView, setDescribeAfterOpen, setWordTimer, setBacklinkTimer, setTabs, setActiveTabId, setNextTabId, setMovingTo, setNewTabAt, setWorkspaceTimer, setBookmarksData, setHomeLayoutForSettings, setVaultSettings, setSettingsSection, setAppInfo, setCardsDueTimer, setCardsDueCount,
+  vault, tree, paletteName, screen, current, queue, homeStickies, calendar, calendarState, homeWidgets, homeEditing, tasksView, reviewView, moneyView, moneyState, corkboard, examPaper, schoolView, describeAfterOpen, wordTimer, backlinkTimer, tabs, activeTabId, nextTabId, movingTo, newTabAt, workspaceTimer, bookmarksData, homeLayoutForSettings, vaultSettings, settingsSection, appInfo, cardsDueTimer, cardsDueCount, setVault, setTree, setPaletteName, setScreen, setCurrent, setQueue, setHomeStickies, setCalendar, setCalendarState, setHomeWidgets, setHomeEditing, setTasksView, setReviewView, setMoneyView, setMoneyState, setCorkboard, setExamPaper, setSchoolView, setDescribeAfterOpen, setWordTimer, setBacklinkTimer, setTabs, setActiveTabId, setNextTabId, setMovingTo, setNewTabAt, setWorkspaceTimer, setBookmarksData, setHomeLayoutForSettings, setVaultSettings, setSettingsSection, setAppInfo, setCardsDueTimer, setCardsDueCount,
 } from './app/state.js';
 import {
   activateTab, activeTab, closeCurrent, closeTab, crumbsFor, currentPlace, drawTabs, enqueue, flushHomeStickies, folderHomeOptions, goHistory, inNewTab, leaveCalendar, moveTab, navigate, newTab, openFile, openFolder, openFromTab, reloadTree, remember, renamePlaces, restoreTabs, rememberTabScroll, samePlace, schoolTabs, setTitle, showCrumbs, showHome, showPlace, showWelcome, stepTab, tabFileMenu, tabMenu, tabPlace, togglePin,
 } from './app/navigation.js';
 import {
-  addExamTracker, homeFidgets, loadVaultSettings, readTaskList, listenForOpenerMenu, showCalendar, showDebate, showMoney, showNote, showReview, showSettings, showTasks, taskListNodes,
+  addExamTracker, homeFidgets, loadVaultSettings, readTaskList, listenForOpenerMenu, showCalendar, showMoney, showNote, showReview, showSettings, showTasks, taskListNodes,
 } from './app/screens.js';
 import {
   installShortcuts,
@@ -139,14 +136,13 @@ const chrome = new Chrome(document.getElementById('rail'), document.getElementBy
   onForward: () => goHistory(1),
   onReview: () => showReview(),
   onMoney: () => showMoney(),
-  onDebate: () => showDebate(),
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
   onTasks: () => showTasks(),
   onToggleSidebar: () => document.getElementById('sidebar').panel.toggle(),
   sidebarClosed: () => document.getElementById('sidebar').panel.isClosed(),
   fidgets: () => (vault ? homeFidgets() : []),
-  railPlace: () => ({ money: 'money', calendar: 'calendar', tasks: 'tasks', debate: 'debate', review: 'flashcards', settings: 'settings' })[screen.kind] || null,
+  railPlace: () => ({ money: 'money', calendar: 'calendar', tasks: 'tasks', review: 'flashcards', settings: 'settings' })[screen.kind] || null,
 });
 
 // The tabs sit in the sidebar, one under another (Sidebar places this element).
@@ -513,9 +509,6 @@ async function loadDayEvents(key) {
   return [...parseEvents(dayText || '', key), ...occurrences(parseSeries(repeats || ''), key)];
 }
 
-// ---------- Debate ----------
-
-
 // ---------- Money ----------
 
 
@@ -662,35 +655,17 @@ function exportMenu(filePath, anchor) {
   });
 }
 
-// ---------- Flow sheets ----------
-
-// A flow sheet → a Word table, one column per speaker.
-async function exportFlow(title, data) {
-  try {
-    const saved = await window.opal.saveDocx(title, docxFromTable({
-      title,
-      subtitle: data.format,
-      headers: data.columns,
-      columns: data.lines.map((lines) => lines.map((line) => inlineRuns(line))),
-    }));
-    if (saved) chrome.setStatus(`Exported ${saved.split('/').pop()}`);
-  } catch (err) {
-    alert(`Couldn't export the flow sheet.\n\n${err.message}`);
-  }
-}
-
 // ---------- Templates on an existing note ----------
 
-// The Template menu on a note: its vault templates and the flow sheet formats.
+// The Template menu on a note: its vault templates.
 async function chooseTemplateFor(filePath, anchor) {
   let info = { templates: [] };
   try {
     info = await window.opal.templateInfo(parentOf(filePath));
   } catch {
-    // Just the flow sheets then.
+    // No templates then.
   }
   const box = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.clientX, bottom: anchor.clientY };
-  const isFlow = current && current.filePath === filePath && current.editor instanceof FlowEditor;
   const name = (p) => p.replace(/^Templates\//, '').replace(/\.md$/i, '');
   showMenu({ clientX: box.left, clientY: box.bottom + 4, preventDefault() {}, stopPropagation() {} }, {
     title: 'Apply a template',
@@ -698,14 +673,6 @@ async function chooseTemplateFor(filePath, anchor) {
       ...(info.templates.length
         ? info.templates.map((p) => ({ label: name(p), hint: 'adds to the note', onSelect: () => applyTemplate(filePath, p) }))
         : [{ label: 'Notes in a Templates folder show here', disabled: true, onSelect: () => {} }]),
-      'separator',
-      ...Object.entries(FLOW_FORMATS).map(([key, format]) => ({
-        label: `Flow sheet · ${format.name}`,
-        hint: isFlow ? '' : 'speaker columns',
-        onSelect: () => changeOpenNote(filePath, (text) => toFlowText(text, key)),
-      })),
-      isFlow ? 'separator' : null,
-      isFlow ? { label: 'Normal note', hint: 'no columns', onSelect: () => changeOpenNote(filePath, fromFlowText) } : null,
     ].filter(Boolean),
   });
 }
@@ -722,8 +689,7 @@ async function applyTemplate(filePath, templatePath) {
 }
 
 // Changes the open note's whole text (saved like typing, with a snapshot of
-// how it was first); if it became or stopped being a flow sheet, it reopens
-// in the right editor.
+// how it was first).
 async function changeOpenNote(filePath, change) {
   if (!current || current.filePath !== filePath || !current.editor.getText) return;
   const before = current.editor.getText();
@@ -738,7 +704,6 @@ async function changeOpenNote(filePath, change) {
     return;
   }
   current.edited = true;
-  if (isFlowNote(next) !== (current.editor instanceof FlowEditor)) await navigate(() => showNote(filePath));
 }
 
 // Shows a folder as a database (starting from a preset), or back as a page.
@@ -1051,15 +1016,6 @@ function createItem(kind, folder = currentFolder(), at = null) {
     loadTemplates: (where) => window.opal.templateInfo(where),
     onCreate: async ({ kind: made, name, folder: where, color, description, template }) => {
       try {
-        // A flow sheet is one of the templates ("flow:australs", …).
-        if (made === 'note' && template && template.startsWith('flow:')) {
-          const filePath = await window.opal.createNote(name, where);
-          await window.opal.writeFile(filePath, newFlowText(template.slice(5), ['Speaker 1', 'Speaker 2']));
-          if (color) await setItemColor(filePath, 'file', color);
-          if (description) await window.opal.setDescription(filePath, 'file', description);
-          await openFile(filePath);
-          return;
-        }
         if (made === 'folder') {
           const folderPath = await window.opal.createFolder(name, where);
           if (color) await setItemColor(folderPath, 'folder', color);
@@ -1108,8 +1064,6 @@ function refreshFiles() {
       tasksView.reload();
     } else if (screen.kind === 'money' && moneyView) {
       moneyView.reload();
-    } else if (screen.kind === 'debate' && debateView) {
-      debateView.reload();
     } else if (screen.kind === 'home' && corkboard) {
       corkboard.refresh();
     } else if (screen.kind === 'home') {
@@ -1265,5 +1219,5 @@ window.opal.getVault().then(loadVault);
 
 // Shared with the modules in ./app (they import these from here).
 export {
-  addButton, bookmarkIo, bookmarkTarget, changeOpenNote, chooseTemplateFor, chrome, colorMenu, colourSwatches, compileManuscript, describeFolder, describeOpenNote, exportFlow, exportMenu, folderLabel, itemMenuItems, linkTargets, loadAllTasks, loadBacklinks, loadDayEvents, newFolder, newNote, noteSaved, openHref, openLink, openReminder, prepTimer, readNoteOrNull, rearrange, reminders, renameFolderFromHome, renameOpenNote, setItemColor, showAsDatabase, showHistory, showWordCount, sidebar, startSearch, tabBar, toggleBookmarkOf, viewEl,
+  addButton, bookmarkIo, bookmarkTarget, changeOpenNote, chooseTemplateFor, chrome, colorMenu, colourSwatches, compileManuscript, describeFolder, describeOpenNote, exportMenu, folderLabel, itemMenuItems, linkTargets, loadAllTasks, loadBacklinks, loadDayEvents, newFolder, newNote, noteSaved, openHref, openLink, openReminder, prepTimer, readNoteOrNull, rearrange, reminders, renameFolderFromHome, renameOpenNote, setItemColor, showAsDatabase, showHistory, showWordCount, sidebar, startSearch, tabBar, toggleBookmarkOf, viewEl,
 };

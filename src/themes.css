@@ -673,13 +673,6 @@
 :root[data-theme] .ms-item.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 :root[data-theme] .ms-item.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 
-:root[data-theme] .flow-grid { border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); }
-:root[data-theme] .flow-col { border-color: var(--line-soft); }
-:root[data-theme] .flow-speaker { background: var(--paper-3); border-bottom: 1px solid var(--line); }
-:root[data-theme] .flow-text:focus { box-shadow: inset 0 0 0 2px var(--accent); }
-:root[data-theme] .flow-format,
-:root[data-theme] .flow-btn { border: 1px solid var(--line); border-radius: 999px; background: var(--paper-2); }
-:root[data-theme] .flow-btn.is-primary { background: var(--strong); color: var(--on-strong); border-color: transparent; }
 :root[data-theme] .cal-cards-due { background: var(--accent-soft); color: var(--accent); }
 :root[data-theme] .review-deck { border: 0; border-radius: 999px; background: var(--fill); }
 :root[data-theme] .review-deck.is-on { background: var(--strong); color: var(--on-strong); }
@@ -722,8 +715,6 @@
 :root[data-theme] .timer-pomodoro-start { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
 :root[data-theme] .timer-pomodoro-start:hover { background: var(--fill); }
 :root[data-theme] .timer-stop.is-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-:root[data-theme] .flow-notes { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
-:root[data-theme] .flow-notes:focus { box-shadow: 0 0 0 2px var(--accent); }
 
 /* ---------- Top bar tabs and icons ---------- */
 

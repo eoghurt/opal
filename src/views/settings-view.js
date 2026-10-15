@@ -35,7 +35,7 @@ export function withDefaults(saved) {
 const SHORTCUTS = [
   ['Notes', [['⌘N', 'New note'], ['⌘⇧N', 'New folder'], ['⌘O', 'Open a note by name'], ['⌘⇧F', 'Search every note'], ['⌘-click a link', 'Open it in a new tab']]],
   ['Tabs', [['⌘T', 'New tab'], ['⌘W', 'Close tab'], ['⌃Tab / ⌃⇧Tab', 'Next / previous tab'], ['⌘1 … ⌘8', 'Go to that tab'], ['⌘9', 'Go to the last tab']]],
-  ['Moving around', [['⌘[ / ⌘]', 'Back / forward'], ['⌘⇧H', 'Home'], ['⌘⇧D', 'Calendar'], ['⌘⇧T', 'Tasks'], ['⌘⇧M', 'Money'], ['⌘⇧B', 'Debate'], ['⌘\\', 'Show or hide the sidebar'], ['⌘,', 'Settings']]],
+  ['Moving around', [['⌘[ / ⌘]', 'Back / forward'], ['⌘⇧H', 'Home'], ['⌘⇧D', 'Calendar'], ['⌘⇧T', 'Tasks'], ['⌘⇧M', 'Money'], ['⌘\\', 'Show or hide the sidebar'], ['⌘,', 'Settings']]],
   ['Writing', [['⌘B / ⌘I / ⌘U', 'Bold / italic / underline'], ['⌘K', '[[Link]]'], ['⌘Z / ⌘⇧Z', 'Undo / redo'], ['⌘⌥T', 'Insert a table']]],
 ];
 

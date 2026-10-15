@@ -1,5 +1,5 @@
-// The shared note structure every export uses (manuscript compile, flow
-// sheets, and anything that turns notes into another format later).
+// The shared note structure every export uses (manuscript compile, plain
+// PDF and Word exports, and anything that turns notes into another format later).
 //
 //   noteStructure(text) → [block]
 //   block: { type: 'heading', level, runs }

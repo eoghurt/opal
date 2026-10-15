@@ -1,5 +1,5 @@
 // Fidgets: heavier things that take up a whole page of their own — the
-// calendar, tasks, a debate flow sheet. Each one sits in its own folder here.
+// calendar, tasks, money. Each one sits in its own folder here.
 //
 // (Their opposite are widgets — see ../widgets/index.js — small things that
 // live inside a page.)
@@ -30,16 +30,6 @@ export const FIDGETS = [
     files: ['fidgets/money/money-view.js', 'fidgets/money/model.js', 'fidgets/money/ledger.js'],
   },
   {
-    id: 'debate',
-    name: 'Debate',
-    icon: 'debate',
-    page: true, // a page of its own: a tile on the home page
-    short: 'Motions, rounds, feedback',
-    what: 'Your debate folder in one place: a motion bank to prep from, competitions and rounds, the two feedback forms, the fix board, training and notes.',
-    where: 'Its tile on the home page, or ⌘⇧B. Reads and writes the notes in your Debate folder.',
-    files: ['fidgets/debate/debate-view.js', 'fidgets/debate/debate-forms.js', 'fidgets/debate/debate-more.js', 'fidgets/debate/motions.js', 'fidgets/debate/records.js', 'fidgets/debate/board.js'],
-  },
-  {
     id: 'tasks',
     page: true, // a page of its own: a tile on the home page
     short: 'Lists and due dates',
@@ -58,14 +48,6 @@ export const FIDGETS = [
     what: 'Due cards one at a time, with Again / Hard / Good / Easy.',
     where: 'Its tile on the home page. Cards are written in notes, in the Spaced Repetition plugin’s format.',
     files: ['fidgets/flashcards/review-view.js', 'fidgets/flashcards/schedule.js'],
-  },
-  {
-    id: 'flow',
-    name: 'Flow sheet',
-    icon: 'flow',
-    what: 'A debate flow: one column per speaker, arguments side by side.',
-    where: 'Any note: Apply a template → Flow sheet (the note gets opal-type: flow).',
-    files: ['fidgets/flow/flow-editor.js'],
   },
   {
     id: 'database',

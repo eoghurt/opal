@@ -31,7 +31,7 @@ function opalMark() {
 }
 
 export class Chrome {
-  constructor(rail, topbar, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onReview, onBookmarks, onMoney, onDebate, fidgets, railPlace, onToggleSidebar, sidebarClosed }) {
+  constructor(rail, topbar, { onHome, onSettings, onBack, onForward, onCalendar, onLogbook, onTasks, onSearch, onReview, onBookmarks, onMoney, fidgets, railPlace, onToggleSidebar, sidebarClosed }) {
     this.rail = rail;
     this.topbar = topbar;
     this.footer = h('div', { class: 'sheet-status' });
@@ -50,7 +50,6 @@ export class Chrome {
     this.onLogbook = onLogbook;
     this.onReview = onReview;
     this.onMoney = onMoney;
-    this.onDebate = onDebate;
     this.cardsDue = 0;
     this.timerSlot = null; // the prep timer's own element (see timer.js)
     this.tabSlot = null; // the tab strip (see tabs.js)

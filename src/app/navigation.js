@@ -3,10 +3,10 @@
 // and restoring them from .opal/workspace.json. Moved out of renderer.js
 // unchanged.
 
-import { activeTabId, bookmarksData, calendar, corkboard, current, debateState, debateView, describeAfterOpen, examPaper, homeStickies, homeWidgets, moneyState, moneyView, movingTo, newTabAt, nextTabId, queue, reviewView, schoolView, screen, setActiveTabId, setCalendar, setCorkboard, setCurrent, setDebateState, setDebateView, setDescribeAfterOpen, setExamPaper, setHomeStickies, setHomeWidgets, setMoneyState, setMoneyView, setMovingTo, setNewTabAt, setNextTabId, setQueue, setReviewView, setSchoolView, setScreen, setTabs, setTasksView, setTree, setWorkspaceTimer, tabs, tasksView, tree, vault, vaultSettings, workspaceTimer } from './state.js';
+import { activeTabId, bookmarksData, calendar, corkboard, current, describeAfterOpen, examPaper, homeStickies, homeWidgets, moneyState, moneyView, movingTo, newTabAt, nextTabId, queue, reviewView, schoolView, screen, setActiveTabId, setCalendar, setCorkboard, setCurrent, setDescribeAfterOpen, setExamPaper, setHomeStickies, setHomeWidgets, setMoneyState, setMoneyView, setMovingTo, setNewTabAt, setNextTabId, setQueue, setReviewView, setSchoolView, setScreen, setTabs, setTasksView, setTree, setWorkspaceTimer, tabs, tasksView, tree, vault, vaultSettings, workspaceTimer } from './state.js';
 import { noteName, parentOf, relativeDay } from '../format.js';
 import { addButton, bookmarkTarget, chrome, colorMenu, colourSwatches, compileManuscript, describeFolder, folderLabel, itemMenuItems, newFolder, newNote, openLink, rearrange, reminders, renameFolderFromHome, showAsDatabase, showWordCount, sidebar, tabBar, toggleBookmarkOf, viewEl } from '../renderer.js';
-import { examTrackerFor, folderHomeStickies, homeFidgets, mountHomeWidgets, schoolSubjects, showCalendar, showCorkboard, showDebate, showExamPaper, showMoney, showNote, showReview, showSchool, showSettings, showTasks, updateCardsDue } from './screens.js';
+import { examTrackerFor, folderHomeStickies, homeFidgets, mountHomeWidgets, schoolSubjects, showCalendar, showCorkboard, showExamPaper, showMoney, showNote, showReview, showSchool, showSettings, showTasks, updateCardsDue } from './screens.js';
 import { findFile, findFolder } from '../tree.js';
 import { openPinPicker } from '../tabs.js';
 import { showMenu } from '../context-menu.js';
@@ -41,8 +41,6 @@ export async function closeCurrent() {
 export const schoolTabs = new Map();
 // Called whenever another screen takes over.
 export function leaveCalendar() {
-  if (debateView) debateView.destroy();
-  setDebateView(null);
   if (moneyView) moneyView.destroy();
   setMoneyView(null);
   if (reviewView) reviewView.destroy();
@@ -99,27 +97,19 @@ export function showCrumbs(crumbs) {
 
 // ---------- Tabs, and back and forward ----------
 
-export const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'review', 'money', 'debate'];
-export const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', review: 'Review', money: 'Money', debate: 'Debate' };
-export const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', review: 'review', money: 'money', debate: 'debate' };
+export const PLACE_KINDS = ['calendar', 'tasks', 'settings', 'review', 'money'];
+export const PLACE_TITLES = { calendar: 'Calendar', tasks: 'Tasks', settings: 'Settings', review: 'Review', money: 'Money' };
+export const PLACE_ICONS = { calendar: 'calendar', tasks: 'tasks', settings: 'settings', review: 'review', money: 'money' };
 export function currentPlace() {
   if (!screen) return null;
   if (screen.kind === 'home') return { kind: 'home', folderPath: screen.folderPath };
   if (screen.kind === 'note') return { kind: 'note', filePath: screen.filePath };
-  // Money and Debate remember which page (or tab and month) is showing, so
-  // back and forward step through them too.
+  // Money remembers which tab and month are showing, so back and forward
+  // step through them too.
   if (screen.kind === 'money') return { kind: 'money', sub: { month: moneyState.month || null, tab: moneyState.tab || 'overview' } };
-  if (screen.kind === 'debate') return { kind: 'debate', sub: debatePlace(debateState) };
   if (screen.kind === 'exam-paper') return { kind: 'exam-paper', filePath: screen.filePath, sub: { paper: screen.paper } };
   if (PLACE_KINDS.includes(screen.kind)) return { kind: screen.kind };
   return null;
-}
-// The part of the Debate page's state worth going back to.
-export function debatePlace(state) {
-  const s = state || {};
-  const out = { page: s.page || 'overview' };
-  for (const key of ['path', 'tab', 'comp']) if (typeof s[key] === 'string' || typeof s[key] === 'number') out[key] = s[key];
-  return out;
 }
 export function samePlace(a, b) {
   return Boolean(a && b && a.kind === b.kind && a.folderPath === b.folderPath && a.filePath === b.filePath
@@ -218,10 +208,6 @@ export function goToPlace(place) {
   if (place.kind === 'money') {
     if (place.sub) setMoneyState({ month: place.sub.month || null, tab: place.sub.tab || 'overview' });
     return showMoney();
-  }
-  if (place.kind === 'debate') {
-    if (place.sub) setDebateState({ ...place.sub });
-    return showDebate();
   }
   if (place.kind === 'exam-paper') return showExamPaper(place.filePath, place.sub && place.sub.paper);
   return Promise.resolve();
@@ -455,12 +441,10 @@ export async function restoreTabs() {
     if (place.kind === 'home' && typeof (place.folderPath ?? '') === 'string' && findFolder(tree, place.folderPath || '', vault.name)) return { kind: 'home', folderPath: place.folderPath || '' };
     if (place.kind === 'logbook') return { kind: 'home', folderPath: '' }; // now on the home page
     if (place.kind === 'exam-paper' && typeof place.filePath === 'string' && findFile(tree, place.filePath) && place.sub && typeof place.sub.paper === 'string') return { kind: 'exam-paper', filePath: place.filePath, sub: { paper: place.sub.paper } };
-    if (place.kind === 'money' || place.kind === 'debate') {
+    if (place.kind === 'money') {
       const sub = place.sub && typeof place.sub === 'object' ? place.sub : null;
       if (!sub) return { kind: place.kind };
-      return place.kind === 'money'
-        ? { kind: 'money', sub: { month: /^\d{4}-\d{2}$/.test(sub.month || '') ? sub.month : null, tab: typeof sub.tab === 'string' ? sub.tab : 'overview' } }
-        : { kind: 'debate', sub: debatePlace(sub) };
+      return { kind: 'money', sub: { month: /^\d{4}-\d{2}$/.test(sub.month || '') ? sub.month : null, tab: typeof sub.tab === 'string' ? sub.tab : 'overview' } };
     }
     if (PLACE_KINDS.includes(place.kind)) return { kind: place.kind };
     return null;

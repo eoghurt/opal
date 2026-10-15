@@ -47,7 +47,7 @@ export const WIDGETS = [
     name: 'Timer',
     icon: 'timer',
     what: 'A countdown for prep, or Pomodoro focus and breaks; each session goes in the home page’s numbers.',
-    where: 'On the home page (the Timer widget); Start prep in Debate runs it too.',
+    where: 'On the home page (the Timer widget).',
     files: ['widgets/timer/timer.js'],
     settings: 'timer',
   },

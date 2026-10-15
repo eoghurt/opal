@@ -112,7 +112,7 @@ their own Mac app with one click. File types live in file-types.json.
 Everything built between v0.11 and Mail, numbered afterwards (tagged on the
 last commit before Mail).
 
-### Study, writing and debate tools
+### Study and writing tools
 Everything lives in the notes, in properties, in `.opal.md` folder settings or
 in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Backlinks** — "Linked from" and "Unlinked mentions" under each note, with a
@@ -140,8 +140,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   and tag decks; due counts on the Review link and on the calendar's today.
 - **Prep timer** — 15/30/60/custom countdown in the top bar, a Mac notification
   when time's up, and the session saved in the Logbook linked to the open note.
-- **Flow sheets** — `opal-type: flow` notes as speaker columns (Australs 3v3,
-  World Schools, BP or your own), Tab between columns, export as a Word table.
+- **Flow sheets** — taken out in v0.18 (now in Podium).
 
 ### Home, tabs and settings
 - **Home page widgets** — the vault's home page has a clock, Today (events and
@@ -164,8 +163,8 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   live in .opal/settings.json.
 - **Pomodoro** — focus / short break / long break, lengths in Settings; focus
   parts are saved with the timer sessions.
-- **Flow sheets are templates** — apply one (or any vault template) to a note
-  from its Template button; Normal note turns it back.
+- **Templates on a note** — apply any vault template to a note from its
+  Template button.
 
 ### Later list, round one
 - **Checkboxes** — `- [ ]` items in notes show a real box; clicking it writes
@@ -182,7 +181,7 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
 - **Skipping in audio and video** — click the sides for 5 s, twice for 10;
   ← / →.
 - **Plain exports** — PDF and Word for any note: Arial 11pt, black on white,
-  A4, 2.54 cm margins. Manuscripts and flow sheets use the same style.
+  A4, 2.54 cm margins. Manuscripts use the same style.
 - **Fixed** — a task dragged between lists could get stuck on screen.
 
 ### Widgets and fidgets
@@ -190,8 +189,8 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   - **Widgets** (`src/widgets/`) are small things inside a page that do one
     job: heatmaps, tables, the home page widgets, sticky notes, the timer.
   - **Fidgets** (`src/fidgets/`) are heavier and take a whole page: calendar,
-    tasks, money, debate, flashcard review, flow sheets, folder
-    databases, manuscripts, the exam tracker.
+    tasks, money, flashcard review, folder databases, manuscripts,
+    the exam tracker. (Debate and flow sheets were here until v0.18.)
   - Each folder has an `index.js` listing what's in it. Settings has a
     Widgets & Fidgets group: an overview of every one, then their settings
     (Home page, Timer).
@@ -352,6 +351,24 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   ordinary tick box now. Accounts, cache and drafts in Opal's settings folder are
   left as they were (nothing reads them).
 
+## v0.18 — Debate moved to Podium (done)
+- **The Debate fidget and flow sheets are taken out of Opal.** They're now
+  their own Mac app, Podium (a separate repo), which keeps its data in a
+  database rather than notes; the debate folder's notes were moved into it
+  and the folder put in the Trash. The newest debate code (v0.18.0 on the
+  branch `debate-practice-speeches`, with practice speeches, never merged) is
+  kept whole at the git tag `debate-archive`.
+- Gone: `src/fidgets/debate/`, `src/fidgets/flow/`, the Debate page, its
+  home-page stamp, ⌘⇧B and its menu item, the flow sheet templates (Apply a
+  template, the + button's template list and opal-type: flow notes opening as
+  columns), the flow sheet Word export, the debate and topic icons, their
+  styles, and check v43.
+- Kept: the top-bar timer and Pomodoro (used outside debate), and the rail and
+  card styles the School page shares (now "Rail pages" in styles.css).
+- To bring them back: `git checkout debate-archive -- src/fidgets/debate
+  src/fidgets/flow` and put back the lines that hook them up (`git diff
+  v0.17.0 v0.18.0` shows every one).
+
 ## Fidget ideas
 Ethan's:
 - **Bouldering tracker** — problems by gym, wall, grade and colour; sends,
@@ -360,30 +377,6 @@ Ethan's:
 - **Money manager** — built (see above); investing still to come.
 - **Boards** — a Pinterest-style pinboard of images and notes, styled like a
   real board: tape, pins, clips, slight tilts.
-- **Debate fidget** — built 2026-10-06 (mockups: https://claude.ai/artifact/VATeYNgHVcDd2bGXRagRyG).
-  Decided 2026-10-06:
-  - Layout: B3 — a slim icon rail (Overview, Motions, Comps, Log, Board,
-    Training, Notes); its own overview page (B3 · Overview), not tiles;
-    the motion-for-prep card is see-through dark blue.
-  - Motion bank: design A (library + filters + selected motion); prep it for
-    15 / 30 / 60 min (makes a note in Practice preps). No imbalanced labels.
-    Star motions (#starred on the motion's line). Link reworded versions of a
-    motion across competitions (a shared #version/<name> tag on each line);
-    the selected motion lists its other versions with changed words
-    highlighted, and Opal suggests look-alikes to link.
-  - Competition tracker: both the season list and a page per competition,
-    and each competition page has a tournament overview to reflect on the
-    whole tournament.
-  - BP is scored differently: each round is a placing (1st–4th, worth
-    3/2/1/0 team points); BP competitions show the average placing and the
-    1st/2nd/3rd/4th split instead of a win rate. Two-team formats keep wins.
-  - Pages (all in the B3 rail): Overview, Motions, Competitions, one
-    competition, Log a round (Form 1, Form 2), Board (with a card opened),
-    Training (week, phase, drill bank, matter cycle, targets), Notes.
-  - Opal hosts the two feedback forms (no Microsoft Forms / Excel / script);
-    rounds are saved by Round ID (COMP-R#) and link to motions and cards.
-  - The Schools Record table becomes one note per competition
-    (Debate/Competitions/), properties for the details.
 - **Exam planner** — WACE exam countdown, each subject's syllabus dot points
   ticked off as revised, linked to flashcards and practice tests.
 - **Practice test log** — scores per subject and topic over time, marks lost
@@ -392,8 +385,6 @@ Ethan's:
   numbers; pull them straight into an essay plan.
 - **Case and law cards** — Politics and Law cases, legislation and
   principles, with the facts, the ruling and why it matters.
-- **Motion bank** — debate motions by topic, with prep notes, arguments for
-  and against, and when you ran them (links to the competition tracker).
 - **Reading list / bookshelf** — books to read, reading, and read, with notes
   and ratings.
 - **Habit tracker** — daily ticks that feed the heatmaps.
@@ -406,7 +397,6 @@ Ethan's:
   note.
 - **Countdown** — days until a date (an exam, a competition, a trip).
 - **Progress bar** — a goal (words, pages, savings) and how far along it is.
-- **Speech timer** — debate speaking times with protected-time bells.
 - **Random quote** — one from the quote bank each day on the home page.
 
 ## Later

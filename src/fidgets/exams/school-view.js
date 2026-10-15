@@ -2,7 +2,7 @@
 // (School/Methods/Exam tracker.md, School/Economics/Exam tracker.md…). One
 // overview of every subject — marks, what's needed in the WACE, the exam
 // dates from the calendar, moderation from a "Predicted ATAR" PDF — down a
-// rail like the Debate fidget's, with the folder's files on the Files page.
+// rail down the left, with the folder's files on the Files page.
 // It only reads the notes; results are added to the subject's tracker note.
 //
 //   new SchoolView(container, { tab, io })

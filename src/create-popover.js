@@ -4,7 +4,7 @@
 // `at` is a mouse event, an element to sit beside, or null (top of the window).
 // folders: [{ path, label, depth }]; loadTemplates(folder) → { templates, default };
 // onCreate({ kind, name, folder, color, description, template }). `template`
-// is a Templates/… path, "flow:<format>" for a debate flow sheet, or null.
+// is a Templates/… path, or null.
 // Enter after the name offers a description line (optional); Enter again makes it.
 
 import { h } from './ui.js';
@@ -35,7 +35,6 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
   where.addEventListener('change', () => { state.folder = where.value; fillTemplates(); });
 
   // Template for a new note: the folder's default is picked to start with.
-  // The debate flow sheets are built-in templates.
   const templateSelect = h('select', { class: 'cal-pop-select create-where', 'aria-label': 'Template' });
   const templateRow = h('div', { class: 'cal-new-when create-template' }, h('span', { class: 'mono-label' }, 'Template'), templateSelect);
   templateRow.hidden = true;
@@ -53,12 +52,7 @@ export function openCreateItem(at, { kind = 'note', folder = '', folders, loadTe
       h('option', { value: '' }, 'Blank note'),
       info.templates.length ? h('optgroup', { label: 'Templates' },
         info.templates.map((p) => h('option', { value: p, selected: p === info.default || null },
-          `${p.replace(/^Templates\//, '').replace(/\.md$/i, '')}${p === info.default ? ' (folder default)' : ''}`))) : null,
-      h('optgroup', { label: 'Flow sheets (debate)' },
-        h('option', { value: 'flow:australs' }, 'Flow sheet · Australs 3v3'),
-        h('option', { value: 'flow:world-schools' }, 'Flow sheet · World Schools'),
-        h('option', { value: 'flow:bp' }, 'Flow sheet · British Parliamentary'),
-        h('option', { value: 'flow:custom' }, 'Flow sheet · Custom columns')));
+          `${p.replace(/^Templates\//, '').replace(/\.md$/i, '')}${p === info.default ? ' (folder default)' : ''}`))) : null);
     templateSelect.value = info.default || '';
     sync();
   };
