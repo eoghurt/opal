@@ -352,6 +352,12 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   ordinary tick box now. Accounts, cache and drafts in Opal's settings folder are
   left as they were (nothing reads them).
 
+## v0.18 — Practice speeches (on the debate-practice-speeches branch)
+- Recording, timing, transcribing and judging practice speeches in the Debate
+  fidget, as round notes Claude's debate-judging skill writes to (see Debate
+  fidget under Fidget ideas). speech.js does the Mac side (microphone,
+  afconvert, whisper-cli); check v56 and tests/unit/debate-records.test.mjs.
+
 ## Fidget ideas
 Ethan's:
 - **Bouldering tracker** — problems by gym, wall, grade and colour; sends,
@@ -384,6 +390,29 @@ Ethan's:
     rounds are saved by Round ID (COMP-R#) and link to motions and cards.
   - The Schools Record table becomes one note per competition
     (Debate/Competitions/), properties for the details.
+  Practice speeches, added 2026-10-12 (mockups: https://claude.ai/artifact/2jbJPcdRiQh36nknNDaDcM):
+  - A practice speech is a round note with round: Practice in Rounds/, its
+    recording in Rounds/Audio/<Round ID>.m4a. A second speech the same day is
+    PRAC-<date>-P2, then -P3. The note links its prep note (prep:) and
+    recording, and Claude's debate-judging skill fills in judge, the WSDC and
+    WUDC marks and the Transcript, Judging, Symptom, Cause, Mini fix and Model
+    rewrite sections.
+  - Speak (a prep note's editing bar, the motion bank, or Log › Practice): a
+    speech timer with bells. World Schools is 8 minutes with protected time
+    before 1:00 and after 7:00, replies 4 minutes, BP 7 minutes with the first
+    and last minute protected. It records with the microphone, or takes a
+    recording dropped in from a phone (turned into .m4a).
+  - Transcribing runs on the Mac: afconvert makes a 16 kHz mono WAV and
+    whisper-cli (Homebrew's whisper-cpp) reads it with the model chosen in
+    Settings › Debate. Without them a transcript can be pasted in. Either way
+    the words per minute and fillers are counted, and a Fillers line goes at
+    the top of Judging for Claude.
+  - The Log lists practice speeches as their own group; the motion bank shows
+    the speeches given on a motion (Given 2 times, best 69); Training shows
+    competition and practice medians in separate columns (3 rounds before a
+    median shows) and a trend of WSDC total, wpm and fillers; the Board takes
+    PRAC Round IDs as evidence and trial rows, tagged practice, and never moves
+    a card by itself.
 - **Exam planner** — WACE exam countdown, each subject's syllabus dot points
   ticked off as revised, linked to flashcards and practice tests.
 - **Practice test log** — scores per subject and topic over time, marks lost
@@ -406,7 +435,7 @@ Ethan's:
   note.
 - **Countdown** — days until a date (an exam, a competition, a trip).
 - **Progress bar** — a goal (words, pages, savings) and how far along it is.
-- **Speech timer** — debate speaking times with protected-time bells.
+- **Speech timer** — built into the Debate fidget's practice speeches (see above).
 - **Random quote** — one from the quote bank each day on the home page.
 
 ## Later

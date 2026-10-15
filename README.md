@@ -26,7 +26,7 @@ Two things do not carry over. Canvas files (.canvas) do not open in Opal, and Ob
 
 **Search.** ⌘O jumps to any note, folder or file by name, and ⌘⇧F searches inside every note. Both take under a third of a second on a vault of 5,000 notes.
 
-**School and debate.** A subject tracker shows your school mark, your target and the exam mark you need, and it marks past WACE papers question by question to show which question types lose you the most marks. A School page combines every subject and reads your predicted ATAR. I do competitive debate, so there is also a motion bank, a competition tracker, round logging and flow sheets for taking notes during a round.
+**School and debate.** A subject tracker shows your school mark, your target and the exam mark you need, and it marks past WACE papers question by question to show which question types lose you the most marks. A School page combines every subject and reads your predicted ATAR. I do competitive debate, so there is also a motion bank, a competition tracker, round logging and flow sheets for taking notes during a round. Practice speeches are recorded against a speech timer with the format's bells and saved as round notes beside competition rounds, with the recording, a transcript made on the Mac by whisper-cpp, and the words per minute and filler words counted from it. Claude's judging goes into the same note, so practice scores sit apart from a panel's scores on the Training page, and a practice speech can count as a trial round for a fix on the feedback board.
 
 Quite a few of these features are built around how I work, the WACE and debate tools most of all. You don't have to use them if you don't want to, and they stay out of the way until you open them.
 
