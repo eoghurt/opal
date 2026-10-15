@@ -16,11 +16,11 @@ import { getDescription, getProp } from '../../shared/frontmatter.js';
 import { countWords } from '../../shared/words.js';
 
 export class NoteView {
-  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark, onExport }) {
+  constructor(container, { filePath, vaultName, onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark, onExport, onSpeak }) {
     this.filePath = filePath;
     this.folderPath = parentOf(filePath);
     this.vaultName = vaultName;
-    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark, onExport };
+    this.handlers = { onOpenFile, onOpenFolder, onOpenLink, onNewNoteHere, onPalettes, onGoToLine, onAddSticky, onSetColor, onInsertTable, onRename, onDescribe, onOpenAt, onLinkMention, onHistory, onWordTarget, onTemplate, onBookmark, onExport, onSpeak };
     this.backlinks = null; // { linked, unlinked } once loaded
     this.tree = [];
     this.text = '';
@@ -51,6 +51,8 @@ export class NoteView {
       onInsertTable: (anchor) => this.tablePicker(anchor),
     });
     this.moreButton = h('button', { class: 'rb-btn rb-more-menu', title: 'Details, bookmark, history…', 'aria-label': 'More', 'aria-haspopup': 'menu', onclick: (e) => this.moreMenu(e.currentTarget) }, icon('more', 16));
+    // A debate prep note: Speak opens the speech timer (Debate › practice speeches).
+    if (onSpeak) this.ribbon.tail.append(h('button', { class: 'rb-btn rb-speak', title: 'Give the speech: a timer with bells, recorded into Debate/Rounds', onclick: () => this.handlers.onSpeak() }, icon('microphone', 15), h('span', null, 'Speak')));
     this.ribbon.tail.append(this.moreButton);
     const center = h('div', { class: 'note-center' }, this.ribbon.el, this.details, this.title, this.description.el, this.editorHost);
     this.center = center; // stickies sit on top of this

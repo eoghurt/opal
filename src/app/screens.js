@@ -599,6 +599,11 @@ export async function showNote(filePath) {
   showWordCount();
     },
     onSetColor: (path, kind, color) => setItemColor(path, kind, color),
+    // A prep note in <Debate>/Motions/Practice preps: Speak opens the speech timer.
+    onSpeak: isPrepNote(filePath) ? () => {
+      setDebateState({ page: 'speak', prep: filePath });
+      showDebate();
+    } : null,
   });
 
   let changeTimer = null;
@@ -780,6 +785,8 @@ export function drawSettings() {
       saveSettings: (patch) => saveVaultSettings(patch),
       switchVault: () => window.opal.chooseVault(),
       revealVault: () => window.opal.revealFolder(''),
+      speechStatus: () => window.opal.speech.status(),
+      chooseWhisperModel: () => window.opal.speech.chooseModel(),
     },
   });
   viewEl.scrollTop = scrollTop;
@@ -1010,6 +1017,10 @@ export function debateFolder() {
   }
   return null;
 }
+function isPrepNote(filePath) {
+  const folder = debateFolder();
+  return Boolean(folder && filePath.startsWith(`${folder.path}/Motions/Practice preps/`) && /\.md$/i.test(filePath));
+}
 export function showDebate() {
   if (!vault) return Promise.resolve();
   return navigate(async () => {
@@ -1075,6 +1086,15 @@ export function showDebate() {
           await reloadTree();
         },
         startPrep: (minutes) => prepTimer.start(minutes),
+        // Practice speeches (speech.js in main does the Mac side).
+        askForMic: () => window.opal.speech.askForMic(),
+        saveAudio: async (dir, roundId, bytes, ext) => {
+          await ensureFolder(dir);
+          const saved = await window.opal.speech.saveAudio(dir, roundId, bytes, ext);
+          await reloadTree();
+          return saved;
+        },
+        transcribe: (relAudio) => window.opal.speech.transcribe(relAudio),
         // The page reports { page: { page, path, … } }.
         onChange: (state) => {
           setDebateState(state && state.page && typeof state.page === 'object' ? state.page : state);

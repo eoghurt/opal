@@ -4242,3 +4242,72 @@ button.deb-pill:hover { background: color-mix(in srgb, var(--t) 26%, transparent
 .cmp-line { padding: 0 18px; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.55em; }
 .cmp-line.is-mine { background: color-mix(in srgb, var(--accent, #3B2CF5) 14%, transparent); }
 .cmp-line.is-theirs { background: color-mix(in srgb, #E8A33D 22%, transparent); }
+
+/* ---------- Debate: practice speeches (src/fidgets/debate/debate-speak.js) ---------- */
+:is(:root, :root[data-theme]) .deb.deb .deb-btn.is-record { border: 0; background: var(--danger, #C62828); color: #FFFFFF; font-weight: 600; }
+:is(:root, :root[data-theme]) .deb.deb .deb-btn.is-record:hover { background: var(--danger, #C62828); filter: brightness(1.08); }
+.deb-card.is-stacked .deb-q { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.deb-card.is-stacked .deb-q-label { padding-top: 0; }
+.deb-timer { padding: 22px 22px 18px; border-radius: 18px; background: var(--deb-tint); border: 1px solid var(--deb-tint-edge); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.deb-timer.is-bell { animation: deb-bell 0.6s ease-out; }
+@keyframes deb-bell { 0% { box-shadow: 0 0 0 0 rgb(59 44 245 / 0.45); } 100% { box-shadow: 0 0 0 14px rgb(59 44 245 / 0); } }
+.deb-timer-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.deb-clock { font: 700 64px/1 var(--mono); letter-spacing: -0.04em; color: var(--deb-tint-ink); font-variant-numeric: tabular-nums; }
+.deb-clock small { margin-left: 8px; font-size: 18px; letter-spacing: 0; color: var(--ink-3); }
+.deb-clock.is-over { color: var(--danger, #C62828); }
+.deb-level { display: flex; align-items: center; gap: 3px; height: 28px; }
+.deb-level i { width: 3px; height: 8%; border-radius: 2px; background: var(--danger, #C62828); opacity: 0.75; transition: height 0.1s; }
+.deb-timer:not(.is-live) .deb-level { visibility: hidden; }
+.deb-track { position: relative; height: 40px; }
+.deb-track-bar { position: absolute; left: 0; right: 0; top: 10px; height: 10px; border-radius: 6px; background: var(--fill, rgb(var(--ink-rgb) / 0.08)); overflow: hidden; }
+.deb-track-protect, .deb-protect-key { background: repeating-linear-gradient(135deg, rgb(59 44 245 / 0.22) 0 4px, transparent 4px 8px); }
+.deb-track-protect { position: absolute; top: 0; bottom: 0; }
+.deb-track-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--accent, #3B2CF5); }
+.deb-bell { position: absolute; top: 4px; width: 2px; height: 22px; background: var(--ink); }
+.deb-bell i { position: absolute; top: 24px; left: -16px; width: 34px; text-align: center; font: 500 10.5px var(--mono); font-style: normal; color: var(--ink-3); }
+.deb-protect-key { display: inline-block; width: 18px; height: 9px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; }
+.deb-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px; border: 1.5px dashed var(--line); border-radius: 12px; color: var(--ink-3); font-size: 13px; text-align: center; }
+.deb-drop small { font-size: 12px; }
+.deb-drop.is-over { border-color: var(--deb-tint-edge); background: var(--deb-tint); color: var(--deb-tint-ink); }
+.deb-motion-pick:disabled { opacity: 0.6; cursor: default; }
+.deb-lead { margin: -4px 0 0; max-width: 70ch; font-size: 16px; line-height: 1.45; color: var(--ink-2, var(--ink)); }
+.deb-code { display: block; padding: 8px 10px; border-radius: 8px; background: var(--fill, rgb(var(--ink-rgb) / 0.06)); font: 12px/1.5 var(--mono); white-space: normal; overflow-wrap: anywhere; }
+.deb-transcript { max-height: 160px; overflow: auto; line-height: 1.55; }
+.deb-tiles.is-three { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+.deb-tiles.is-three .deb-tile { background: var(--paper); }
+.deb-textarea.is-tall { min-height: 150px; }
+.deb-prac-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 90px 56px 90px; gap: 12px; align-items: center; width: 100%; padding: 10px 18px; border: 0; border-top: 1px solid var(--line-soft, var(--line)); background: transparent; color: var(--ink); font: 13.5px var(--sans); text-align: left; cursor: pointer; }
+.deb-prac-row:hover { background: rgb(var(--ink-rgb) / 0.04); }
+.deb-prac-row.is-head { font-size: 12px; color: var(--ink-3); border-top: 0; border-bottom: 1px solid var(--line); cursor: default; }
+.deb-prac-row.is-head:hover { background: transparent; }
+.deb-prac-row.is-head > :nth-child(4) { text-align: right; }
+.deb-given { display: flex; flex-direction: column; gap: 6px; }
+.deb-given h3 { margin: 0; font-size: 14px; }
+.deb-speech { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; width: 100%; padding: 9px 12px; border: 0; border-radius: 10px; background: var(--paper); color: var(--ink); font: 13px var(--sans); text-align: left; cursor: pointer; }
+.deb-speech:hover { background: var(--deb-tint); }
+.deb-speech small { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); }
+.deb-speech .is-best { color: var(--deb-good); font-weight: 700; }
+.deb-tag.is-practice, .deb-badge.is-practice { background: var(--deb-tint); color: var(--deb-tint-ink); }
+.deb-tag.is-practice { padding: 0 7px; font-size: 10.5px; vertical-align: 1px; }
+.deb-quote.is-practice { box-shadow: inset 3px 0 0 var(--deb-tint-edge); }
+.deb-med-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 13px; }
+.deb-med-row.is-head { border-top: 0; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); }
+.deb-med-cluster { padding: 10px 0 2px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); }
+.deb-med { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 8px; align-items: center; }
+.deb-med .deb-mono { text-align: right; font-weight: 600; white-space: nowrap; }
+.deb-med.is-none .deb-mono { font-weight: 400; color: var(--ink-3); }
+.deb-med.is-none .deb-bar { opacity: 0.5; }
+.deb-bar-fill.is-practice { background: repeating-linear-gradient(135deg, var(--accent, #3B2CF5) 0 3px, rgb(59 44 245 / 0.45) 3px 6px); }
+.deb-spark { display: grid; grid-template-columns: 80px minmax(0, 1fr) 54px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 13px; }
+.deb-spark:first-of-type { border-top: 0; }
+.deb-spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+.deb-spark b { font: 700 15px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.deb-spark-line { fill: none; stroke: var(--accent, #3B2CF5); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.deb-spark-area { fill: var(--deb-tint); stroke: none; }
+.deb-spark-dot { fill: var(--accent, #3B2CF5); stroke: var(--paper-2); stroke-width: 2; }
+.rb-btn.rb-speak { display: inline-flex; align-items: center; gap: 5px; width: auto; padding: 0 10px; font: 600 12.5px var(--sans); }
+@media (max-width: 700px) {
+  .deb-prac-row { grid-template-columns: 62px minmax(0, 1fr) 48px; }
+  .deb-prac-row > :nth-child(3), .deb-prac-row > :nth-child(5) { display: none; }
+  .deb-clock { font-size: 48px; }
+}

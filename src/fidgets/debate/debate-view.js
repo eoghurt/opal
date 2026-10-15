@@ -8,15 +8,17 @@
 //   io: folder, files() → [{ path, name }], read(path), write(path, text),
 //       create(folder, name, text) → path, move(path, folder) → path,
 //       open(path), reveal(path), copy(text), trash(path), startPrep(minutes),
-//       onChange({ page })
+//       onChange({ page }), and for practice speeches saveAudio, askForMic and
+//       transcribe (see debate-speak.js)
 
 import { h, icon, askChoice } from '../../ui.js';
 import { parseMotionNote, prepMotion, likeness, wordingDiff, setLineTag, changeMotionLine, versionName, editMotion, TOPICS, topicSlug, topicLook, setLineTopics, MAX_TOPICS } from './motions.js';
-import { readCompetition, readRound, readRecord, broke, speakerRank, isBP, placing, median, DIMENSIONS } from './records.js';
+import { readCompetition, readRound, readRecord, broke, speakerRank, isBP, placing, median, DIMENSIONS, panelJudged } from './records.js';
 import { COLUMNS, readCard, readTrainingPlan, readDrillLog, readDashboard } from './board.js';
 import { formsPages } from './debate-forms.js';
 import { morePages } from './debate-more.js';
 import { menuPages } from './debate-menus.js';
+import { speakPages } from './debate-speak.js';
 
 const RAIL = [
   ['overview', 'Overview', 'fidget'],
@@ -54,6 +56,8 @@ export class DebateView {
 
   destroy() {
     this.closePop();
+    // Leaving mid-speech keeps the recording.
+    if (this.recording) this.stopRecording(true);
   }
 
   rel(path) {
@@ -113,7 +117,8 @@ export class DebateView {
       schoolsPath: at('Schools Record.md')?.path || null,
       judgingPath: at('Adjudication Record.md')?.path || null,
     };
-    for (const m of this.data.motions) m.run = this.data.rounds.some((r) => r.motion && (r.motion === m.text || likeness(r.motion, m.text) > 0.8));
+    // Practice speeches show as "Spoken N×" instead (debate-speak.js).
+    for (const m of this.data.motions) m.run = this.data.rounds.some((r) => r.round !== 'Practice' && r.motion && (r.motion === m.text || likeness(r.motion, m.text) > 0.8));
     this.render();
   }
 
@@ -209,7 +214,7 @@ export class DebateView {
     const rail = h('nav', { class: 'deb-rail', 'aria-label': 'Debate' },
       RAIL.map(([id, label, ic]) => h('button', {
         type: 'button',
-        class: `deb-rail-btn${page === id || (page === 'comp' && id === 'comps') ? ' is-on' : ''}`,
+        class: `deb-rail-btn${page === id || (page === 'comp' && id === 'comps') || (page === 'speak' && id === 'log') ? ' is-on' : ''}`,
         'aria-current': page === id ? 'page' : null,
         onclick: () => this.go(id),
       }, icon(ic, 20), h('span', null, label))));
@@ -219,6 +224,7 @@ export class DebateView {
       comps: () => this.compsPage(),
       comp: () => this.compPage(),
       log: () => this.logPage(),
+      speak: () => this.speakPage(),
       board: () => this.boardPage(),
       training: () => this.trainingPage(),
       notes: () => this.notesPage(),
@@ -321,8 +327,9 @@ export class DebateView {
         this.prepBox(motion, { tint: false }),
         this.button('Another motion', () => { this.ui.draw++; this.render(); }, 'ghost'))) : null;
 
-    // The gating chain, from Form 2 scores of the last 10 rounds.
-    const scored = this.data.rounds.filter((r) => Object.keys(r.scores).length).slice(0, 10);
+    // The gating chain, from Form 2 scores of the last 10 rounds a panel judged
+    // (Claude's judging of practice speeches is kept apart, on Training).
+    const scored = this.data.rounds.filter((r) => Object.keys(r.scores).length && panelJudged(r)).slice(0, 10);
     const chain = this.card('Fix from the top', h('span', { class: 'deb-muted' }, scored.length ? `median, last ${scored.length} round${scored.length === 1 ? '' : 's'}` : ''),
       scored.length ? (() => {
         let flagged = false;
@@ -456,6 +463,7 @@ export class DebateView {
             m.topics.length ? h('span', { class: 'deb-icons' }, m.topics.map((t) => this.topicPill(t, { compact: true }))) : null,
             m.prep ? h('span', { class: 'deb-badge is-good' }, 'Prepped') : null,
             m.run ? h('span', { class: 'deb-badge is-blue' }, 'Run in a round') : null,
+            (() => { const n = this.speechesFor(m).length; return n ? h('span', { class: 'deb-badge is-practice' }, `Spoken ${n}×`) : null; })(),
             versions ? h('span', { class: 'deb-badge' }, `${versions + 1} versions`) : null),
           h('span', { class: 'deb-motion-text' }, m.text)),
         m.fromPrep ? null : this.starButton(m)), (el) => this.motionMenu(m, el));
@@ -523,7 +531,10 @@ export class DebateView {
       h('div', { class: 'deb-prep-wrap' },
         h('span', { class: 'deb-small is-tint' }, m.prep ? `Prepped in “${m.prep.name}” · prep again with the timer` : 'Prep it · a note in Practice preps with Aff / Neg headings'),
         this.prepBox(m),
-        m.prep ? this.button('Open the prep note', () => this.io.open(m.prep.path), 'ghost') : null),
+        h('div', { class: 'deb-inline' },
+          this.button('Speak', () => this.go('speak', { motion: m.id, prep: m.prep ? m.prep.path : undefined }), 'ghost'),
+          m.prep ? this.button('Open the prep note', () => this.io.open(m.prep.path), 'ghost') : null)),
+      this.givenCard(m),
       m.fromPrep ? null : h('section', { class: 'deb-versions', 'aria-label': 'Other versions' },
         h('div', { class: 'deb-card-head' }, h('h3', null, `Other versions${versions.length ? ` · ${versions.length}` : ''}`), versions.length ? h('span', { class: 'deb-muted' }, 'changed wording highlighted') : null),
         versions.map((v) => h('div', { class: 'deb-version' },
@@ -725,6 +736,6 @@ export class DebateView {
 }
 
 // The other pages live in their own files.
-Object.assign(DebateView.prototype, formsPages, morePages, menuPages);
+Object.assign(DebateView.prototype, formsPages, morePages, menuPages, speakPages);
 
 export { DIMENSIONS, askChoice };

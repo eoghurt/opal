@@ -35,9 +35,10 @@ export const FIDGETS = [
     icon: 'debate',
     page: true, // a page of its own: a tile on the home page
     short: 'Motions, rounds, feedback',
-    what: 'Your debate folder in one place: a motion bank to prep from, competitions and rounds, the two feedback forms, the fix board, training and notes.',
+    what: 'Your debate folder in one place: a motion bank to prep from, competitions and rounds, the two feedback forms, practice speeches (a timer with bells, recorded and transcribed), the fix board, training and notes.',
+    settings: 'debate',
     where: 'Its tile on the home page, or ⌘⇧B. Reads and writes the notes in your Debate folder.',
-    files: ['fidgets/debate/debate-view.js', 'fidgets/debate/debate-forms.js', 'fidgets/debate/debate-more.js', 'fidgets/debate/motions.js', 'fidgets/debate/records.js', 'fidgets/debate/board.js'],
+    files: ['fidgets/debate/debate-view.js', 'fidgets/debate/debate-forms.js', 'fidgets/debate/debate-more.js', 'fidgets/debate/debate-speak.js', 'fidgets/debate/motions.js', 'fidgets/debate/records.js', 'fidgets/debate/board.js'],
   },
   {
     id: 'tasks',

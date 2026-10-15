@@ -336,7 +336,7 @@ const NUMBER_PROPS = new Set(['prep_minutes', 'wsdc_style', 'wsdc_content', 'wsd
 const unlink = (v) => String(v || '').replace(/^\[\[|\]\]$/g, '');
 
 // A practice speech: round Practice with a recording, prep or transcript.
-export const isSpeech = (round) => round.round === 'Practice' && Boolean(round.recording || round.prep || round.transcript || round.judge);
+export const isSpeech = (round) => round.round === 'Practice' && Boolean(round.recording || round.recordingName || round.prep || round.prepName || round.transcript || round.judge);
 // Judged by a panel (competition evidence), not by Claude.
 export const panelJudged = (round) => String(round.judge || '').trim().toLowerCase() !== 'claude';
 
@@ -494,3 +494,24 @@ export function applyTranscript(round, text) {
     judging: withFillersLine(round.judging, fillersLine(fillers, wpm, round.duration)),
   };
 }
+
+// The same, straight into a round note's text: only the Transcript and
+// Judging sections and the wpm and fillers properties change, so anything
+// else in the note (from Claude's judging, or typed by hand) stays as it is.
+export function transcriptInto(noteText, text) {
+  const { props, body } = readProps(noteText);
+  const next = applyTranscript({ duration: props.duration, judging: section(body, 'Judging'), wpm: props.wpm }, text);
+  const out = {};
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'wpm' || k === 'fillers') continue;
+    out[k] = v === 'true' ? true : v === 'false' ? false : v; // form2 stays a true/false
+    if (k === 'duration') Object.assign(out, numbers(next));
+  }
+  if (!('duration' in props)) Object.assign(out, numbers(next));
+  let b = body;
+  if (!/^#{2,4}\s+Transcript\s*$/m.test(b)) b = `\n## Transcript\n${b.replace(/^\n+/, '\n')}`;
+  b = setSection(b, 'Transcript', next.transcript, 2);
+  b = setSection(b, 'Judging', next.judging, 2);
+  return writeProps(out, b);
+}
+const numbers = (r) => Object.fromEntries([['wpm', r.wpm], ['fillers', r.fillers]].filter(([, v]) => Number.isFinite(v)));

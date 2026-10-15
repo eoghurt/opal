@@ -5,7 +5,7 @@
 //   renderSettings(container, { section, look, palette, settings, info, extraSections, io })
 //   settings: this vault's settings (see DEFAULT_SETTINGS), kept in .opal/settings.json
 //   io: setSection(id), setLook(change), setPalette(name), saveSettings(patch),
-//       switchVault(), revealVault()
+//       switchVault(), revealVault(), speechStatus(), chooseWhisperModel()
 // extraSections: [{ id, label, icon, title, desc, render() → element }] added by
 // other parts of Opal (the home page's widgets); they go in the Widgets &
 // Fidgets group unless they say otherwise (group: 'opal').
@@ -21,6 +21,7 @@ import { FIDGETS } from '../fidgets/index.js';
 export const DEFAULT_SETTINGS = {
   pomodoro: { focus: 25, short: 5, long: 15, rounds: 4, autoStart: true },
   tabs: { restore: true },
+  debate: { whisperModel: '' },
 };
 
 // This vault's settings with anything missing filled in from the defaults.
@@ -80,6 +81,7 @@ const SECTIONS = [
   { id: 'shortcuts', group: 'opal', label: 'Shortcuts', icon: 'keyboard', title: 'Shortcuts.', desc: 'Keys that work everywhere in Opal.' },
   { id: 'about', group: 'opal', label: 'About', icon: 'info', title: 'About Opal.', desc: 'Notes that live in plain files.' },
   { id: 'parts', group: 'parts', label: 'Overview', icon: 'widget', title: 'Widgets & Fidgets.', desc: 'Widgets are small things inside a page that do one job. Fidgets are bigger, and take up a whole page of their own.' },
+  { id: 'debate', group: 'parts', label: 'Debate', icon: 'debate', title: 'Debate.', desc: 'Practice speeches: transcribing recordings on this Mac with whisper-cpp.' },
   { id: 'timer', group: 'parts', label: 'Timer', icon: 'timer', title: 'Timer.', desc: 'The timer in the top bar: a plain countdown for prep, or Pomodoro — focus, short break, repeat, then a long break.' },
 ];
 
@@ -106,6 +108,30 @@ function timer({ settings, io }) {
     row('Long break after', 'Focus parts in a set before the long break.', minutesInput(p.rounds, (n) => set({ rounds: n }), 'Rounds before a long break', { max: 12 })),
     row('Start the next part by itself', 'Off: each break or focus part waits for you to press Start.', toggle(p.autoStart, (on) => set({ autoStart: on }), 'Start the next part by itself')),
     h('p', { class: 'set-note' }, 'Each finished focus part is saved in the home page’s numbers (.opal/logbook.md), linked to the note that was open, like a prep session.'),
+  ];
+}
+
+// Practice speeches are transcribed by whisper-cpp (Homebrew) with a model file.
+function debateSection({ settings, io }) {
+  const model = settings.debate.whisperModel || '';
+  const status = h('span', { class: 'set-value' }, 'Checking…');
+  if (io.speechStatus) {
+    io.speechStatus().then((s) => {
+      status.textContent = s.whisper ? 'Installed' : 'Not installed';
+      status.classList.toggle('is-warn', !s.whisper);
+    }).catch(() => { status.textContent = ''; });
+  }
+  return [
+    heading('Transcribing practice speeches'),
+    row('whisper-cpp', 'Turns a recording into text, on this Mac. Install it with “brew install whisper-cpp” in Terminal.', status),
+    row('Model', model || 'A ggml model file for whisper-cpp. ggml-base.en.bin is quick; ggml-medium.en.bin hears fillers better.',
+      h('div', { class: 'set-buttons' },
+        h('button', { class: 'set-btn', onclick: async () => {
+          const path = await io.chooseWhisperModel();
+          if (path) io.saveSettings({ debate: { ...settings.debate, whisperModel: path } });
+        } }, model ? 'Change…' : 'Choose…'),
+        model ? h('button', { class: 'set-btn', onclick: () => io.saveSettings({ debate: { ...settings.debate, whisperModel: '' } }) }, 'Clear') : null)),
+    h('p', { class: 'set-note' }, 'Without them you can still paste a transcript into a speech; Opal counts its words a minute and fillers either way. Recordings stay in your vault (Debate/Rounds/Audio).'),
   ];
 }
 
@@ -190,6 +216,7 @@ export function renderSettings(container, opts) {
   else if (section.id === 'parts') body = partsSection(opts, sections);
   else if (section.id === 'appearance') body = appearance(opts);
   else if (section.id === 'timer') body = timer(opts);
+  else if (section.id === 'debate') body = debateSection(opts);
   else if (section.id === 'tabs') body = tabsSection(opts);
   else if (section.id === 'vault') body = vaultSection(opts);
   else if (section.id === 'shortcuts') body = shortcuts();

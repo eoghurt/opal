@@ -1,7 +1,7 @@
 // Debate pages: the feedback board, training and notes. Mixed into DebateView.
 
 import { h, icon } from '../../ui.js';
-import { readProps, writeProps, isBP } from './records.js';
+import { readProps, writeProps, isBP, DIMENSIONS, median, panelJudged, isSpeech } from './records.js';
 import { COLUMNS, setTrial, setVerdict, setStatus, planMonth, addDrillLog } from './board.js';
 
 function todayKey(d = new Date()) {
@@ -15,6 +15,8 @@ const CLUSTERS = {
   Execution: ['Structure and signposting', 'Efficiency', 'Manner and rhetoric', 'Flowing and tracking', 'Flowing', 'Structure'],
   Meta: ['Prep process', 'Partner work'],
 };
+// A median needs this many rounds with a score before it shows (Weakness Diagnostic).
+const MIN_EVIDENCE = 3;
 const clusterOf = (dimension) => Object.keys(CLUSTERS).find((c) => CLUSTERS[c].some((d) => String(dimension).toLowerCase().startsWith(d.toLowerCase()))) || 'Meta';
 
 export const morePages = {
@@ -30,7 +32,8 @@ export const morePages = {
         inCol.length ? inCol.map((k) => this.withMenu(h('button', { type: 'button', class: `deb-board-card${open && k.path === open.path ? ' is-on' : ''}`, onclick: () => { this.state.path = k.path; this.render(); } },
           h('span', { class: `deb-tag ${DIM_COLORS[clusterOf(k.dimension)]}` }, clusterOf(k.dimension)),
           h('b', null, k.title),
-          h('small', null, k.column === '2 In Progress' ? `trial ${k.trial.filter((t) => t.result).length} of ${k.trial.length || 3}` : k.rounds.join(', '))), () => this.cardMenu(k))) : h('p', { class: 'deb-empty is-small' }, '—'));
+          h('small', null, k.column === '2 In Progress' ? `trial ${k.trial.filter((t) => t.result).length} of ${k.trial.length || 3}` : k.rounds.join(', '),
+            k.column !== '2 In Progress' && k.rounds.some((id) => this.isPracticeId(id)) ? this.practiceTag() : null)), () => this.cardMenu(k))) : h('p', { class: 'deb-empty is-small' }, '—'));
     });
     const reviewDue = (() => {
       const parked = cards.filter((k) => k.column === '3 Parked' && k.opened);
@@ -60,14 +63,19 @@ export const morePages = {
         h('span', { class: 'deb-muted' }, [k.opened ? `opened ${k.opened}` : '', k.closed ? `closed ${k.closed}` : ''].filter(Boolean).join(' · '))),
       h('h2', { class: 'deb-detail-motion' }, k.title),
       h('section', { class: 'deb-sub' }, h('h3', null, 'Evidence'),
-        k.evidence.length ? k.evidence.map((e) => h('blockquote', { class: 'deb-quote' }, e)) : this.empty('No evidence written yet.'),
-        k.rounds.length ? h('p', { class: 'deb-small' }, `Seen in ${k.rounds.join(', ')}`) : null),
+        k.evidence.length ? k.evidence.map((e) => {
+          // Evidence ends "(<Round ID>)"; practice speeches' wear a tag.
+          const from = (/\(([^()]+)\)\s*$/.exec(e) || [])[1];
+          const practice = from && this.isPracticeId(from);
+          return h('blockquote', { class: `deb-quote${practice ? ' is-practice' : ''}` }, e, practice ? [' ', this.practiceTag()] : null);
+        }) : this.empty('No evidence written yet.'),
+        k.rounds.length ? h('p', { class: 'deb-small' }, 'Seen in ', k.rounds.flatMap((id, i) => [i ? ', ' : '', id, ...(this.isPracticeId(id) ? [' ', this.practiceTag()] : [])])) : null),
       k.cause ? h('section', { class: 'deb-sub is-row' }, h('h3', null, 'Cause'), h('span', null, k.cause)) : null,
       h('section', { class: 'deb-sub' }, h('h3', null, 'The fix'),
         levels.map((l) => h('div', { class: `deb-fix${(k.level || 'Mini').toLowerCase() === l.toLowerCase() ? ' is-on' : ''}` }, h('small', null, l), h('span', null, k.fix[l] || '—')))),
       k.trial.length ? h('section', { class: 'deb-sub' }, h('h3', null, 'Trial · the next 3 rounds'),
         k.trial.map((t) => h('div', { class: 'deb-trial' },
-          h('span', { class: 'deb-mono' }, t.round),
+          h('span', { class: 'deb-mono' }, t.round, this.isPracticeId(t.round) ? [' ', this.practiceTag()] : null),
           h('span', { class: 'deb-chips' }, ['Held', 'Decayed', 'Failed'].map((v) => this.chip(v, t.result === v.toLowerCase(), () => write((text) => setTrial(text, t.round, t.result === v.toLowerCase() ? '' : v)), `is-small is-${v.toLowerCase()}`)))))) : null,
       k.verdicts.length ? h('section', { class: 'deb-sub' }, h('h3', null, 'Verdict'),
         k.verdicts.map((v, i) => h('label', { class: 'deb-check' },
@@ -97,7 +105,8 @@ export const morePages = {
 
   trainingPage() {
     const plan = this.data.plan;
-    if (!plan) return h('div', { class: 'deb-page' }, this.head('Training', 'Training.'), this.empty('No Training/Training Plan.md in your debate folder.'));
+    const diagnostic = h('div', { class: 'deb-split' }, this.mediansCard(), this.trendCard());
+    if (!plan) return h('div', { class: 'deb-page' }, this.head('Training', 'Training.'), this.empty('No Training/Training Plan.md in your debate folder.'), diagnostic);
     const month = planMonth(plan.start);
     const phase = month ? plan.phases.find((p) => month >= p.from && month <= p.to) : null;
     const total = plan.phases.length ? Math.max(...plan.phases.map((p) => p.to)) : 0;
@@ -183,7 +192,77 @@ export const morePages = {
       this.head(plan.intro.split('.')[0] || 'Training', 'Training.', this.button('Open Training Plan', () => this.io.open(this.data.planPath), 'ghost')),
       plan.week.length ? week : null,
       phaseCard,
+      diagnostic,
       h('div', { class: 'deb-split' }, drills, h('div', { class: 'deb-stack' }, matter, targets)));
+  },
+
+  // The 15 dimensions: competition medians (a panel judged them: no judge,
+  // or a judge who isn't Claude) and practice medians (Claude), never mixed.
+  mediansCard() {
+    const scored = this.data.rounds.filter((r) => Object.keys(r.scores).length);
+    const panel = scored.filter(panelJudged);
+    const practice = scored.filter((r) => !panelJudged(r));
+    const cell = (rounds, d, practiceCol) => {
+      const values = rounds.map((r) => r.scores[d]).filter((v) => v != null);
+      if (values.length < MIN_EVIDENCE) {
+        return h('span', { class: 'deb-med is-none', title: `A median needs ${MIN_EVIDENCE} rounds with a score` },
+          h('span', { class: 'deb-bar' }), h('span', { class: 'deb-mono' }, values.length ? `${values.length} of ${MIN_EVIDENCE}` : '—'));
+      }
+      const m = median(values);
+      return h('span', { class: 'deb-med', title: `median of ${values.length}` },
+        h('span', { class: 'deb-bar' }, h('span', { class: `deb-bar-fill${m <= 2 ? ' is-mid' : practiceCol ? ' is-practice' : ' is-blue'}`, style: `width: ${(m / 5) * 100}%` })),
+        h('span', { class: `deb-mono${m <= 2 ? ' is-warn' : ''}` }, String(m)));
+    };
+    return this.card('Diagnostic medians', h('span', { class: 'deb-muted' }, `1 lost it · 5 decisive · needs ${MIN_EVIDENCE} rounds`),
+      h('div', { class: 'deb-med-row is-head' }, h('span', null, 'Dimension'), h('span', null, `Competition · ${panel.length}`), h('span', null, `Practice · Claude · ${practice.length}`)),
+      DIMENSIONS.flatMap(([cluster, dims]) => [
+        h('div', { class: 'deb-med-cluster' }, cluster),
+        ...dims.map((d) => h('div', { class: 'deb-med-row' }, h('span', null, d), cell(panel, d, false), cell(practice, d, true))),
+      ]),
+      !scored.length ? this.empty('Medians appear once rounds have Form 2 scores, or Claude has judged a practice speech.') : null);
+  },
+
+  // WSDC total, wpm and fillers across practice speeches, oldest first.
+  trendCard() {
+    const speeches = this.data.rounds.filter(isSpeech).sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.round_id.localeCompare(b.round_id));
+    const line = (label, key) => {
+      const points = speeches.filter((r) => r[key] != null);
+      if (!points.length) return h('div', { class: 'deb-spark' }, h('span', null, label), h('span', { class: 'deb-muted' }, 'none yet'), h('b', null, '—'));
+      const values = points.map((r) => r[key]);
+      const lo = Math.min(...values);
+      const hi = Math.max(...values);
+      const W = 200;
+      const H = 40;
+      const x = (i) => (points.length === 1 ? W / 2 : 4 + (i / (points.length - 1)) * (W - 8));
+      const y = (v) => (hi === lo ? H / 2 : 4 + (1 - (v - lo) / (hi - lo)) * (H - 8));
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', `${label}: ${values.join(', ')}`);
+      const el = (tag, attrs, title) => {
+        const n = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+        if (title) {
+          const t = document.createElementNS(ns, 'title');
+          t.textContent = title;
+          n.append(t);
+        }
+        svg.append(n);
+        return n;
+      };
+      const d = points.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r[key]).toFixed(1)}`).join(' ');
+      if (points.length > 1) {
+        el('path', { class: 'deb-spark-area', d: `${d} L${x(points.length - 1).toFixed(1)},${H} L${x(0).toFixed(1)},${H} Z` });
+        el('path', { class: 'deb-spark-line', d });
+      }
+      points.forEach((r, i) => el('circle', { class: `deb-spark-dot${i === points.length - 1 ? ' is-last' : ''}`, cx: x(i).toFixed(1), cy: y(r[key]).toFixed(1), r: i === points.length - 1 ? 4 : 2.5 }, `${r.round_id} · ${r[key]}`));
+      return h('div', { class: 'deb-spark' }, h('span', null, label), svg, h('b', null, String(values[values.length - 1])));
+    };
+    return this.card('Practice trend', h('span', { class: 'deb-muted' }, speeches.length ? `${speeches.length} speech${speeches.length === 1 ? '' : 'es'} · oldest → newest` : ''),
+      speeches.length ? [line('WSDC total', 'wsdc_total'), line('wpm', 'wpm'), line('fillers', 'fillers'), h('span', { class: 'deb-small' }, 'Hover a point for its speech.')]
+        : this.empty('Practice speeches you record show up here.'));
   },
 
   // ---------- Notes ----------

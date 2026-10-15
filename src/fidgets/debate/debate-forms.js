@@ -5,7 +5,7 @@ import { h, askChoice } from '../../ui.js';
 import {
   readProps, writeProps, setSection, competitionsFromRecords, competitionNote, OVERVIEW_PROMPTS,
   broke, speakerRank, isBP, placing, median, ROUND_NAMES, FORMATS, POSITIONS, roundId, DIMENSIONS,
-  CLUSTER_OF, CAUSES, writeRound, readRound, shortCode,
+  CLUSTER_OF, CAUSES, writeRound, readRound, shortCode, practiceId,
 } from './records.js';
 import { COLUMNS, newCard, addEvidence } from './board.js';
 import { likeness } from './motions.js';
@@ -237,13 +237,14 @@ export const formsPages = {
     }
     const f = this.form.f;
     const comp = this.data.comps.find((c) => c.path === f.comp);
-    const id = this.roundIdFor(f, comp);
+    const id = this.roundIdFor(f, comp, existing);
     const tabs = h('div', { class: 'deb-seg' },
       h('button', { type: 'button', class: `deb-seg-btn${tab === 1 ? ' is-on' : ''}`, onclick: () => this.go('log', { tab: 1, path: existing ? existing.path : this.state.path, comp: this.state.comp }) }, existing ? 'Form 1 · done ✓' : 'Form 1 · Immediate · 5 min'),
       h('button', { type: 'button', class: `deb-seg-btn${tab === 2 ? ' is-on' : ''}`, onclick: () => this.go('log', { tab: 2, path: existing ? existing.path : undefined }) }, existing && existing.form2 ? 'Form 2 · done ✓' : 'Form 2 · Full · 15 min'));
     return h('div', { class: 'deb-page' },
       this.head(existing ? 'Log a round · editing' : 'Log a round', tab === 1 ? (id || 'New round') : (existing ? existing.round_id : 'Form 2'), tabs),
-      tab === 1 ? this.form1(f, comp, id, existing) : this.form2(existing));
+      tab === 1 ? this.form1(f, comp, id, existing) : this.form2(existing),
+      this.practiceList());
   },
 
   newForm(tab, existing) {
@@ -257,9 +258,13 @@ export const formsPages = {
     return { key, f: { comp: comp ? comp.path : (recent[0] ? '' : ''), date: todayKey(), round: '', format: comp ? comp.format : '', position: '', motion: '', result: '', speaks: '', judges: '', clusters: [], deserved: '', round_of_day: '', hours_slept: '', eaten: '', unusual: [], scores: {}, candidates: [] } };
   },
 
-  roundIdFor(f, comp) {
+  roundIdFor(f, comp, existing) {
     if (!f.round) return '';
-    const short = comp ? comp.short : f.round === 'Practice' ? `PRAC-${f.date || todayKey()}` : 'ROUND';
+    // A round keeps its ID while it stays the same kind of round (a second
+    // practice speech that day is -P2, not -P).
+    if (existing && existing.round_id && existing.round === f.round && !comp === !existing.competitionName) return existing.round_id;
+    if (!comp && f.round === 'Practice') return practiceId(f.date || todayKey(), this.data.rounds.map((r) => r.round_id));
+    const short = comp ? comp.short : 'ROUND';
     return roundId(short, f.round);
   },
 
@@ -307,7 +312,7 @@ export const formsPages = {
         return;
       }
       const theComp = this.data.comps.find((c) => c.path === f.comp);
-      const rid = this.roundIdFor(f, theComp);
+      const rid = this.roundIdFor(f, theComp, existing);
       const round = { ...f, round_id: rid, competitionName: theComp ? theComp.path.split('/').pop().replace(/\.md$/i, '') : '', form2: existing ? existing.form2 : false };
       await this.save(async () => {
         if (existing) await this.io.write(existing.path, writeRound(round));
@@ -325,7 +330,8 @@ export const formsPages = {
         this.q('Competition', h('div', { class: 'deb-chips' },
           recent.map((c) => this.chip(`${c.name.length > 34 ? c.short : c.name} ${c.year}`, f.comp === c.path, () => { f.comp = f.comp === c.path ? '' : c.path; if (f.comp && c.format) f.format = c.format; this.render(); })),
           this.chip('Practice', !f.comp && f.round === 'Practice', () => { f.comp = ''; f.round = 'Practice'; this.render(); }),
-          this.chip('+ New', false, (e) => this.newCompetition(e.currentTarget, 'speaker', (path) => { f.comp = path; })))),
+          this.chip('+ New', false, (e) => this.newCompetition(e.currentTarget, 'speaker', (path) => { f.comp = path; })),
+          !existing && !f.comp && f.round === 'Practice' ? this.button('Speak instead →', () => this.go('speak', { motionText: f.motion || undefined, format: f.format || undefined, position: f.position || undefined }), 'primary') : null)),
         this.q('Date', date),
         this.q('Round', this.pick(f, 'round', ROUND_NAMES, { small: true })),
         this.q('Format', this.pick(f, 'format', FORMATS, { after: () => { f.position = ''; f.result = ''; } })),

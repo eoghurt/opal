@@ -214,3 +214,27 @@ test('a transcript gives wpm, fillers and the Fillers line on top of Judging', (
   assert.equal(R.formatDuration(419), '6:59');
   assert.equal(R.parseDuration('6:59'), 419);
 });
+
+test('a transcript goes into the note without touching anything else', () => {
+  const note = EXAMPLE.replace('## Model rewrite\n', '## Model rewrite\n\nOpen on the mechanism.\n').replace('## Judging\n', '## Judging\n\nStrong opening; weak weighing.\n');
+  const out = R.transcriptInto(note, 'Um, like, Madam Speaker. '.repeat(100));
+  const r = R.readRound(out, 'x.md');
+  assert.equal(r.transcript, 'Um, like, Madam Speaker. '.repeat(100).trim());
+  assert.equal(r.fillers, 200);
+  assert.equal(r.wpm, Math.round(400 / (419 / 60)));
+  assert.ok(r.judging.startsWith('Fillers: 200 (like 100, um 100) · 57 wpm · 6:59\n\nStrong opening'), r.judging);
+  assert.equal(r.rewrite, 'Open on the mechanism.');
+  assert.equal(r.wsdc_total, 67);
+  assert.equal(r.judge, 'Claude');
+  const keys = Object.keys(R.readProps(out).props);
+  assert.equal(keys.indexOf('wpm'), keys.indexOf('duration') + 1, 'wpm and fillers stay after duration');
+  assert.deepEqual(out.split('\n').filter((l) => /^## /.test(l)), ['## Transcript', '## Judging', '## Symptom', '## Cause', '## Mini fix', '## Model rewrite']);
+});
+
+test('a new speech from the recorder has its six headings, and a transcript keeps form2 a true/false', () => {
+  const made = R.writeRound({ round_id: 'PRAC-2026-10-12-P2', date: '2026-10-12', round: 'Practice', format: 'World Schools', position: '1st Prop', motion: 'THW x', prepName: 'X', recordingName: 'PRAC-2026-10-12-P2.m4a', duration: '0:02', form2: false, scores: {} });
+  assert.deepEqual(made.split('\n').filter((l) => /^## /.test(l)), ['## Transcript', '## Judging', '## Symptom', '## Cause', '## Mini fix', '## Model rewrite']);
+  const out = R.transcriptInto(made, 'Um, like, yes.');
+  assert.ok(out.split('\n').includes('form2: false'), 'form2 written as a true/false');
+  assert.deepEqual(out.split('\n').filter((l) => /^## /.test(l)), ['## Transcript', '## Judging', '## Symptom', '## Cause', '## Mini fix', '## Model rewrite']);
+});
