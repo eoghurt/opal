@@ -30,6 +30,7 @@ ok "only the days on screen are visible (seven columns in view)" '[[ $(C "(()=>{
 clickText .cal-seg Month
 MID=$(C "window.__swipe(1.2,'y')" | tr -d '"')
 ok "month view slides up and down smoothly" '[[ "$MID" == translateY* ]]'
+ok "a timed event's time and title are ink, not white on nothing (light mode)" '[[ $(C "(()=>{const c=document.querySelector(\".cal-chip.is-timed\"); return c ? getComputedStyle(c).color : \"none\"})()") == "\"rgb(28, 28, 30)\"" ]]'
 ok "…and settles a week on (whole weeks, not months)" '[[ $(C "(()=>{const w=document.querySelector(\".cal-mscroll\").getBoundingClientRect(); const c=[...document.querySelectorAll(\".cal-mcell\")].find(c=>c.getBoundingClientRect().top>=w.top-1); return c.dataset.key})()") == "\"2026-10-05\"" ]]'
 C "window.__swipe(3,'y')" >/dev/null
 ok "the title follows the month that fills the screen" '[[ "$(first)" == "November 2026" ]]'

@@ -438,6 +438,10 @@
 :root[data-theme="minimal"] .cal .cal-event-title,
 :root[data-theme="minimal"] .cal .cal-chip,
 :root[data-theme="minimal"] .cal .cal-task-name { font-family: var(--sans); font-weight: 700; font-size: 12px; letter-spacing: -0.005em; color: #FFFFFF; }
+/* A timed event in a month cell is a dot, the time and the title on no
+   background (the dot carries the colour), so its text is ink, not white. */
+:root[data-theme="minimal"] .cal .cal-chip.is-timed { color: var(--ink); }
+:root[data-theme="minimal"] .cal .cal-chip.is-timed::before { content: none; }
 :root[data-theme="minimal"] .cal .cal-event-time,
 :root[data-theme="minimal"] .cal .cal-event-link { font-family: var(--sans); font-weight: 400; font-size: 11px; color: rgb(255 255 255 / 0.8); opacity: 1; }
 :root[data-theme="minimal"] .cal .cal-task-box,
