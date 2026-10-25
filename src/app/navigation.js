@@ -3,6 +3,7 @@
 // and restoring them from .opal/workspace.json. Moved out of renderer.js
 // unchanged.
 
+import { refreshExplorer } from '../explorer.js';
 import { activeTabId, bookmarksData, calendar, corkboard, current, describeAfterOpen, examPaper, homeStickies, homeWidgets, moneyState, moneyView, movingTo, newTabAt, nextTabId, queue, reviewView, schoolView, screen, setActiveTabId, setCalendar, setCorkboard, setCurrent, setDescribeAfterOpen, setExamPaper, setHomeStickies, setHomeWidgets, setMoneyState, setMoneyView, setMovingTo, setNewTabAt, setNextTabId, setQueue, setReviewView, setSchoolView, setScreen, setTabs, setTasksView, setTree, setWorkspaceTimer, tabs, tasksView, tree, vault, vaultSettings, workspaceTimer } from './state.js';
 import { noteName, parentOf, relativeDay } from '../format.js';
 import { addButton, bookmarkTarget, chrome, colorMenu, colourSwatches, compileManuscript, describeFolder, folderLabel, itemMenuItems, newFolder, newNote, openLink, rearrange, reminders, renameFolderFromHome, showAsDatabase, showWordCount, sidebar, tabBar, toggleBookmarkOf, viewEl } from '../renderer.js';
@@ -78,6 +79,7 @@ export function navigate(task) {
 export async function reloadTree() {
   setTree(await window.opal.listFiles());
   sidebar.setTree(tree);
+  refreshExplorer();
   reminders.refresh();
   updateCardsDue();
 }

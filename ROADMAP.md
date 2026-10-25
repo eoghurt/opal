@@ -369,6 +369,18 @@ in the hidden `.opal` folder, so the vault still opens cleanly in Obsidian.
   src/fidgets/flow` and put back the lines that hook them up (`git diff
   v0.17.0 v0.18.0` shows every one).
 
+## v0.19 — The explorer (done)
+- **⌘O opens the explorer** (mockups: https://claude.ai/artifact/LRsQpE1hU4TWqCNxMTH7M6): the
+  vault in columns or as a list (remembered in .opal/settings.json), opened on
+  the note you're in, 24 px rows. ⌘\ or the pane buttons split it into 2 or 3
+  panes, each on its own folder; dragging files (⌘-click or ⇧-click for several)
+  onto a folder in another pane moves them on disk, links updated, with Undo.
+  Right-click is the sidebar's menu. Typing searches as before (names, then
+  lines inside notes); Escape clears, then closes. ⌘⇧F opens it ready to search.
+- search.js is gone (src/explorer.js does both); ⌘\ still hides the sidebar
+  when the explorer is closed. Check v57.
+- Not yet: ⌥-drag to copy (Opal has no way to copy a file yet).
+
 ## Fidget ideas
 Ethan's:
 - **Bouldering tracker** — problems by gym, wall, grade and colour; sends,

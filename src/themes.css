@@ -221,8 +221,7 @@
 :root[data-theme] .table-picker,
 :root[data-theme] .repeat-picker,
 :root[data-theme] .otable-pop,
-:root[data-theme] .otable-menu,
-:root[data-theme] .search-box {
+:root[data-theme] .otable-menu {
   background: var(--paper-2);
   color: var(--ink);
   border: 1px solid var(--line);
@@ -249,8 +248,7 @@
 :root[data-theme] .ask-choice.is-primary { background: var(--strong); color: var(--on-strong); border-color: transparent; }
 :root[data-theme] .cal-pop-select,
 :root[data-theme] .ask-input,
-:root[data-theme] .task-edit-select,
-:root[data-theme] .search-input {
+:root[data-theme] .task-edit-select {
   border: 1px solid var(--line);
   background: var(--paper-2);
   color: var(--ink);
@@ -571,10 +569,6 @@
 
 /* ---------- Things with a light colour fill keep dark text (dark mode) ---------- */
 
-:root[data-theme] .search-row.is-active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); color: var(--ink); }
-:root[data-theme] .search-row.is-active * { color: inherit; }
-:root[data-theme] .search-kind { font-family: var(--sans); text-transform: none; letter-spacing: 0; }
-:root[data-theme] .search-count { border-radius: 999px; border-color: var(--line); }
 :root[data-mode="dark"] .cm-highlight,
 :root[data-mode="dark"] .sticky,
 :root[data-mode="dark"] .sticky-text,
@@ -1050,20 +1044,6 @@ body, :root[data-theme] body { background: var(--frame); }
 :is(:root, :root[data-theme]) .type-block { min-height: 0; height: 52px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--item-color, #F2D38A) 30%, var(--paper-2)) !important; }
 :is(:root, :root[data-theme]) .type-block-ext { font-size: 15px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-3); }
 
-/* Search: a rounded card, quiet rows, a soft highlight */
-:is(:root, :root[data-theme]) .search-box { border: 0; border-radius: 16px; background: var(--paper-2); box-shadow: 0 0 0 0.5px rgb(var(--ink-rgb) / 0.08), 0 16px 40px rgb(var(--ink-rgb) / 0.18); transform: none; overflow: hidden; }
-:is(:root, :root[data-theme]) .search-input { margin: 6px 16px 12px; padding: 10px 14px; border: 0; border-radius: 12px; background: rgb(var(--ink-rgb) / 0.05); font: 600 20px var(--sans); letter-spacing: -0.01em; }
-:is(:root, :root[data-theme]) .search-results { border-top: 0; background: transparent; }
-:is(:root, :root[data-theme]) .search-section { padding: 10px 16px 4px; border: 0; background: transparent; font-size: 11px; color: var(--ink-4); }
-:is(:root, :root[data-theme]) .search-row { margin: 0 8px; padding: 7px 10px; border: 0; border-radius: 9px; }
-:is(:root, :root[data-theme]) .search-row.is-active { background: rgb(var(--ink-rgb) / 0.06); box-shadow: none; }
-:is(:root, :root[data-theme]) .search-kind { width: auto; min-width: 44px; font-size: 11.5px; color: var(--ink-4); }
-:is(:root, :root[data-theme]) .search-name, :is(:root, :root[data-theme]) .search-file-name { font-weight: 600; }
-:is(:root, :root[data-theme]) .search-path { font-family: var(--sans); font-style: normal; font-size: 12.5px; color: var(--ink-3); }
-:is(:root, :root[data-theme]) .search-file { padding: 10px 18px 2px; }
-:is(:root, :root[data-theme]) .search-count { border: 0; border-radius: 999px; background: rgb(var(--ink-rgb) / 0.06); font-family: var(--sans); font-size: 11px; color: var(--ink-3); }
-:is(:root, :root[data-theme]) .search-snippet mark { padding: 0 1px; border: 0; border-radius: 2px; background: rgb(255 210 63 / 0.55); color: inherit; }
-:is(:root, :root[data-theme]) .search-foot { border-top: 1px solid var(--line-soft); font-size: 11px; }
 
 /* Right-click menus: a soft tint on the row you're on, plain hints */
 :is(:root, :root[data-theme]) .ctx-item:hover:not(:disabled),

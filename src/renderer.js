@@ -61,7 +61,7 @@ import { askName, h, scribbleArrow } from './ui.js';
 import { findFile, findFolder, flattenFiles, countNotes } from './tree.js';
 import { noteName, parentOf, relativeDay, shortDate } from './format.js';
 import { Reminders } from './fidgets/calendar/reminders.js';
-import { openSearch } from './search.js';
+import { openExplorer, isExplorerOpen, splitExplorer, closeExplorer } from './explorer.js';
 import { openCreateItem } from './create-popover.js';
 import { openHistory } from './history-view.js';
 import { DatabaseView, PRESETS } from './fidgets/database/database-view.js';
@@ -94,7 +94,7 @@ import {
   activateTab, activeTab, closeCurrent, closeTab, crumbsFor, currentPlace, drawTabs, enqueue, flushHomeStickies, folderHomeOptions, goHistory, inNewTab, leaveCalendar, moveTab, navigate, newTab, openFile, openFolder, openFromTab, reloadTree, remember, renamePlaces, restoreTabs, rememberTabScroll, samePlace, schoolTabs, setTitle, showCrumbs, showHome, showPlace, showWelcome, stepTab, tabFileMenu, tabMenu, tabPlace, togglePin,
 } from './app/navigation.js';
 import {
-  addExamTracker, homeFidgets, loadVaultSettings, readTaskList, listenForOpenerMenu, showCalendar, showMoney, showNote, showReview, showSettings, showTasks, taskListNodes,
+  addExamTracker, homeFidgets, loadVaultSettings, readTaskList, saveVaultSettings, listenForOpenerMenu, showCalendar, showMoney, showNote, showReview, showSettings, showTasks, taskListNodes,
 } from './app/screens.js';
 import {
   installShortcuts,
@@ -139,7 +139,7 @@ const chrome = new Chrome(document.getElementById('rail'), document.getElementBy
   onCalendar: (date) => showCalendar(date),
   onSearch: () => startSearch('open'),
   onTasks: () => showTasks(),
-  onToggleSidebar: () => document.getElementById('sidebar').panel.toggle(),
+  onToggleSidebar: () => (isExplorerOpen() ? splitExplorer() : document.getElementById('sidebar').panel.toggle()),
   sidebarClosed: () => document.getElementById('sidebar').panel.isClosed(),
   fidgets: () => (vault ? homeFidgets() : []),
   railPlace: () => ({ money: 'money', calendar: 'calendar', tasks: 'tasks', review: 'flashcards', settings: 'settings' })[screen.kind] || null,
@@ -265,18 +265,44 @@ async function renameFolderFromHome(folderPath, next, { describe = false } = {})
 
 // ---------- Search ----------
 
+// ⌘O / ⌘⇧F: the explorer (src/explorer.js), which also searches.
 function startSearch(mode) {
   if (!vault) return;
-  openSearch({
+  openExplorer({
     tree: () => tree,
+    vaultName: vault.name,
+    // Where the window is: the open note and its folder, or the folder shown.
+    here: () => (current ? { folder: parentOf(current.filePath), file: current.filePath }
+      : { folder: screen && screen.kind === 'home' ? screen.folderPath || '' : '', file: null }),
     search: (query) => window.opal.search(query),
-    openFile: (path) => openFile(path),
-    openFolder: (path) => openFolder(path),
+    openFile: (path, newTab) => (newTab ? inNewTab(() => openFile(path)) : openFile(path)),
+    openFolder: (path, newTab) => (newTab ? inNewTab(() => openFolder(path)) : openFolder(path)),
     openAt: async (path, line, column, length) => {
       await openFile(path);
       if (current && current.filePath === path && current.editor.goToLine) current.editor.goToLine(line, column, length);
     },
+    move: (path, kind, dest) => moveInto(path, kind, dest),
+    // A row: the sidebar's own menu (Open closes the explorer first).
+    menu: (event, node, custom) => {
+      if (custom) return showMenu(event, custom);
+      const kind = node.type === 'folder' ? 'folder' : 'file';
+      const at = { clientX: event.clientX, clientY: event.clientY };
+      const items = itemMenuItems(node, kind, at).map((item) => (item && typeof item === 'object' && /^Open( in new tab)?$/.test(item.label)
+        ? { ...item, onSelect: () => { closeExplorer(); item.onSelect(); } } : item));
+      return showMenu(event, { title: kind === 'folder' ? node.name : noteName(node.path), items, extra: colourSwatches(node, kind) });
+    },
+    view: () => (vaultSettings.explorer && vaultSettings.explorer.view) || 'columns',
+    setView: (view) => saveVaultSettings({ explorer: { ...(vaultSettings.explorer || {}), view } }),
+    toast: (text, undo) => showToast(text, { kind: 'info', actions: [{ label: 'Undo', run: undo }] }),
   }, { mode });
+}
+
+// Moves a page, file or folder into another folder (the explorer's drags);
+// → its new path, or null if it couldn't.
+function moveInto(path, kind, dest) {
+  const node = kind === 'folder' ? findFolder(tree, path, vault.name) : findFile(tree, path);
+  if (!node) return Promise.resolve(null);
+  return rearrange(node, { path: dest }, 'into');
 }
 
 function openReminder(open) {
@@ -775,15 +801,18 @@ function openNoteIsIn(path, kind) {
 
 // Dragging: move `item` into a folder ('into'), or next to `target`
 // ('before' / 'after'), saving that folder's own order.
+// → the item's new path (or null if it couldn't move).
 async function rearrange(item, target, zone) {
   const kind = item.type === 'folder' ? 'folder' : 'file';
   const destFolder = zone === 'into' ? target.path : parentOf(target.path);
+  let moved = item.path;
   try {
     if (parentOf(item.path) !== destFolder) {
       // The open note (or one inside a moved folder) is saved first and reopened after.
       const reopen = openNoteIsIn(item.path, kind) ? current.filePath : null;
       if (reopen) await current.editor.flush();
       const newPath = await window.opal.moveItem(item.path, kind, destFolder);
+      moved = newPath;
       renamePlaces(item.path, newPath, kind === 'folder');
       if (reopen) {
         current.editor.destroy();
@@ -807,9 +836,11 @@ async function rearrange(item, target, zone) {
     }
     await reloadTree();
     refreshFiles();
+    return moved;
   } catch (err) {
     showToast(`Couldn't move “${item.name.replace(/\.md$/i, '')}”.`, { detail: err.message });
     refreshFiles();
+    return null;
   }
 }
 

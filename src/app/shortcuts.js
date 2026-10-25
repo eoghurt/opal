@@ -3,6 +3,7 @@
 // renderer.js unchanged; renderer.js calls installShortcuts() where they were.
 
 import { newFolder, newNote, openReminder, startSearch } from '../renderer.js';
+import { isExplorerOpen, splitExplorer } from '../explorer.js';
 import { activeTabId, setNewTabAt, tabs, vault } from './state.js';
 import { activateTab, closeTab, goHistory, newTab, openFolder, stepTab, togglePin } from './navigation.js';
 import { showCalendar, showMoney, showSettings, showTasks } from './screens.js';
@@ -63,7 +64,8 @@ export function installShortcuts() {
 
   window.opal.onShowPalettes(() => showSettings());
 
-  window.opal.onToggleSidebar(() => document.getElementById('sidebar').panel.toggle());
+  // ⌘\ hides the sidebar, or splits the explorer while that's open.
+  window.opal.onToggleSidebar(() => (isExplorerOpen() ? splitExplorer() : document.getElementById('sidebar').panel.toggle()));
 
   window.opal.onShowCalendar(() => showCalendar());
 
