@@ -46,7 +46,7 @@ drag "School/English/Essay plan.md" ".xp-pane:nth-child(2) [data-path=\"School/E
 ok "dropping a file on its own folder does nothing" '[[ -f "$EN/Essay plan.md" ]]'
 
 split
-ok "⌘\\ again: 3 panes, each one column" '[[ $(C "document.querySelectorAll(\".xp-pane\").length") == 3 && $(C "document.querySelectorAll(\".xp-pane:nth-child(3) .xp-col\").length") == 1 ]]'
+ok "⌘\\ again: 3 panes, each keeping every column, scrolled to the newest" '[[ $(C "document.querySelectorAll(\".xp-pane\").length") == 3 && $(C "(()=>{const c=document.querySelector(\".xp-pane:nth-child(1) .xp-cols\"); return c.scrollWidth > c.clientWidth && c.scrollLeft + c.clientWidth >= c.scrollWidth - 2})()") == true ]]'
 C --key "Meta+2" >/dev/null; sleep 0.2
 ok "⌘2 moves to the second pane" '[[ $(C "[...document.querySelectorAll(\".xp-pane\")].findIndex(p=>p.classList.contains(\"is-focus\"))") == 1 ]]'
 C "document.querySelector('.xp-pane:nth-child(3) .xp-close').click(); 1" >/dev/null; sleep 0.2
@@ -63,6 +63,15 @@ ok "…and is remembered in the vault's .opal/settings.json" 'grep -q "\"view\":
 C --key Escape >/dev/null; sleep 0.3; xopen
 ok "reopening keeps the list view" '[[ $(C "document.querySelectorAll(\".xp-col.is-list\").length") == 1 ]]'
 C "document.querySelector('.xp-tool[aria-label=\"Columns\"]').click(); 1" >/dev/null; sleep 0.3
+
+# ---- Deep folders: every column stays, and the row scrolls sideways ----
+mkdir -p "$EN/Drafts/Old"; printf -- '# Draft 1\n' > "$EN/Drafts/Old/Draft 1.md"; sleep 1.5
+C --key Escape >/dev/null; sleep 0.3
+openfile "Draft 1"; sleep 0.4; xopen
+ok "a note 5 folders deep shows all 5 columns, scrolled to the end" '[[ $(C "document.querySelectorAll(\".xp-col\").length") == 5 && $(C "(()=>{const c=document.querySelector(\".xp-cols\"); return c.scrollWidth > c.clientWidth && c.scrollLeft + c.clientWidth >= c.scrollWidth - 2})()") == true ]]'
+ok "…and scrolls back to the vault's column" '[[ $(C "(()=>{const c=document.querySelector(\".xp-cols\"); c.scrollLeft = 0; return c.scrollLeft === 0 && c.querySelector(\".xp-col\").getBoundingClientRect().left >= c.getBoundingClientRect().left - 1})()") == true ]]'
+
+C --key Escape >/dev/null; sleep 0.3; openfile "Essay plan"; sleep 0.4; xopen
 
 # ---- Typing searches; Escape clears, then closes ----
 C "(()=>{const i=document.querySelector('.xp-input'); i.value='essay'; i.dispatchEvent(new Event('input')); return 1})()" >/dev/null; sleep 1.2

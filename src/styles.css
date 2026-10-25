@@ -2295,10 +2295,13 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .xp-slash { color: var(--ink-4); }
 .xp-close { margin-left: auto; flex: 0 0 auto; width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-4); font-size: 15px; line-height: 1; cursor: pointer; }
 .xp-close:hover { color: var(--ink); background: rgb(var(--ink-rgb) / 0.06); }
-.xp-cols { flex: 1; display: flex; min-height: 0; }
-.xp-col { flex: 1 1 0; min-width: 0; padding: 4px; overflow-y: auto; border-left: 1px solid var(--line-soft); }
+.xp-cols { flex: 1; display: flex; min-height: 0; overflow-x: auto; overscroll-behavior-x: contain; }
+.xp-col { flex: 0 0 220px; min-width: 0; padding: 4px; overflow-y: auto; border-left: 1px solid var(--line-soft); }
+.xp-panes.is-2 .xp-col, .xp-panes.is-3 .xp-col { flex-basis: 190px; }
 .xp-col:first-child { border-left: 0; }
-.xp-col.is-last:not(:first-child) { flex-grow: 1.5; }
+.xp-col.is-last { flex: 1 0 260px; }
+.xp-panes.is-3 .xp-col.is-last { flex-basis: 200px; }
+.xp-col.is-list { flex: 1 1 auto; }
 .xp-row { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 13px; white-space: nowrap; cursor: default; user-select: none; }
 .xp-row:hover { background: rgb(var(--ink-rgb) / 0.04); }
 .xp-row.is-path { background: rgb(var(--ink-rgb) / 0.06); }

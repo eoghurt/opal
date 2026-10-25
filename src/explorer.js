@@ -20,7 +20,6 @@ import { kindOf } from './file-types.js';
 
 const NAME_LIMIT = 8;
 const MAX_PANES = 3;
-const COLUMNS_FOR = { 1: 3, 2: 2, 3: 1 }; // columns each pane shows
 
 const parentOf = (path) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 const nameOf = (node) => (node.type === 'folder' ? node.name : node.name.replace(/\.md$/i, ''));
@@ -236,7 +235,7 @@ export function openExplorer(io, { mode = 'open' } = {}) {
       trail.push(h('span', { class: 'xp-slash' }, '/'), h('button', { type: 'button', class: `xp-crumb${k === parts.length - 1 ? ' is-here' : ''}`, onclick: go(path) }, part));
     });
     // Keep the end of a long path in view.
-    const keep = trail.length > 7 ? [trail[0], h('span', { class: 'xp-slash' }, '/ … /'), ...trail.slice(-4)] : trail;
+    const keep = trail.length > 7 ? [trail[0], h('span', { class: 'xp-slash' }, '/ …'), ...trail.slice(-4)] : trail;
     return h('div', { class: 'xp-phead', 'data-drop': folder },
       h('span', { class: 'xp-crumbs' }, keep),
       panes.length > 1 ? h('button', {
@@ -330,10 +329,10 @@ export function openExplorer(io, { mode = 'open' } = {}) {
       return h('div', { class: 'xp-col', 'data-drop': folderPath, role: 'listbox', 'aria-label': folderPath || io.vaultName },
         items.length ? items.map((n) => row(n, pane, i, { path: n.path === next })) : h('p', { class: 'xp-empty' }, 'Empty'));
     });
-    const keep = COLUMNS_FOR[panes.length] || 1;
-    const visible = cols.slice(-keep);
-    if (visible.length) visible[visible.length - 1].classList.add('is-last');
-    return h('div', { class: 'xp-cols' }, visible);
+    // Every column from the vault down; the row scrolls sideways (trackpad or
+    // ⇧-scroll) and is kept scrolled to the newest column (see drawPanes).
+    if (cols.length) cols[cols.length - 1].classList.add('is-last');
+    return h('div', { class: 'xp-cols' }, cols);
   };
 
   const listRows = (pane) => {
@@ -360,7 +359,8 @@ export function openExplorer(io, { mode = 'open' } = {}) {
       'aria-label': `Pane ${i + 1}`,
       onmousedown: () => { focus = i; },
     }, crumbs(pane, i), view === 'list' ? listPane(pane, i) : columnsPane(pane, i)))));
-    body.querySelectorAll('.xp-row.is-sel').forEach((el) => el.scrollIntoView({ block: 'nearest' }));
+    body.querySelectorAll('.xp-cols').forEach((el) => { el.scrollLeft = el.scrollWidth; });
+    body.querySelectorAll('.xp-row.is-sel').forEach((el) => el.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
     status.textContent = '';
     foot.replaceChildren(...[
       '↵ open', '⌘↵ new tab', panes.length > 1 ? 'drag to move' : '⌘\\ split', panes.length > 1 ? '⌘1–3 pane' : null,
