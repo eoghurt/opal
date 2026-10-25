@@ -40,6 +40,35 @@ if (flag === '--drag') {
   await wait(200);
   await done('"dragged"');
 }
+// A real drag-and-drop (HTML5 draggable): press, move until Chrome starts a
+// drag, then drop at x2,y2. Prints "no drag started" if the page stopped it.
+if (flag === '--dnd') {
+  const [x1, y1, x2, y2] = arg.split(',').map(Number);
+  await send('Input.setInterceptDrags', { enabled: true });
+  let data = null;
+  ws.addEventListener('message', (m) => {
+    const d = JSON.parse(m.data);
+    if (d.method === 'Input.dragIntercepted') data = d.params.data;
+  });
+  const ev = (type, x, y, buttons) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons, clickCount: 1 });
+  await ev('mousePressed', x1, y1, 1);
+  for (let i = 1; i <= 12 && !data; i++) { await wait(16); await ev('mouseMoved', x1 + ((x2 - x1) * i) / 12, y1 + ((y2 - y1) * i) / 12, 1); }
+  await wait(100);
+  if (!data) {
+    await ev('mouseReleased', x2, y2, 0);
+    await send('Input.setInterceptDrags', { enabled: false });
+    await done('"no drag started"');
+  }
+  const drag = (type) => send('Input.dispatchDragEvent', { type, x: x2, y: y2, data });
+  await drag('dragEnter');
+  await drag('dragOver');
+  await wait(50);
+  await drag('drop');
+  await ev('mouseReleased', x2, y2, 0);
+  await send('Input.setInterceptDrags', { enabled: false });
+  await wait(200);
+  await done('"dropped"');
+}
 if (flag === '--move') {
   const [x, y] = arg.split(',').map(Number);
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });

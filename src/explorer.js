@@ -264,8 +264,10 @@ export function openExplorer(io, { mode = 'open' } = {}) {
     rowIcon(node),
     h('span', { class: 'xp-name' }, nameOf(node)),
     count != null ? h('span', { class: 'xp-count' }, String(count)) : null);
-    el.addEventListener('mousedown', (e) => { if (e.button === 0 && !e.metaKey && !e.shiftKey) e.preventDefault(); });
+    // (No preventDefault on mousedown here: it would stop drags from starting.
+    // Typing focus goes back to the box after a click or a drag instead.)
     el.addEventListener('click', (e) => {
+      input.focus({ preventScroll: true });
       focus = i;
       if (view === 'list' && folder && e.target.closest('.xp-chev')) {
         if (pane.open.has(node.path)) pane.open.delete(node.path); else pane.open.add(node.path);
@@ -291,6 +293,7 @@ export function openExplorer(io, { mode = 'open' } = {}) {
     });
     el.addEventListener('dragend', () => {
       dragging = null;
+      input.focus({ preventScroll: true });
       body.querySelectorAll('.is-ghost, .is-drop').forEach((r) => r.classList.remove('is-ghost', 'is-drop'));
     });
     return el;

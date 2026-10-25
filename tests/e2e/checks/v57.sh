@@ -4,8 +4,10 @@ EN="$V/School/English"
 xopen() { M "require('electron').BrowserWindow.getAllWindows()[0].webContents.send('ui:search','open')" >/dev/null; sleep 0.8; }
 split() { M "require('electron').BrowserWindow.getAllWindows()[0].webContents.send('ui:toggle-sidebar')" >/dev/null; sleep 0.5; }
 sel() { C "[...document.querySelectorAll('.xp-pane')][${1:-0}].querySelector('.xp-row.is-sel .xp-name')?.textContent || ''" | tr -d '"'; }
-# Drags the row at path $1 onto the drop target $2 (a CSS selector), as the mouse would.
-drag() { C "(()=>{const src=document.querySelector('[data-path=\"$1\"]'); const dst=document.querySelector('$2'); if(!src||!dst) return 'missing'; const dt=new DataTransfer(); src.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:dt})); dst.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt})); const lit=dst.classList.contains('is-drop'); dst.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt})); src.dispatchEvent(new DragEvent('dragend',{bubbles:true})); return lit})()"; }
+# Whether the drop target $2 lights up while the row at path $1 is dragged over it.
+lit() { C "(()=>{const src=document.querySelector('[data-path=\"$1\"]'); const dst=document.querySelector('$2'); if(!src||!dst) return 'missing'; const dt=new DataTransfer(); src.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:dt})); dst.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt})); const on=dst.classList.contains('is-drop'); src.dispatchEvent(new DragEvent('dragend',{bubbles:true})); return on})()"; }
+# A real mouse drag of the row at path $1 onto $2 (a CSS selector), as Chrome does it.
+drag() { local a=$(xy "document.querySelector('[data-path=\"$1\"]')"); local b=$(xy "document.querySelector('$2')"); C --dnd "$a,$b"; }
 
 openfile "Essay plan"; sleep 0.5
 xopen
@@ -26,8 +28,8 @@ split
 ok "⌘\\ splits the explorer into 2 panes (and leaves the sidebar alone)" '[[ $(C "document.querySelectorAll(\".xp-pane\").length") == 2 && $(C "document.getElementById(\"sidebar\").panel.isClosed()") == false ]]'
 C "[...document.querySelectorAll('.xp-pane')][1].querySelector('.xp-crumb:nth-of-type(2)') ? 1 : 0" >/dev/null
 C "[...[...document.querySelectorAll('.xp-pane')][1].querySelectorAll('.xp-crumb')].find(b=>b.textContent==='School').click(); 1" >/dev/null; sleep 0.3
-LIT=$(drag "School/English/Poetry anthology.md" ".xp-pane:nth-child(2) [data-path=\"School/History\"]"); sleep 1.5
-ok "dragging Poetry anthology onto History in the other pane lights it up and moves the file on disk" '[[ "$LIT" == true && -f "$V/School/History/Poetry anthology.md" && ! -f "$EN/Poetry anthology.md" ]]'
+LIT=$(lit "School/English/Poetry anthology.md" ".xp-pane:nth-child(2) [data-path=\"School/History\"]"); DROP=$(drag "School/English/Poetry anthology.md" ".xp-pane:nth-child(2) [data-path=\"School/History\"]"); sleep 1.5
+ok "dragging Poetry anthology (a real mouse drag) onto History in the other pane lights it up and moves the file on disk" '[[ "$LIT" == true && "$DROP" == "\"dropped\"" && -f "$V/School/History/Poetry anthology.md" && ! -f "$EN/Poetry anthology.md" ]]'
 ok "a message says where it went, with Undo" '[[ $(C "[...document.querySelectorAll(\".toast\")].map(t=>t.textContent).join()") == *"Moved Poetry anthology to History"*"Undo"* ]]'
 C "[...document.querySelectorAll('.toast-btn')].find(b=>b.textContent==='Undo').click(); 1" >/dev/null; sleep 1.5
 ok "Undo moves it back" '[[ -f "$EN/Poetry anthology.md" && ! -f "$V/School/History/Poetry anthology.md" ]]'
